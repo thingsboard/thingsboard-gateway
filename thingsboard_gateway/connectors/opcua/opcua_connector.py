@@ -62,7 +62,7 @@ import asyncua
 from asyncua import ua, Node
 from asyncua.ua import NodeId, UaStringParsingError
 from asyncua.common.ua_utils import value_to_datavalue
-from asyncua.ua.uaerrors import BadWriteNotSupported, BadTypeMismatch
+from asyncua.ua.uaerrors import BadWriteNotSupported, BadTypeMismatch, UaInvalidParameterError
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
     SecurityPolicyBasic128Rsa15
 from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
@@ -624,7 +624,31 @@ class OpcUaConnector(Connector, Thread):
     def is_regex_pattern(pattern):
         return not re.fullmatch(pattern, pattern)
 
-    async def __find_nodes(self, node_list_to_search, current_parent_node, nodes, path="Root"):
+    def __find_foreign_node_in_cache(self, name_of_device_node: str):
+        self.__log.debug("Searching cache for foreign node with name '%s' ")
+        candidates = []
+        for key, chain in self.__scanning_nodes_cache.items():
+            if not key or not isinstance(key, str):
+                continue
+            if key.split(".")[-1] != name_of_device_node:
+                continue
+
+            for elem in chain:
+                try:
+                    if isinstance(elem, dict) and elem["path"].split(":")[-1] == name_of_device_node:
+                        candidates.append(elem)
+                        self.__log.debug("Matched cached node for %s with path=%s", name_of_device_node, elem["path"])
+                except KeyError:
+                    self.__log.debug("Cached element under key '%s' is missing 'path' field: %r", key, elem)
+
+                except IndexError:
+                    self.__log.debug("Unexpected path format in cached element under key '%s': %r", key, elem)
+
+        self.__log.debug("Search in cache for '%s' finished, %d candidate found", name_of_device_node, len(candidates))
+
+        return candidates
+
+    async def __find_nodes(self, node_list_to_search, current_parent_node, nodes, path="Root", find_foreign_nodes=False):
         assert len(node_list_to_search) > 0
         final = []
 
@@ -633,11 +657,22 @@ class OpcUaConnector(Connector, Thread):
             node_paths = [node['path'] if isinstance(node, dict) else node for node in nodes]
             target_node_path = '.'.join(node_path.split(':')[-1] for node_path in node_paths) + '.' + \
                                node_list_to_search[0]
+
             if target_node_path in self.__scanning_nodes_cache:
                 if self.__show_map:
                     self.__log.debug('Found node in cache: %s', node_list_to_search[0])
                 final.append(self.__scanning_nodes_cache[target_node_path])
                 return final
+
+            elif find_foreign_nodes and target_node_path:
+                try:
+                    name_of_device_node = target_node_path.split('.')[-1]
+                    node_in_cache = self.__find_foreign_node_in_cache(name_of_device_node)
+                    if node_in_cache:
+                        final.append(node_in_cache)
+                        return final
+                except Exception as e:
+                    self.__log.info("Could not find foreign node in cache for path %s - %s", target_node_path, e)
 
         children = await current_parent_node.get_children()
         children_nodes_count = len(children)
@@ -827,6 +862,28 @@ class OpcUaConnector(Connector, Thread):
 
             device_converted_data_map.clear()
 
+    async def __build_parent_node_descriptors(self, parent_nodes: List[Node]) -> List[Dict[str, Node]]:
+        parent_descriptors: List[Dict[str, Node]] = []
+
+        for node in parent_nodes:
+            try:
+                browse_name = await node.read_browse_name()
+                path = f"{browse_name.NamespaceIndex}:{browse_name.Name}"
+
+                parent_descriptors.append({
+                    "path": path,
+                    "node": node,
+                })
+
+            except UaInvalidParameterError as exc:
+                self.__log.warning("Failed to read browse name for parent node %s while building "
+                                   "device base path descriptors: %s", node, exc)
+
+            except Exception as exc:
+                self.__log.error("Unexpected error while building parent descriptor for node %s: %s", node, exc)
+
+        return parent_descriptors
+
     async def __scan_device_nodes(self):
         await self._create_new_devices()
         await self._load_devices_nodes()
@@ -834,15 +891,31 @@ class OpcUaConnector(Connector, Thread):
     async def __get_device_base_nodes(self, device_node_pattern):
         try:
             if self.__is_node_identifier(device_node_pattern):
+                self.__log.debug("Resolving device base nodes from NodeId pattern '%s'", device_node_pattern)
+
                 node_id = NodeId.from_string(device_node_pattern)
                 node = self.__client.get_node(node_id)
-                node_browse_name = await node.read_browse_name()
-                return [[{'path': f'{node_browse_name.NamespaceIndex}:{node_browse_name.Name}', 'node': node}]]
+
+                parent_nodes = await node.get_path()
+
+                parent_nodes_without_root = parent_nodes[1:]
+
+                if not parent_nodes_without_root:
+                    self.__log.debug("No parents nodes found for node %s", node)
+                    return []
+
+                parent_descriptors = await self.__build_parent_node_descriptors(parent_nodes=parent_nodes_without_root)
+
+                if not parent_descriptors:
+                    self.__log.debug("No parent descriptors were built for node %s", node)
+                return [parent_descriptors] if parent_descriptors else []
+
             elif self.__is_absolute_path(device_node_pattern):
                 nodes = await self.find_nodes(device_node_pattern)
                 return nodes
             else:
                 return []
+
         except Exception as e:
             self.__log.error('Error finding device base nodes by pattern %s: %s', device_node_pattern, e)
             return []
@@ -1169,7 +1242,7 @@ class OpcUaConnector(Connector, Thread):
                 node_pattern = params.replace('.', '\\.')
                 return node_pattern, current_path
             names = [v.split(':', 1)[1] for v in device.path]
-            node_pattern = "Root\\." + r"\.".join(names) + r'\.' + params
+            node_pattern = "Root\\." + r"\.".join(names) + r'\.' + params.split('\\.')[-1]
             current_path = 'Root.' + '.'.join(names)
             return node_pattern, current_path
         except Exception as e:
@@ -1181,7 +1254,7 @@ class OpcUaConnector(Connector, Thread):
             node_pattern, current_path = self.get_rpc_node_pattern_and_base_path(params, device, logger=self.__log)
             node_list = node_pattern.split("\\.")[-1:]
             nodes = []
-            find_task = self.__find_nodes(node_list, device.device_node, nodes, current_path)
+            find_task = self.__find_nodes(node_list, device.device_node, nodes, current_path, find_foreign_nodes=True)
             task = self.__loop.create_task(find_task)
             found_task_completed, found_nodes = self.__wait_task_with_timeout(task=task, timeout=10, poll_interval=0.2)
             if not found_task_completed:

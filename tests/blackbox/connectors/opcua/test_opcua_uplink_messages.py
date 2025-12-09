@@ -87,6 +87,23 @@ class OpcUaUplinkMessagesTest(BaseOpcuaTest):
             self.assertEqual(value, actual_values[_type][0]['value'],
                              f'Value is not equal for the next telemetry key: {_type}')
 
+    def test_opcua_with_relative_path_and_identifier_as_device_node(self):
+        (config, _) = self.change_connector_configuration(
+            self.CONFIG_PATH + 'configs/uplink_configs/opcua_uplink_converter_relative_path_with_identifier_device_node.json')
+        telemetry_keys = [
+            key['key']
+            for conf_list in config[self.CONNECTOR_NAME]['configurationJson']['mapping']
+            for key in conf_list['timeseries']
+        ]
+        sleep(self.GENERAL_TIMEOUT)
+        actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/uplink/different_paths_finding_methods_values.json'
+        )
+        for (_type, value) in expected_values.items():
+            self.assertEqual(value, actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
 
 if __name__ == '__main__':
     unittest.main()
