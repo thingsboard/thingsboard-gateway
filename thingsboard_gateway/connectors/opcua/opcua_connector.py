@@ -982,6 +982,22 @@ class OpcUaConnector(Connector, Thread):
                         path = node.get('qualified_path', node['path'])
                         if self.__is_node_identifier(path):
                             found_node = self.__client.get_node(path)
+                            try:
+                                node_path = node['path']
+                                node_browse_name = await found_node.read_browse_name()
+                                current_node_path = '.'.join([
+                                    node_path.split(':')[-1],
+                                    node_browse_name.Name
+                                ])
+                                self.__scanning_nodes_cache[current_node_path] = [{
+                                    "path": f"{node_browse_name.NamespaceIndex}:{node_browse_name.Name}",
+                                    "node": found_node,
+                                }]
+                            except (KeyError, IndexError) as e:
+                                self.__log.debug('Failed to cache node %s, - %s', found_node, str(e))
+
+                            except Exception as e:
+                                self.__log.debug("Unexpected error occurred caching node %s, - %s ", found_node, str(e))
                         else:
                             if not isinstance(path, Node):
                                 if len(path[-1].split(':')) != 2:
