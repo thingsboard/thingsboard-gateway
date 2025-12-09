@@ -627,7 +627,7 @@ class AsyncBACnetConnector(Thread, Connector):
                 ref_object_id: ObjectIdentifier = ref_object.objectIdentifier
                 ref_pv: PropertyIdentifier = await self.__application.read_property(address, ref_object_id, "presentValue")
                 value_type = ref_pv.__class__
-                self.__log.debug("using value type: %s", value_type)
+                self.__log.debug(f"using value type: {value_type} for schedule {object_id}")
                 value = await self.__prepare_weekly_schedule_value(value, value_type)
 
             if property_id == "listOfObjectPropertyReferences":
