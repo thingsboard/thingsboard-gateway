@@ -1,3 +1,17 @@
+#     Copyright 2025. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
 import time
 from re import findall
 
@@ -11,10 +25,12 @@ from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.connectors.mqtt.utils import Utils
 
 
 class BytesMqttUplinkConverter(MqttUplinkConverter):
     SUPPORTS_BYTES_PAYLOAD = True
+
     def __init__(self, config, logger):
         self.__config = config.get('converter')
         self._log = logger
@@ -43,14 +59,21 @@ class BytesMqttUplinkConverter(MqttUplinkConverter):
         except ValueError as e:
             self._log.trace("Report strategy config is not specified for device %s: %s", device_name, e)
 
-        converted_data = ConvertedData(device_name=device_name,
-                                       device_type=self.parse_data(self.__config['deviceInfo']['deviceProfileExpression'], data))
+        device_type = self.parse_data(self.__config['deviceInfo']['deviceProfileExpression'], data)
+        converted_data = ConvertedData(device_name=device_name, device_type=device_type)
         timestamp = int(time.time() * 1000)
         try:
             for datatype in datatypes:
                 for datatype_config in self.__config.get(datatype, []):
-                    key = self.parse_data(datatype_config['key'], data, hex_mode=datatype_config.get('hexMode', False))
-                    value = self.parse_data(datatype_config['value'], data, hex_mode=datatype_config.get('hexMode', False))
+                    if datatype_config.get('keySource', 'message') == 'topic':
+                        key = Utils.get_value_from_topic(topic, datatype_config['key'])
+                    else:
+                        key = self.parse_data(datatype_config['key'],
+                                              data,
+                                              hex_mode=datatype_config.get('hexMode', False))
+                    value = self.parse_data(datatype_config['value'],
+                                            data,
+                                            hex_mode=datatype_config.get('hexMode', False))
                     datapoint_key = TBUtility.convert_key_to_datapoint_key(key,
                                                                            device_report_strategy,
                                                                            datatype_config,
