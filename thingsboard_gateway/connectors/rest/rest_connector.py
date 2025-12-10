@@ -43,11 +43,11 @@ except ImportError:
     from requests import Timeout, request as regular_request
 
 try:
-    from aiohttp import web, BasicAuth
+    from aiohttp import web, BasicAuth, MultipartReader, MultipartWriter, hdrs
 except ImportError:
     print('AIOHTTP library not found - installing...')
     TBUtility.install_package('aiohttp')
-    from aiohttp import web, BasicAuth
+    from aiohttp import web, BasicAuth, MultipartReader, MultipartWriter, hdrs
 
 
 class RESTConnector(Connector, Thread):
@@ -499,10 +499,44 @@ class BaseDataHandler:
     def endpoint(self):
         return self.__endpoint
 
-    @staticmethod
-    async def _convert_data_from_request(request):
+    async def _handle_multipart_data(self, request, result):
+        reader = await request.multipart()
+        async for part in reader:
+            if part.filename:
+                self.log.info(
+                    "File uploads via multipart/form-data are not supported field %s, filename %s will be ignored",
+                    part.name, part.filename)
+                await part.read(decode=False)
+                continue
+
+            field_name = part.name
+            content_type = part.headers.get(hdrs.CONTENT_TYPE, "")
+
+            if content_type.startswith("application/json"):
+                try:
+                    value = await part.json()
+
+                except json.decoder.JSONDecodeError as e:
+                    self.log.warning("Failed to parse JSON multipart field %s ,%s", field_name, e)
+                    value = await part.text()
+
+                except Exception as e:
+                    self.log.warning("An unexpected error occured during json parse %s ,%s", field_name, e)
+                    value = await part.text()
+
+            else:
+                value = await part.text()
+
+            result[field_name] = value
+        return result
+
+    async def _convert_data_from_request(self, request):
         result = dict(request.match_info)
         result.update(dict(request.query))
+
+        if request.content_type == "multipart/form-data":
+            multipart_result = await self._handle_multipart_data(request, result)
+            return multipart_result
 
         if request.method != "GET":
             try:
