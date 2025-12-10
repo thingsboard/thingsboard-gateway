@@ -58,8 +58,8 @@
             },
             {
               "key": "Status",
-              "type": "path",
-              "value": "${Root\\.Objects\\.TempSensor_S\\.Status}"
+              "type": "identifier",
+              "value": "${ns=4;b=U3RhdHVzX1M=}"
             }
           ],
           "rpc_methods": [],
