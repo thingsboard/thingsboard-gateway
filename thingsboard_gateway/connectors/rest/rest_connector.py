@@ -321,7 +321,7 @@ class RESTConnector(Connector, Thread):
                 self.__log.debug('Response from RPC request: %s', response)
                 self.__gateway.send_rpc_reply(device=device,
                                               req_id=content["data"].get('id'),
-                                              content={'result': response[2]} if response and len(response) >= 3 else {'result': response})
+                                              content={'result': response[2]} if response and len(response) >= 3 else {'result': response[0] if response else response })
             else:
                 for rpc_request in self.__rpc_requests:
                     if fullmatch(rpc_request["deviceNameFilter"], content["device"]) and \
