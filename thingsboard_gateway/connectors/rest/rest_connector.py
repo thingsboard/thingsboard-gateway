@@ -383,96 +383,142 @@ class RESTConnector(Connector, Thread):
         self.__rpc_requests = requests_from_tb["serverSideRpc"]
         self.__attribute_updates = requests_from_tb["attributeUpdates"]
 
-    def __send_request(self, request_dict, converter_queue, logger, with_queue=True):
+    def __form_request_from_content_type(self, request_dict):
         url = ""
         try:
             request_dict["next_time"] = time() + request_dict["config"].get("scanPeriod", 10)
-
-            if str(request_dict["config"]["url"]).lower().startswith("http"):
-                url = request_dict["config"]["url"]
+            raw_url = str(request_dict["config"]["url"])
+            if raw_url.lower().startswith("http"):
+                url = raw_url
             else:
-                url = "http://" + request_dict["config"]["url"]
+                url = "http://" + raw_url
+            self.__log.debug("Forming request to URL: %s", url)
 
-            logger.debug(url)
             security = None
-
-            if request_dict["config"].get('security', {}).get('type', 'anonymous').lower() == "basic":
-                security = HTTPBasicAuthRequest(request_dict["config"]["security"]["username"],
-                                                request_dict["config"]["security"]["password"])
-
+            security_configuration = request_dict["config"].get('security', {})
+            security_type = security_configuration.get("type", "anonymous").lower()
+            if security_type == "basic":
+                security = HTTPBasicAuthRequest(security_configuration["username"],
+                                                security_configuration["password"])
             cert = None
-            if request_dict["config"].get('security', {}).get('type', 'anonymous').lower() == "cert":
-                if request_dict["config"]["security"].get('key', ''):
-                    cert = (request_dict["config"]["security"]["cert"], request_dict["config"]["security"]["key"])
+            if security_type == "cert":
+                if security_configuration.get('key', ''):
+                    cert = (security_configuration['cert'], security_configuration['key'])
                 else:
-                    cert = request_dict["config"]["security"]["cert"]
+                    cert = security_configuration['cert']
+            request_timeout = request_dict["config"].get("timeout", 10)
+            configuration = request_dict["config"]
 
-            request_timeout = request_dict["config"].get("timeout")
-
-            data = {"data": request_dict["config"]["data"]}
-            params = {
-                "method": request_dict["config"].get("HTTPMethod", "GET"),
+            base_params = {
+                "method": configuration.get("HTTPMethod", "GET"),
                 "url": url,
                 "timeout": request_timeout,
-                "allow_redirects": request_dict["config"].get("allowRedirects", False),
-                "verify": request_dict["config"].get("SSLVerify"),
+                "allow_redirects": configuration.get("allowRedirects", False),
+                "verify": configuration.get("SSLVerify", True),
                 "auth": security,
-                "cert": cert,
-                **data,
+                "cert": cert
             }
-            logger.debug(url)
+            headers = configuration.get("httpHeaders", {})
+            content_type = headers.get("Content-Type", None)
+            data = configuration.get("data", None)
 
-            if request_dict["config"].get("httpHeaders") is not None:
-                params["headers"] = request_dict["config"]["httpHeaders"]
+            if content_type == "multipart/form-data":
+                files = self.__form_multipart_files(data)
+                base_params["files"] = files
+                multipart_headers = headers.pop("Content-Type", None)
+                if headers:
+                    base_params["headers"] = multipart_headers
+                return base_params
 
-            logger.debug("Request to %s will be sent", url)
-            response = None
-            data_to_storage = []
-            try:
-                if isinstance(params["data"], str):
-                    params["data"] = params["data"].encode("utf-8")
-                response = request_dict["request"](**params)
+            elif content_type == "application/json":
+                if headers:
+                    base_params["headers"] = headers
+                base_params["json"] = data
+                return base_params
 
-            except Timeout:
-                logger.error("Timeout error on request %s.", url)
-                data_to_storage.append({"error": "Timeout", "code": 408})
-            except RequestException as e:
-                logger.error("Cannot connect to %s. Request exception.", url)
-                data_to_storage.append({"error": str(e)})
-                logger.debug(e)
-            except ConnectionError:
-                logger.error("Cannot connect to %s. Connection error.", url)
-                data_to_storage.append({"error": f"Cannot connect to target url: {url}"})
+            if headers:
+                base_params["headers"] = headers
 
-            if response and response.ok:
-                try:
-                    data_to_storage.append(response.json())
-                except UnicodeDecodeError:
-                    data_to_storage.append(response.content)
-                except JSONDecodeError:
-                    data_to_storage.append(response.content)
+            if data is not None:
+                if isinstance(data, (dict, list)):
+                    base_params["data"] = json.dumps(data)
+                    base_params.setdefault("headers", {})
+                    base_params["headers"]["Content-Type"] = "application/json"
+                else:
+                    base_params["data"] = data
+                return base_params
 
-                if len(data_to_storage) == 3 and with_queue and not converter_queue.full():
-                    converter_queue.put(data_to_storage)
-                    self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
-            else:
-                if response is not None:
-                    logger.error("Request to URL: %s finished with code: %i. Cat information: http://http.cat/%i",
-                                 url,
-                                 response.status_code,
-                                 response.status_code)
-                    logger.debug("Response: %r", response.text)
-                    data_to_storage.append({"error": response.reason, "code": response.status_code})
-
-                if with_queue:
-                    converter_queue.put(data_to_storage)
-
-                self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
-
-            if not with_queue:
-                return data_to_storage
         except Exception as e:
-            logger.exception(e)
+            self.__log.error("Failed to form request - %s", str(e))
+
+    def __form_multipart_files(self, data: str):
+        files = []
+        try:
+            json_data = json.loads(data)
+
+            if not isinstance(json_data, dict):
+                self.__log.warning("Multipart data is not a dict: %r", data)
+                return files
+
+            for field_name, field_value in json_data.items():
+                files.append((field_name, (None, str(field_value))))
+            return files
+        except json.decoder.JSONDecodeError as e:
+            self.__log.error("Failed to form multipart files - %s", str(e))
+            return files
+
+    def __send_request(self, request_dict, converter_queue, logger, with_queue=True):
+        params = self.__form_request_from_content_type(request_dict)
+        if not params:
+            logger.error("Cannot form request from given configuration. %s", dumps(request_dict))
+            return None
+        url = params.get("url", "")
+        response = None
+        data_to_storage = []
+        try:
+            if "data" in params and isinstance(params["data"], str):
+                params["data"] = params["data"].encode("utf-8")
+
+            response = request_dict["request"](**params)
+
+        except Timeout:
+            logger.error("Timeout error on request %s.", url)
+            data_to_storage.append({"error": "Timeout", "code": 408})
+        except RequestException as e:
+            logger.error("Cannot connect to %s. Request exception.", url)
+            data_to_storage.append({"error": str(e)})
+            logger.debug(e)
+        except ConnectionError:
+            logger.error("Cannot connect to %s. Connection error.", url)
+            data_to_storage.append({"error": f"Cannot connect to target url: {url}"})
+
+        if response and response.ok:
+            try:
+                data_to_storage.append(response.json())
+            except UnicodeDecodeError:
+                data_to_storage.append(response.content)
+            except JSONDecodeError:
+                data_to_storage.append(response.content)
+
+            if len(data_to_storage) == 3 and with_queue and not converter_queue.full():
+                converter_queue.put(data_to_storage)
+                self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
+        else:
+            if response is not None:
+                logger.error("Request to URL: %s finished with code: %i. Cat information: http://http.cat/%i",
+                             url,
+                             response.status_code,
+                             response.status_code)
+                logger.debug("Response: %r", response.text)
+                data_to_storage.append({"error": response.reason, "code": response.status_code})
+
+            if with_queue:
+                converter_queue.put(data_to_storage)
+
+            self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
+
+        if not with_queue:
+            return data_to_storage
 
 
 class BaseDataHandler:
