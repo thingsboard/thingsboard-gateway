@@ -23,7 +23,6 @@ from time import time, sleep
 import ssl
 import os
 
-from simplejson import dumps, loads
 from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
 from requests.exceptions import RequestException, JSONDecodeError
 
@@ -422,7 +421,7 @@ class RESTConnector(Connector, Thread):
             }
             headers = configuration.get("httpHeaders", {})
             if not isinstance(headers, dict):
-                headers = loads(headers)
+                headers = json.loads(headers)
 
             content_type = headers.get("Content-Type", None)
             data = configuration.get("data", None)
@@ -483,7 +482,7 @@ class RESTConnector(Connector, Thread):
     def __send_request(self, request_dict, converter_queue, logger, with_queue=True):
         params = self.__form_request_from_content_type(request_dict)
         if not params:
-            logger.error("Cannot form request from given configuration. %s", dumps(request_dict))
+            logger.error("Cannot form request from given configuration. %s", json.dumps(request_dict))
             return None
         url = params.get("url", "")
         response = None
@@ -651,7 +650,7 @@ class BaseDataHandler:
 
     @staticmethod
     def attribute_request_callback(content, _):
-        BaseDataHandler.response_attribute_request.put(dumps(content))
+        BaseDataHandler.response_attribute_request.put(json.dumps(content))
 
     def processed_attribute_request(self, data):
         if self.__endpoint.get('type') == 'attributeRequest':
