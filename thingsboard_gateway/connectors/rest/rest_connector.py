@@ -23,7 +23,7 @@ from time import time, sleep
 import ssl
 import os
 
-from simplejson import dumps
+from simplejson import dumps, loads
 from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
 from requests.exceptions import RequestException, JSONDecodeError
 
@@ -339,7 +339,9 @@ class RESTConnector(Connector, Thread):
                         if (content['data'].get('id') is not None) and (response is not None):
                             self.__gateway.send_rpc_reply(device=content["device"],
                                                           req_id=content["data"]["id"],
-                                                          content={'result': response[2]} if response and len(response) >= 3 else {'result': response})
+                                                          content={'result': response[2]} if response and len(
+                                                              response) >= 3 else {
+                                                              'result': response[0] if response else response})
         except Exception as e:
             self.__log.exception(e)
 
@@ -419,15 +421,22 @@ class RESTConnector(Connector, Thread):
                 "cert": cert
             }
             headers = configuration.get("httpHeaders", {})
+            if not isinstance(headers, dict):
+                headers = loads(headers)
+
             content_type = headers.get("Content-Type", None)
             data = configuration.get("data", None)
 
             if content_type == "multipart/form-data":
                 files = self.__form_multipart_files(data)
                 base_params["files"] = files
-                multipart_headers = headers.pop("Content-Type", None)
-                if headers:
-                    base_params["headers"] = multipart_headers
+
+                headers_copy = headers.copy()
+                headers_copy.pop("Content-Type", None)
+
+                if headers_copy:
+                    base_params["headers"] = headers_copy
+
                 return base_params
 
             elif content_type == "application/json":
@@ -464,7 +473,11 @@ class RESTConnector(Connector, Thread):
                 files.append((field_name, (None, str(field_value))))
             return files
         except json.decoder.JSONDecodeError as e:
-            self.__log.error("Failed to form multipart files - %s", str(e))
+            self.__log.error(
+                "Failed to build multipart files. "
+                "Check that HTTP method is not GET and the payload is valid JSON. Error: %s",
+                e
+            )
             return files
 
     def __send_request(self, request_dict, converter_queue, logger, with_queue=True):
