@@ -14,8 +14,7 @@
 
 from ast import literal_eval
 from urllib.parse import quote
-from json import loads
-from simplejson import dumps, loads
+from simplejson import dumps
 from simplejson import JSONDecodeError
 
 from thingsboard_gateway.connectors.rest.rest_converter import RESTConverter

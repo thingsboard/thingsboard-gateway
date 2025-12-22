@@ -23,6 +23,7 @@ from time import time, sleep
 import ssl
 import os
 
+from simplejson import dumps
 from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
 from requests.exceptions import RequestException, JSONDecodeError
 
@@ -42,11 +43,11 @@ except ImportError:
     from requests import Timeout, request as regular_request
 
 try:
-    from aiohttp import web, BasicAuth, MultipartReader, MultipartWriter, hdrs
+    from aiohttp import web, BasicAuth, hdrs
 except ImportError:
     print('AIOHTTP library not found - installing...')
     TBUtility.install_package('aiohttp')
-    from aiohttp import web, BasicAuth, MultipartReader, MultipartWriter, hdrs
+    from aiohttp import web, BasicAuth, hdrs
 
 
 class RESTConnector(Connector, Thread):
@@ -396,17 +397,21 @@ class RESTConnector(Connector, Thread):
             self.__log.debug("Forming request to URL: %s", url)
 
             security = None
-            security_configuration = request_dict["config"].get('security', {})
+            security_configuration = request_dict["config"].get("security", {})
             security_type = security_configuration.get("type", "anonymous").lower()
             if security_type == "basic":
-                security = HTTPBasicAuthRequest(security_configuration["username"],
-                                                security_configuration["password"])
+                security = HTTPBasicAuthRequest(
+                    security_configuration["username"],
+                    security_configuration["password"],
+                )
+
             cert = None
             if security_type == "cert":
-                if security_configuration.get('key', ''):
-                    cert = (security_configuration['cert'], security_configuration['key'])
+                if security_configuration.get("key", ""):
+                    cert = (security_configuration["cert"], security_configuration["key"])
                 else:
-                    cert = security_configuration['cert']
+                    cert = security_configuration["cert"]
+
             request_timeout = request_dict["config"].get("timeout", 10)
             configuration = request_dict["config"]
 
@@ -417,8 +422,9 @@ class RESTConnector(Connector, Thread):
                 "allow_redirects": configuration.get("allowRedirects", False),
                 "verify": configuration.get("SSLVerify", True),
                 "auth": security,
-                "cert": cert
+                "cert": cert,
             }
+
             headers = configuration.get("httpHeaders", {})
             if not isinstance(headers, dict):
                 headers = json.loads(headers)
@@ -438,7 +444,7 @@ class RESTConnector(Connector, Thread):
 
                 return base_params
 
-            elif content_type == "application/json":
+            if content_type == "application/json":
                 if headers:
                     base_params["headers"] = headers
                 base_params["json"] = data
@@ -459,23 +465,24 @@ class RESTConnector(Connector, Thread):
         except Exception as e:
             self.__log.error("Failed to form request - %s", str(e))
 
-    def __form_multipart_files(self, data: str):
+    def __form_multipart_files(self, data: str) -> list:
         files = []
         try:
             json_data = json.loads(data)
-
             if not isinstance(json_data, dict):
-                self.__log.warning("Multipart data is not a dict: %r", data)
+                self.__log.warning(
+                    "Multipart data is not a dict: %r", data
+                )
                 return files
 
             for field_name, field_value in json_data.items():
                 files.append((field_name, (None, str(field_value))))
             return files
-        except json.decoder.JSONDecodeError as e:
+        except json.JSONDecodeError as err:
             self.__log.error(
-                "Failed to build multipart files. "
-                "Check that HTTP method is not GET and the payload is valid JSON. Error: %s",
-                e
+                "Failed to build multipart files. Check that HTTP method is not "
+                "GET and the payload is valid JSON. Error: %s",
+                err,
             )
             return files
 
@@ -562,8 +569,11 @@ class BaseDataHandler:
         async for part in reader:
             if part.filename:
                 self.log.info(
-                    "File uploads via multipart/form-data are not supported field %s, filename %s will be ignored",
-                    part.name, part.filename)
+                    "File uploads via multipart/form-data are not supported. "
+                    "Field %s, filename %s will be ignored",
+                    part.name,
+                    part.filename,
+                )
                 await part.read(decode=False)
                 continue
 
@@ -573,19 +583,25 @@ class BaseDataHandler:
             if content_type.startswith("application/json"):
                 try:
                     value = await part.json()
-
-                except json.decoder.JSONDecodeError as e:
-                    self.log.warning("Failed to parse JSON multipart field %s ,%s", field_name, e)
+                except json.decoder.JSONDecodeError as exc:
+                    self.log.warning(
+                        "Failed to parse JSON multipart field %s: %s",
+                        field_name,
+                        exc,
+                    )
                     value = await part.text()
-
-                except Exception as e:
-                    self.log.warning("An unexpected error occured during json parse %s ,%s", field_name, e)
+                except Exception as exc:
+                    self.log.warning(
+                        "Unexpected error during JSON parse for field %s: %s",
+                        field_name,
+                        exc,
+                    )
                     value = await part.text()
-
             else:
                 value = await part.text()
 
             result[field_name] = value
+
         return result
 
     async def _convert_data_from_request(self, request):
@@ -650,7 +666,7 @@ class BaseDataHandler:
 
     @staticmethod
     def attribute_request_callback(content, _):
-        BaseDataHandler.response_attribute_request.put(json.dumps(content))
+        BaseDataHandler.response_attribute_request.put(dumps(content))
 
     def processed_attribute_request(self, data):
         if self.__endpoint.get('type') == 'attributeRequest':
@@ -719,6 +735,7 @@ class AnonymousDataHandler(BaseDataHandler):
                     (converted_data.attributes_datapoints_count > 0 or
                      converted_data.telemetry_datapoints_count > 0)):
                 self.send_to_storage(self.name, self.connector_id, converted_data)
+                self.log.info("CONVERTED_DATA: %r", converted_data)
             return self.get_response()
         except Exception as e:
             self.log.exception("Error while post to anonymous handler: %s", e)
@@ -776,6 +793,7 @@ class BasicDataHandler(BaseDataHandler):
                         (converted_data.attributes_datapoints_count > 0 or
                          converted_data.telemetry_datapoints_count > 0)):
                     self.send_to_storage(self.name, self.connector_id, converted_data)
+                    self.log.info("CONVERTED_DATA: %r", converted_data)
 
                 return self.get_response()
             except Exception as e:
