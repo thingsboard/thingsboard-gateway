@@ -284,11 +284,12 @@ class AsyncBACnetConnector(Thread, Connector):
                     app['mask'] = mask  # valid number string
             else:
                 # Check if it's a valid dotted mask like 255.255.255.0
-                IPv4Network(f"{host}/{mask}")
+                IPv4Network(f"{host}/{mask}", strict=False)
             return True
-        except Exception:
+        except Exception as e:
             app['mask'] = "24"
-            self.__log.warning("Invalid subnet mask inside application section : %s using default - 24", mask)
+            self.__log.warning("Invalid subnet mask inside application section: %s : %s using default - 24", mask,
+                               str(e))
 
         return True
 
