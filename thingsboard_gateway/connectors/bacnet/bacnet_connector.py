@@ -51,7 +51,7 @@ except ImportError:
 
 from bacpypes3.pdu import Address, IPv4Address
 from bacpypes3.primitivedata import Null, Real
-from bacpypes3.basetypes import DailySchedule, TimeValue, DeviceObjectPropertyReference
+from bacpypes3.basetypes import DailySchedule, TimeValue, DeviceObjectPropertyReference, ObjectPropertyReference, PropertyIdentifier, ObjectIdentifier
 from thingsboard_gateway.connectors.bacnet.device import Device, Devices
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 from thingsboard_gateway.connectors.bacnet.application import Application
@@ -623,9 +623,13 @@ class AsyncBACnetConnector(Thread, Connector):
                 value = Null(())
 
             if property_id == "weeklySchedule":
-                schedule_default = await self.__application.read_property(address, object_id, "scheduleDefault")
-                val_type = schedule_default.get_value_type()
-                value = await self.__prepare_weekly_schedule_value(value, val_type)
+                ref_list = await self.__application.read_property(address, object_id, "listOfObjectPropertyReferences")
+                ref_object: ObjectPropertyReference = ref_list[0]
+                ref_object_id: ObjectIdentifier = ref_object.objectIdentifier
+                ref_pv: PropertyIdentifier = await self.__application.read_property(address, ref_object_id, "presentValue")
+                value_type = ref_pv.__class__
+                self.__log.debug(f"using value type: {value_type} for schedule {object_id}")
+                value = await self.__prepare_weekly_schedule_value(value, value_type)
 
             if property_id == "listOfObjectPropertyReferences":
                 value = await self.__prepare_list_of_object_property_references_value(value, property_id)
