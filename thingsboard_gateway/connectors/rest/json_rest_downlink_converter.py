@@ -14,8 +14,8 @@
 
 from ast import literal_eval
 from urllib.parse import quote
-
 from simplejson import dumps
+from simplejson import JSONDecodeError
 
 from thingsboard_gateway.connectors.rest.rest_converter import RESTConverter
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
@@ -67,7 +67,14 @@ class JsonRESTDownlinkConverter(RESTConverter):
             for (tag, value) in zip(data_tags, data_values):
                 result['data'] = result["data"].replace('${' + tag + '}', str(value))
 
-            result["data"] = dumps(literal_eval(result["data"]))
-            return result
+            try:
+                result["data"] = dumps(literal_eval(result["data"]))
+                return result
+
+            except (JSONDecodeError, SyntaxError) as e:
+                self._log.debug(
+                    "The given object can not be converted to python dict using literal eval and dumps - %s", str(e))
+                return result
+
         except Exception as e:
             self._log.exception(e)

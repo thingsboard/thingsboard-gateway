@@ -34,6 +34,7 @@ from thingsboard_gateway.gateway.statistics.statistics_service import Statistics
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -77,23 +78,7 @@ class FTPConnector(Connector, Thread):
         self.host = self.config['parameters']['host']
         self.port = self.config['parameters'].get('port', 21)
         self.__ftp = FTP_TLS if self.__tls_support else FTP
-        self.paths = [
-            Path(
-                path=obj['path'],
-                read_mode=obj['readMode'],
-                telemetry=obj['timeseries'],
-                device_name=obj['devicePatternName'],
-                attributes=obj['attributes'],
-                txt_file_data_view=obj.get('txtFileDataView', 'TABLE'),
-                with_sorting_files=obj.get('with_sorting_files', True),
-                poll_period=obj.get('pollPeriod', 60),
-                max_size=obj.get('maxFileSize', 5),
-                delimiter=obj.get('delimiter', ','),
-                device_type=obj.get('devicePatternType', 'Device'),
-                report_strategy=obj.get('reportStrategy')
-            )
-            for obj in self.config['paths']
-        ]
+        self.paths = self.__fill_ftp_path_parameters()
         self.__log.info("FTP Connector started with %s and %d", self.host, self.port)
 
     def open(self):
@@ -129,6 +114,54 @@ class FTPConnector(Connector, Thread):
             if self.__stopped:
                 break
 
+    def __fill_ftp_path_parameters(self):
+        path_parameters_list = []
+        path_config_list = self.config.get('paths', [])
+        if not isinstance(path_config_list, list):
+            self.__log.error("path_config_list must be a list, but got %s", type(path_config_list))
+            return path_config_list
+
+        for path in path_config_list:
+            if not isinstance(path, dict):
+                self.__log.error("path_config_list must be a dict, but got %s", type(path))
+                continue
+            try:
+                base_path_config = {
+                    "path": path['path'],
+                    "read_mode": path['readMode'],
+                    "txt_file_data_view": path.get('txtFileDataView', 'TABLE'),
+                    "logger": self.__log,
+                    "with_sorting_files": path.get('with_sorting_files', True),
+                    "poll_period": path.get('pollPeriod', 60),
+                    "max_size": path.get('maxFileSize', 5),
+                    "delimiter": path.get('delimiter', ','),
+                    "report_strategy": path.get('reportStrategy')
+                }
+                if isinstance(path.get("converter"), dict) and path["converter"].get("type"):
+                    ext_conf = path["converter"].get("extension-config") or {}
+                    base_path_config['telemetry'] = ext_conf.get('timeseries')
+                    base_path_config['attributes'] = ext_conf.get('attributes')
+                    base_path_config['device_name'] = ext_conf['devicePatternName']
+                    base_path_config['device_type'] = ext_conf.get('devicePatternType', 'Device')
+
+                    custom_path_config = {
+                        "custom_converter_type": path["converter"].get("type"),
+                        "extension": path["converter"]["extension"]
+                    }
+
+                    path_parameters_list.append(Path(**base_path_config, **custom_path_config))
+                else:
+                    base_path_config['telemetry'] = path.get('timeseries')
+                    base_path_config['attributes'] = path.get('attributes')
+                    base_path_config['device_name'] = path['devicePatternName']
+                    base_path_config['device_type'] = path.get('devicePatternType', 'Device')
+                    path_parameters_list.append(Path(**base_path_config))
+            except KeyError as e:
+                self.__log.debug("Failed to extract path arguments for path %s", str(e))
+                continue
+
+        return path_parameters_list
+
     def __connect(self, ftp):
         self.__log.debug("Connecting to ftp server on %s:%d", self.host, self.port)
         try:
@@ -157,7 +190,33 @@ class FTPConnector(Connector, Thread):
             time_point = timer()
             if time_point - path.last_polled_time >= path.poll_period or path.last_polled_time == 0:
                 configuration = path.config
-                converter = FTPUplinkConverter(configuration, self.__converter_log)
+
+                if path.custom_converter_type == "custom":
+                    try:
+                        module = TBModuleLoader.import_module(
+                            self._connector_type,
+                            path.extension
+                        )
+                        if module:
+                            self.__log.debug("Custom converter loaded")
+                            converter = module(configuration, self.__converter_log)
+                        else:
+                            self.__log.error(
+                                "Could not find extension module for %s. "
+                                "Make sure your extension is under the right path and exists.",
+                                path.extension,
+                            )
+                            continue
+                    except Exception as e:
+                        self.__log.error(
+                            "Failed to load custom converter for type %s with error %s",
+                            path.custom_converter_type,
+                            e,
+                        )
+                        continue
+                else:
+                    converter = FTPUplinkConverter(configuration, self.__converter_log)
+
                 path.last_polled_time = time_point
 
                 if '*' in path.path:
