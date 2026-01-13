@@ -44,6 +44,8 @@ class Device:
         self.shared_attributes_keys_value_pairs = self.__match_key_value_for_attribute_updates()
         self.nodes = []
         self.subscription: Subscription | None = None
+        self.last_subscription_activity = None
+        self.subscription_has_expired = False
         self.nodes_data_change_subscriptions = {}
         self.report_strategy = None
         if self.config.get(REPORT_STRATEGY_PARAMETER):

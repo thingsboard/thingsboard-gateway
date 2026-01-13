@@ -144,6 +144,7 @@ class OpcUaConnector(Connector, Thread):
         self.__sub_check_period_in_millis = max(self.__server_conf.get("subCheckPeriodInMillis", 100), 100)
         # Batch size for data change subscription, the gateway will process this amount of data, received from subscriptions, or less in one iteration
         self.__sub_data_max_batch_size = self.__server_conf.get("subDataMaxBatchSize", 1000)
+        self.__sub_keep_alive_period = self.__server_conf.get("subKeepAlivePeriodInMillis", 0) / 1000
         self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200),
                                                       100) / 1000
         self.__subscription_batch_size = self.__server_conf.get('subscriptionProcessBatchSize', 2000)
@@ -243,14 +244,17 @@ class OpcUaConnector(Connector, Thread):
 
     async def __unsubscribe_from_node(self, device: Device, node):
         node.pop('valid', None)
-        if node.get('node') is not None and self.__enable_subscriptions:
-            subscription_id = device.nodes_data_change_subscriptions.get(node['node'].nodeid, {}).get('subscription')
+        if self.__enable_subscriptions:
+            node_obj = node.get("node") or node.get("qualified_path")
+            if node_obj is None:
+                return
+            subscription_id = device.nodes_data_change_subscriptions.get(node_obj.nodeid, {}).get('subscription')
             if subscription_id is not None:
                 try:
                     await device.subscription.unsubscribe(subscription_id)
                 except Exception as e:
                     self.__log.exception('Error unsubscribing from on data change: %s', e)
-                device.nodes_data_change_subscriptions[node['node'].nodeid]['subscription'] = None
+                device.nodes_data_change_subscriptions[node_obj.nodeid]['subscription'] = None
 
     async def __unsubscribe_from_nodes(self, device_name=None):
         for device in self.__device_nodes:
@@ -920,6 +924,29 @@ class OpcUaConnector(Connector, Thread):
             self.__log.error('Error finding device base nodes by pattern %s: %s', device_node_pattern, e)
             return []
 
+    def __compute_subscription_death_threshold(self, device):
+        death_threshold = self.__sub_keep_alive_period
+        _keep_alive_time = device.subscription.parameters.RequestedLifetimeCount * device.subscription.parameters.RequestedPublishingInterval / 1000
+        self.__log.trace("Defined death threshold is %s while by specification it is %s", death_threshold,
+                         _keep_alive_time)
+        return death_threshold
+
+    async def __subscription_watchlog(self, device):
+        check_interval = 10
+        death_interval = self.__compute_subscription_death_threshold(device)
+        while not self.__stopped and device.subscription and not device.subscription_has_expired:
+            await asyncio.sleep(check_interval)
+            if not self.__enable_subscriptions or device.subscription is None:
+                continue
+            last_activity_timme = getattr(device, 'last_subscription_activity', None)
+            if last_activity_timme is None:
+                continue
+            silent_interval = monotonic() - last_activity_timme
+            if silent_interval >= death_interval:
+                self.__log.warning("No activity from subscription for device %s in the last %.2f seconds. "
+                                   "Recreating subscription.", device.name, silent_interval)
+                device.subscription_has_expired = True
+
     async def _create_new_devices(self):
         self.__log.debug('Scanning for new devices from configuration...')
         existing_devices = list(map(lambda dev: dev.name, self.__device_nodes))
@@ -1045,6 +1072,12 @@ class OpcUaConnector(Connector, Thread):
 
                         device.nodes.append(node_config)
 
+                        if self.__enable_subscriptions and device.subscription_has_expired and self.__sub_keep_alive_period > 0 and not self.__client_recreation_required:
+                            self.__log.warning("Processing subscription expired with defined interval %d",
+                                               self.__sub_keep_alive_period)
+                            await self.__unsubscribe_from_nodes()
+                            device.subscription_has_expired = False
+
                         subscription_exists = (device.subscription is not None
                                                and found_node.nodeid in device.nodes_data_change_subscriptions
                                                and device.nodes_data_change_subscriptions[found_node.nodeid][
@@ -1052,6 +1085,9 @@ class OpcUaConnector(Connector, Thread):
 
                         if node.get('valid') is None or (node.get('valid') and not self.__enable_subscriptions):
                             if self.__enable_subscriptions and not subscription_exists and not self.__stopped:
+                                self.__nodes_config_cache.setdefault(found_node.nodeid, [])
+                                if device not in self.__nodes_config_cache[found_node.nodeid]:
+                                    self.__nodes_config_cache[found_node.nodeid].append(device)
                                 if found_node.nodeid not in device.nodes_data_change_subscriptions:
                                     if found_node.nodeid not in self.__nodes_config_cache:
                                         self.__nodes_config_cache[found_node.nodeid] = []
@@ -1070,7 +1106,10 @@ class OpcUaConnector(Connector, Thread):
                                 if device.subscription is None:
                                     device.subscription = await self.__client.create_subscription(
                                         self.__sub_check_period_in_millis, SubHandler(
-                                            self.__sub_data_to_convert, self.__log, self.status_change_callback))
+                                            self.__sub_data_to_convert, device, self.__log, self.status_change_callback))
+                                    if self.__sub_keep_alive_period > 0:
+                                        self.__loop.create_task(self.__subscription_watchlog(device))
+                                        self.__log.debug("Started subscription watchlog task for device and subscription %s", device.name, device.subscription)
 
                                 node['id'] = found_node.nodeid.to_string()
 
@@ -1663,8 +1702,9 @@ class OpcUaConnector(Connector, Thread):
 
 
 class SubHandler:
-    def __init__(self, queue, logger, status_change_callback):
+    def __init__(self, queue, device, logger, status_change_callback):
         self.__log = logger
+        self.device = device
         self.__queue = queue
         self.__status_change_callback = status_change_callback
 
@@ -1675,5 +1715,6 @@ class SubHandler:
         self.__log.debug("New event %s", event)
 
     def datachange_notification(self, node, _, data):
+        self.device.last_subscription_activity = monotonic()
         self.__log.trace("New data change event %s %s", node, data)
         self.__queue.put((node, data, int(time() * 1000)))
