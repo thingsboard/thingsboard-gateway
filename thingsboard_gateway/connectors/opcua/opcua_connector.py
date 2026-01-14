@@ -144,7 +144,7 @@ class OpcUaConnector(Connector, Thread):
         self.__sub_check_period_in_millis = max(self.__server_conf.get("subCheckPeriodInMillis", 100), 100)
         # Batch size for data change subscription, the gateway will process this amount of data, received from subscriptions, or less in one iteration
         self.__sub_data_max_batch_size = self.__server_conf.get("subDataMaxBatchSize", 1000)
-        self.__sub_keep_alive_period = self.__server_conf.get("subKeepAlivePeriodInMillis", 0) / 1000
+        self.__sub_keep_alive_period = self.__server_conf.get("subKeepAlivePeriodInSeconds", 0)
         self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200),
                                                       100) / 1000
         self.__subscription_batch_size = self.__server_conf.get('subscriptionProcessBatchSize', 2000)
@@ -926,26 +926,44 @@ class OpcUaConnector(Connector, Thread):
 
     def __compute_subscription_death_threshold(self, device):
         death_threshold = self.__sub_keep_alive_period
-        _keep_alive_time = device.subscription.parameters.RequestedLifetimeCount * device.subscription.parameters.RequestedPublishingInterval / 1000
-        self.__log.trace("Defined death threshold is %s while by specification it is %s", death_threshold,
-                         _keep_alive_time)
+        lifetime_s = (device.subscription.parameters.RequestedLifetimeCount *
+                      device.subscription.parameters.RequestedPublishingInterval) / 1000
+        self.__log.trace("Defined death threshold=%s, lifetime-by-params=%s", death_threshold, lifetime_s)
         return death_threshold
 
+    async def __stop_watchlog_task(self, device):
+        subscription_task = device.subscription_watchlog_task
+        if subscription_task:
+            subscription_task.cancel()
+            try:
+                await subscription_task
+            except asyncio.CancelledError:
+                self.__log.debug("Subscription watchlog task successfully cancelled for device %s", device.name)
+            except Exception as e:
+                self.__log.debug("Error while waiting for subscription watchlog task cancellation for device %s: %s",
+                                 device.name, e)
+
+        device.subscription_watchlog_task = None
+
     async def __subscription_watchlog(self, device):
-        check_interval = 10
         death_interval = self.__compute_subscription_death_threshold(device)
-        while not self.__stopped and device.subscription and not device.subscription_has_expired:
-            await asyncio.sleep(check_interval)
-            if not self.__enable_subscriptions or device.subscription is None:
-                continue
-            last_activity_timme = getattr(device, 'last_subscription_activity', None)
-            if last_activity_timme is None:
-                continue
-            silent_interval = monotonic() - last_activity_timme
-            if silent_interval >= death_interval:
-                self.__log.warning("No activity from subscription for device %s in the last %.2f seconds. "
-                                   "Recreating subscription.", device.name, silent_interval)
-                device.subscription_has_expired = True
+        try:
+            while not self.__stopped and device.subscription and not device.subscription_has_expired:
+                await asyncio.sleep(death_interval)
+                if not self.__enable_subscriptions or device.subscription is None:
+                    continue
+                last_activity_timme = device.last_subscription_activity
+                if last_activity_timme is None:
+                    continue
+                silent_interval = monotonic() - last_activity_timme
+                if silent_interval >= death_interval:
+                    self.__log.debug("No activity from subscription for device %s in the last %.2f seconds. "
+                                       "Recreating subscription.", device.name, silent_interval)
+                    device.subscription_has_expired = True
+                    return
+        except asyncio.CancelledError:
+            self.__log.debug("Subscription watchlog task cancelled for device %s", device.name)
+            return
 
     async def _create_new_devices(self):
         self.__log.debug('Scanning for new devices from configuration...')
@@ -1075,6 +1093,7 @@ class OpcUaConnector(Connector, Thread):
                         if self.__enable_subscriptions and device.subscription_has_expired and self.__sub_keep_alive_period > 0 and not self.__client_recreation_required:
                             self.__log.warning("Processing subscription expired with defined interval %d",
                                                self.__sub_keep_alive_period)
+                            await self.__stop_watchlog_task(device)
                             await self.__unsubscribe_from_nodes()
                             device.subscription_has_expired = False
 
@@ -1107,8 +1126,8 @@ class OpcUaConnector(Connector, Thread):
                                     device.subscription = await self.__client.create_subscription(
                                         self.__sub_check_period_in_millis, SubHandler(
                                             self.__sub_data_to_convert, device, self.__log, self.status_change_callback))
-                                    if self.__sub_keep_alive_period > 0:
-                                        self.__loop.create_task(self.__subscription_watchlog(device))
+                                    if self.__sub_keep_alive_period > 0 and device.subscription_watchlog_task is None:
+                                        device.subscription_watchlog_task = self.__loop.create_task(self.__subscription_watchlog(device))
                                         self.__log.debug("Started subscription watchlog task for device and subscription %s", device.name, device.subscription)
 
                                 node['id'] = found_node.nodeid.to_string()

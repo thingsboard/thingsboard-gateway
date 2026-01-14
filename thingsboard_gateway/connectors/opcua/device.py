@@ -46,6 +46,7 @@ class Device:
         self.subscription: Subscription | None = None
         self.last_subscription_activity = None
         self.subscription_has_expired = False
+        self.subscription_watchlog_task = None
         self.nodes_data_change_subscriptions = {}
         self.report_strategy = None
         if self.config.get(REPORT_STRATEGY_PARAMETER):
