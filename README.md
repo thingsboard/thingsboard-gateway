@@ -1,3 +1,5 @@
+[![Join our Discord](https://img.shields.io/badge/Discord-Join%20our%20server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/mJxDjAM3PF)
+
 # ThingsBoard IoT Gateway
 
 The **ThingsBoard IoT Gateway** is an open-source, Python-based application that enables seamless integration of legacy and third-party devices with the [ThingsBoard IoT platform](https://thingsboard.io/). It serves as a protocol adapter that collects data from external sources and publishes it to ThingsBoard via a unified format.
@@ -93,6 +95,7 @@ The IoT Gateway is implemented in **Python**, allowing powerful extension and cu
 
 Need help or want to share ideas?
 
+- [![Join our Discord](https://img.shields.io/badge/Discord-Join%20our%20server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/mJxDjAM3PF)
 - 💬 [**GitHub Discussions**](https://github.com/thingsboard/thingsboard-gateway/discussions) – Ask questions, propose features, or share use cases.
 - ❓ [**StackOverflow**](http://stackoverflow.com/questions/tagged/thingsboard-gateway) – Use the `thingsboard-gateway` tag.
 
