@@ -139,7 +139,6 @@ class Device:
         try:
             while not self.__stopped and self.subscription and not self.subscription_has_expired:
                 await sleep(death_interval)
-
                 if self.subscription is None:
                     continue
                 last_activity_time = self.last_subscription_activity
