@@ -13,7 +13,8 @@
 #     limitations under the License.
 
 import re
-
+from asyncio import sleep, CancelledError
+from time import monotonic
 from asyncua.common.subscription import Subscription
 
 from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
@@ -44,8 +45,11 @@ class Device:
         self.shared_attributes_keys_value_pairs = self.__match_key_value_for_attribute_updates()
         self.nodes = []
         self.subscription: Subscription | None = None
+        self.subscription_has_expired = False
+        self.subscription_watchlog_task = None
         self.nodes_data_change_subscriptions = {}
         self.report_strategy = None
+        self.__stopped = False
         if self.config.get(REPORT_STRATEGY_PARAMETER):
             try:
                 self.report_strategy = ReportStrategyConfig(self.config.get(REPORT_STRATEGY_PARAMETER))
@@ -131,6 +135,38 @@ class Device:
         except KeyError:
             return None
 
+    async def subscription_watchlog(self, death_interval: int):
+        try:
+            while not self.__stopped and self.subscription and not self.subscription_has_expired:
+                await sleep(death_interval)
+                if self.subscription is None:
+                    continue
+                last_activity_time = self.last_subscription_activity
+                if last_activity_time is None:
+                    continue
+                silent_interval = monotonic() - last_activity_time
+                if silent_interval >= death_interval:
+                    self._log.warning(
+                        "Subscription for device %s has not received any data change notifications for %s seconds. Marking subscription as expired.",
+                        self.name, silent_interval)
+                    self.subscription_has_expired = True
+                    return
+
+        except CancelledError:
+            self._log.debug("Subscription watchlog task for device %s has been cancelled.", self.name)
+            return
+
+    async def stop_watchlog_task(self):
+        if self.subscription_watchlog_task:
+            self.subscription_watchlog_task.cancel()
+            try:
+                await self.subscription_watchlog_task
+            except CancelledError:
+                self._log.debug("Subscription watchlog task for device %s has been successfully cancelled.", self.name)
+            except Exception as e:
+                self._log.error("Error while cancelling subscription watchlog task for device %s: %s", self.name, e)
+        self.subscription_watchlog_task = None
+
     @staticmethod
     def is_valid_rpc_method_name(rpc_device_section: dict, rpc_request: OpcUaRpcRequest) -> bool:
         for rpc in rpc_device_section:
@@ -172,3 +208,20 @@ class Device:
 
         return arguments
 
+    @property
+    def stopped(self):
+        return self.__stopped
+
+    @stopped.setter
+    def stopped(self, value: bool):
+        self.__stopped = value
+
+    @property
+    def last_subscription_activity(self):
+        subscription = getattr(self, 'subscription', None)
+        if subscription is None:
+            return None
+        handler = getattr(subscription, '_handler', None)
+        if handler is None:
+            return None
+        return getattr(handler, 'last_subscription_activity', None)
