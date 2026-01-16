@@ -103,13 +103,22 @@ class JsonRequestUplinkConverter(RequestConverter):
                         full_key = full_key.replace('${' + str(key_tag) + '}',
                                                     str(key)) if is_valid_key else key_tag
 
-                    full_value = datatype_object_config["value"]
-                    for (value, value_tag) in zip(values, values_tags):
-                        is_valid_value = "${" in datatype_object_config["value"] and "}" in \
-                                         datatype_object_config["value"]
-
-                        full_value = full_value.replace('${' + str(value_tag) + '}',
-                                                        str(value)) if is_valid_value else str(value)
+                    raw_value_expression = datatype_object_config["value"]
+                    is_pure_placeholder = (isinstance(raw_value_expression, str)
+                                           and raw_value_expression.strip().startswith("${")
+                                           and raw_value_expression.strip().endswith("}")
+                                           and raw_value_expression.strip().count("${") == 1)
+                    is_not_template = not ("${" in raw_value_expression and "}" in raw_value_expression)
+                    if is_pure_placeholder or is_not_template:
+                        full_value = values[0] if isinstance(values, list) and values else None
+                        self.__log.debug("The converted value is %s with datatype %s", full_value,
+                                         datatype_object_config["type"])
+                    else:
+                        full_value = raw_value_expression
+                        for (value, value_tag) in zip(values, values_tags):
+                            full_value = full_value.replace('${' + str(value_tag) + '}', str(value))
+                            self.__log.debug("The converted value is %s with datatype %s", full_value,
+                                             datatype_object_config["type"])
 
                     datapoint_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy,
                                                                            datatype_object_config, self.__log)
