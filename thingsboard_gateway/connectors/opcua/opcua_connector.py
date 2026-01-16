@@ -238,6 +238,7 @@ class OpcUaConnector(Connector, Thread):
         try:
             if self.__connected:
                 await self.__unsubscribe_from_nodes()
+                self.__nodes_config_cache.clear()
             await self.__client.disconnect()
             self.__log.info('%s has been disconnected from OPC-UA Server.', self.get_name())
         except Exception as e:
@@ -253,9 +254,15 @@ class OpcUaConnector(Connector, Thread):
             if subscription_id is not None:
                 try:
                     await device.subscription.unsubscribe(subscription_id)
+
+                except ConnectionError:
+                    self.__log.debug("Client is not connected, cannot delete subscription.")
+
                 except Exception as e:
                     self.__log.exception('Error unsubscribing from on data change: %s', e)
-                device.nodes_data_change_subscriptions[node_obj.nodeid]['subscription'] = None
+
+                finally:
+                    device.nodes_data_change_subscriptions[node_obj.nodeid]['subscription'] = None
 
     async def __unsubscribe_from_nodes(self, device_name=None):
         for device in self.__device_nodes:
@@ -264,7 +271,7 @@ class OpcUaConnector(Connector, Thread):
                     for node in device.values.get(section, []):
                         await self.__unsubscribe_from_node(device, node)
 
-            if (device_name is None and device.subscription is not None
+            if ((device_name is None or device.name == device_name) and device.subscription is not None
                     and self.__client.uaclient.protocol is not None
                     and self.__client.uaclient.protocol.state == 'open'):
                 try:
@@ -278,7 +285,6 @@ class OpcUaConnector(Connector, Thread):
                 except Exception as e:
                     self.__log.exception('Error deleting subscription: %s', e)
                 device.subscription = None
-        self.__nodes_config_cache.clear()
 
     def get_id(self):
         return self.__id
@@ -318,6 +324,9 @@ class OpcUaConnector(Connector, Thread):
             try:
                 reconnect_required = True
                 if self.__client_recreation_required:
+                    for device in self.__device_nodes:
+                        await device.stop_watchlog_task()
+                        self.__log.debug("Recreation status has been set, cleaning existing watchlog tasks for device %s", device.name)
                     if (self.__client is not None
                             and self.__client.uaclient.protocol
                             and self.__client.uaclient.protocol.state == 'open'):
@@ -351,6 +360,8 @@ class OpcUaConnector(Connector, Thread):
                             await self.disconnect_if_connected()
                             continue
                         await self.__unsubscribe_from_nodes()
+                        self.__nodes_config_cache.clear()
+
                         reconnect_required = False
 
                     self.__nodes_config_cache = {}
@@ -1061,7 +1072,7 @@ class OpcUaConnector(Connector, Thread):
                             self.__log.warning("Processing subscription expired with defined interval %d",
                                                self.__sub_keep_alive_period)
                             await device.stop_watchlog_task()
-                            await self.__unsubscribe_from_nodes()
+                            await self.__unsubscribe_from_nodes(device_name=device.name)
                             device.subscription_has_expired = False
 
                         subscription_exists = (device.subscription is not None
@@ -1095,7 +1106,7 @@ class OpcUaConnector(Connector, Thread):
                                             self.__sub_data_to_convert, self.__log, self.status_change_callback))
                                     if self.__sub_keep_alive_period > 0 and device.subscription_watchlog_task is None and not self.__client_recreation_required:
                                         death_interval = self.__compute_subscription_death_threshold(device=device)
-                                        device.subscription_watchlog_task = self.__loop.create_task(device.subscription_watchlog(death_interval=death_interval))
+                                        device.subscription_watchlog_task = self.__loop.create_task(device.subscription_watchlog(death_interval=death_interval, ))
                                         self.__log.debug("Started subscription watchlog task for device and subscription %s", device.name, device.subscription)
 
                                 node['id'] = found_node.nodeid.to_string()
