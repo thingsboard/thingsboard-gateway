@@ -161,6 +161,7 @@ class Device:
             self.subscription_watchlog_task.cancel()
             try:
                 await self.subscription_watchlog_task
+                self._log.debug("Subscription watchlog task for device %s has been successfully cancelled.", self.name)
             except CancelledError:
                 self._log.debug("Subscription watchlog task for device %s has been successfully cancelled.", self.name)
             except Exception as e:
