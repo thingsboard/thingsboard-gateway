@@ -1106,7 +1106,7 @@ class OpcUaConnector(Connector, Thread):
                                             self.__sub_data_to_convert, self.__log, self.status_change_callback))
                                     if self.__sub_keep_alive_period > 0 and device.subscription_watchlog_task is None and not self.__client_recreation_required:
                                         death_interval = self.__compute_subscription_death_threshold(device=device)
-                                        device.subscription_watchlog_task = self.__loop.create_task(device.subscription_watchlog(death_interval=death_interval, ))
+                                        device.subscription_watchlog_task = self.__loop.create_task(device.subscription_watchlog(death_interval=death_interval))
                                         self.__log.debug("Started subscription watchlog task for device and subscription %s", device.name, device.subscription)
 
                                 node['id'] = found_node.nodeid.to_string()
