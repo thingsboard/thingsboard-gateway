@@ -144,7 +144,7 @@ class OpcUaConnector(Connector, Thread):
         self.__sub_check_period_in_millis = max(self.__server_conf.get("subCheckPeriodInMillis", 100), 100)
         # Batch size for data change subscription, the gateway will process this amount of data, received from subscriptions, or less in one iteration
         self.__sub_data_max_batch_size = self.__server_conf.get("subDataMaxBatchSize", 1000)
-        self.__sub_keep_alive_period = self.__server_conf.get("subKeepAlivePeriodInSeconds", 0)
+        self.sub_keep_alive_period = self.__server_conf.get("subKeepAlivePeriodInSeconds", 0)
         self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200),
                                                       100) / 1000
         self.__subscription_batch_size = self.__server_conf.get('subscriptionProcessBatchSize', 2000)
@@ -937,7 +937,7 @@ class OpcUaConnector(Connector, Thread):
             return []
 
     def __compute_subscription_death_threshold(self, device):
-        death_threshold = self.__sub_keep_alive_period
+        death_threshold = self.sub_keep_alive_period
         lifetime_s = (device.subscription.parameters.RequestedLifetimeCount *
                       device.subscription.parameters.RequestedPublishingInterval) / 1000
         self.__log.trace("Defined death threshold=%s, lifetime-by-params=%s", death_threshold, lifetime_s)
@@ -1068,9 +1068,9 @@ class OpcUaConnector(Connector, Thread):
 
                         device.nodes.append(node_config)
 
-                        if self.__enable_subscriptions and device.subscription_has_expired and self.__sub_keep_alive_period > 0 and not self.__client_recreation_required:
+                        if self.__enable_subscriptions and device.subscription_has_expired and self.sub_keep_alive_period > 0 and not self.__client_recreation_required:
                             self.__log.warning("Processing subscription expired with defined interval %d",
-                                               self.__sub_keep_alive_period)
+                                               self.sub_keep_alive_period)
                             await device.stop_watchlog_task()
                             await self.__unsubscribe_from_nodes(device_name=device.name)
                             device.subscription_has_expired = False
@@ -1104,10 +1104,10 @@ class OpcUaConnector(Connector, Thread):
                                     device.subscription = await self.__client.create_subscription(
                                         self.__sub_check_period_in_millis, SubHandler(
                                             self.__sub_data_to_convert, self.__log, self.status_change_callback))
-                                    if self.__sub_keep_alive_period > 0 and device.subscription_watchlog_task is None and not self.__client_recreation_required:
+                                    if self.sub_keep_alive_period > 0 and device.subscription_watchlog_task is None and not self.__client_recreation_required:
                                         death_interval = self.__compute_subscription_death_threshold(device=device)
                                         device.subscription_watchlog_task = self.__loop.create_task(device.subscription_watchlog(death_interval=death_interval))
-                                        self.__log.debug("Started subscription watchlog task for device and subscription %s", device.name, device.subscription)
+                                        self.__log.debug("Started subscription watchlog task for device %s and subscription %s", device.name, device.subscription)
 
                                 node['id'] = found_node.nodeid.to_string()
 
@@ -1698,6 +1698,16 @@ class OpcUaConnector(Connector, Thread):
         except Exception:
             return False
 
+    @property
+    def sub_keep_alive_period(self):
+        return self.__sub_keep_alive_period
+
+    @sub_keep_alive_period.setter
+    def sub_keep_alive_period(self, value):
+        if not isinstance(value, int) or value < 0:
+            self.__log.warning("Sub keep alive period must be a positive number, set a valid one ")
+            value = 0
+        self.__sub_keep_alive_period = value
 
 class SubHandler:
     def __init__(self, queue, logger, status_change_callback):
