@@ -411,12 +411,12 @@ class Device:
 class Devices:
     """
     Thread-safe storage for BACnet devices.
-    Allows adding, removing, and retrieving devices by their object identifier or name.
+    Allows adding, removing, and retrieving devices by generated unique device id or name.
     Inner structure has the following format:
 
     __devices = {
-        object_id_1: [device_1, device_2, ...],
-        object_id_2: [device_3, device_4, ...],
+        gen_device_unique_id: [device_1, device_2, ...],
+        gen_device_unique_id: [device_3, device_4, ...],
         ...
     }
 
@@ -441,10 +441,11 @@ class Devices:
             self.__devices_by_name[device.name] = device
 
     def __add_device_by_id(self, device):
-        if device.details.object_id not in self.__devices:
-            self.__devices[device.details.object_id] = [device]
+        device_unique_id = self.get_device_unique_id(device.details.address, device.details.object_id)
+        if device_unique_id not in self.__devices:
+            self.__devices[device_unique_id] = [device]
         else:
-            self.__devices[device.details.object_id].append(device)
+            self.__devices[device_unique_id].append(device)
 
     async def remove(self, device):
         async with self.__lock:
@@ -461,14 +462,14 @@ class Devices:
 
                 break
 
-    async def get_devices_by_id(self, _id):
+    async def get_devices_by_id(self, device_unique_id):
         """
         Get devices by their object identifier.
         Multiple devices can be returned in case several devices with the same identifier exist.
         """
 
         async with self.__lock:
-            return tuple(self.__devices.get(_id, []))
+            return tuple(self.__devices.get(device_unique_id, []))
 
     async def get_device_by_name(self, name):
         async with self.__lock:
@@ -478,3 +479,7 @@ class Devices:
         for _, devices in self.__devices.items():
             for device in devices:
                 device.stop()
+
+    @staticmethod
+    def get_device_unique_id(address: str, device_id: int) -> str:
+        return address + str(device_id)

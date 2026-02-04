@@ -314,7 +314,8 @@ class AsyncBACnetConnector(Thread, Connector):
                 if not hasattr(apdu, 'iAmDeviceIdentifier') or apdu.iAmDeviceIdentifier is None:
                     continue
 
-                added_devices = await self.__devices.get_devices_by_id(apdu.iAmDeviceIdentifier[1])
+                device_unique_id = Devices.get_device_unique_id(device_address, apdu.iAmDeviceIdentifier[1])
+                added_devices = await self.__devices.get_devices_by_id(device_unique_id)
                 if len(added_devices) == 0:
                     self.__log.debug('Device %s not found in devices list', device_address)
                     device_configs = Device.find_self_in_config(self.__config['devices'], apdu)
