@@ -25,38 +25,10 @@ from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
-_PLACEHOLDER = re.compile(r"\$\{([^}]+)\}")
-
-def resolve_placeholder_value(headers: list[str], row: list[str], expression):
-    # Non-string expressions are returned as-is
-    if not isinstance(expression, str):
-        return expression
-
-    # Supports prefix/suffix placeholders (e.g., "pre-${Header}-post")
-    match = _PLACEHOLDER.search(expression)
-    if not match:
-        return expression
-
-    header_name = match.group(1)
-
-    # Missing header => configuration error
-    try:
-        index = headers.index(header_name)
-    except ValueError:
-        raise ValueError(f"[CFG] Header '{header_name}' not found (expression={expression}, headers={headers})")
-
-    # Row too short => data error (keep IndexError type, but enrich message)
-    try:
-        cell_value = row[index]
-    except IndexError:
-        raise IndexError(f"[DATA] Missing column index={index} for header='{header_name}' "
-                         f"(expression={expression}, headers_count={len(headers)}, row_count={len(row)})")
-
-    # Replace only the matched placeholder, keep prefix/suffix intact
-    return expression.replace(match.group(0), cell_value)
-
 
 class FTPUplinkConverter(FTPConverter):
+    _PLACEHOLDER = re.compile(r"\$\{([^}]+)\}")
+
     def __init__(self, config, logger):
         self._log = logger
         self.__config = config
@@ -100,10 +72,10 @@ class FTPUplinkConverter(FTPConverter):
             headers = config['headers']
 
             if get_device_name_from_data:
-                converted_data.device_name = resolve_placeholder_value(headers, arr, self.__config['devicePatternName'])
+                converted_data.device_name = self.resolve_placeholder_value(headers, arr, self.__config['devicePatternName'])
             
             if get_device_type_from_data:
-                converted_data.device_type = resolve_placeholder_value(headers, arr, self.__config['devicePatternType'])
+                converted_data.device_type = self.resolve_placeholder_value(headers, arr, self.__config['devicePatternType'])
 
             for data_type in self.__data_types:
                 ts = None
@@ -113,8 +85,8 @@ class FTPUplinkConverter(FTPConverter):
                     old_ts = ts
                 for information in self.__config[data_type]:
                     try:
-                        key = resolve_placeholder_value(headers, arr, information['key'])
-                        value = resolve_placeholder_value(headers, arr, information['value'])
+                        key = self.resolve_placeholder_value(headers, arr, information['key'])
+                        value = self.resolve_placeholder_value(headers, arr, information['value'])
 
                         if key == 'ts' and data_type == 'timeseries':
                             continue
@@ -226,7 +198,7 @@ class FTPUplinkConverter(FTPConverter):
                 
                 # TABLE view: try to resolve ${Header}
                 if headers:
-                    resolved = resolve_placeholder_value(headers, data, value_expr)
+                    resolved = self.resolve_placeholder_value(headers, data, value_expr)
                     if resolved != value_expr:
                         return int(resolved)
                 
@@ -234,6 +206,35 @@ class FTPUplinkConverter(FTPConverter):
                 return self._get_key_or_value(value_expr, data)
 
         return None
+
+    @staticmethod
+    def resolve_placeholder_value(headers: list[str], row: list[str], expression):
+        # Non-string expressions are returned as-is
+        if not isinstance(expression, str):
+            return expression
+    
+        # Supports prefix/suffix placeholders (e.g., "pre-${Header}-post")
+        match = FTPUplinkConverter._PLACEHOLDER.search(expression)
+        if not match:
+            return expression
+    
+        header_name = match.group(1)
+    
+        # Missing header => configuration error
+        try:
+            index = headers.index(header_name)
+        except ValueError:
+            raise ValueError(f"[CFG] Header '{header_name}' not found (expression={expression}, headers={headers})")
+    
+        # Row too short => data error (keep IndexError type, but enrich message)
+        try:
+            cell_value = row[index]
+        except IndexError:
+            raise IndexError(f"[DATA] Missing column index={index} for header='{header_name}' "
+                             f"(expression={expression}, headers_count={len(headers)}, row_count={len(row)})")
+    
+        # Replace only the matched placeholder, keep prefix/suffix intact
+        return expression.replace(match.group(0), cell_value)
 
     def _get_device_name(self, data):
         device_name = ''
