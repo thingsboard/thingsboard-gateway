@@ -25,6 +25,36 @@ from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
+_PLACEHOLDER = re.compile(r"\$\{([^}]+)\}")
+
+def resolve_placeholder_value(headers: list[str], row: list[str], expression):
+    # Non-string expressions are returned as-is
+    if not isinstance(expression, str):
+        return expression
+
+    # Supports prefix/suffix placeholders (e.g., "pre-${Header}-post")
+    match = _PLACEHOLDER.search(expression)
+    if not match:
+        return expression
+
+    header_name = match.group(1)
+
+    # Missing header => configuration error
+    try:
+        index = headers.index(header_name)
+    except ValueError:
+        raise ValueError(f"[CFG] Header '{header_name}' not found (expression={expression}, headers={headers})")
+
+    # Row too short => data error (keep IndexError type, but enrich message)
+    try:
+        cell_value = row[index]
+    except IndexError:
+        raise IndexError(f"[DATA] Missing column index={index} for header='{header_name}' "
+                         f"(expression={expression}, headers_count={len(headers)}, row_count={len(row)})")
+
+    # Replace only the matched placeholder, keep prefix/suffix intact
+    return expression.replace(match.group(0), cell_value)
+
 
 class FTPUplinkConverter(FTPConverter):
     def __init__(self, config, logger):
@@ -61,14 +91,20 @@ class FTPUplinkConverter(FTPConverter):
     def _convert_table_view_data(self, config, data):
         device_name, device_type, get_device_name_from_data, get_device_type_from_data = self._get_required_data('${',
                                                                                                                  '}')
-
         device_report_strategy = self._get_device_report_strategy(device_name)
-
         converted_data = ConvertedData(device_name=device_name,
                                         device_type=device_type)
 
         try:
             arr = data.split(self.__config.get('delimiter',';'))
+            headers = config['headers']
+
+            if get_device_name_from_data:
+                converted_data.device_name = resolve_placeholder_value(headers, arr, self.__config['devicePatternName'])
+            
+            if get_device_type_from_data:
+                converted_data.device_type = resolve_placeholder_value(headers, arr, self.__config['devicePatternType'])
+
             for data_type in self.__data_types:
                 ts = None
                 old_ts = None
@@ -77,18 +113,9 @@ class FTPUplinkConverter(FTPConverter):
                     old_ts = ts
                 for information in self.__config[data_type]:
                     try:
+                        key = resolve_placeholder_value(headers, arr, information['key'])
+                        value = resolve_placeholder_value(headers, arr, information['value'])
 
-                        key_index = information['key']
-                        val_index = information['value']
-
-                        if '${' in information['key'] and '}' in information['key']:
-                            key_index = config['headers'].index(re.sub(r'[^\w]', '', information['key']))
-
-                        if '${' in information['value'] and '}' in information['value']:
-                            val_index = config['headers'].index(re.sub(r'[^\w]', '', information['value']))
-
-                        key = arr[key_index] if isinstance(key_index, int) else key_index
-                        value = arr[val_index] if isinstance(val_index, int) else val_index
                         if key == 'ts' and data_type == 'timeseries':
                             continue
                         datapoint_key = TBUtility.convert_key_to_datapoint_key(key, device_report_strategy,
@@ -112,12 +139,6 @@ class FTPUplinkConverter(FTPConverter):
                             telemetry_entry = TelemetryEntry({datapoint_key: value}, ts)
                             converted_data.add_to_telemetry(telemetry_entry)
 
-                        if get_device_name_from_data:
-                            index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternName']))
-                            converted_data.device_name = arr[index]
-                        if get_device_type_from_data:
-                            index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternType']))
-                            converted_data.device_type = arr[index]
                     except Exception as e:
                         StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                         self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(information),
@@ -201,11 +222,17 @@ class FTPUplinkConverter(FTPConverter):
     def _retrieve_ts_for_sliced_or_table(self, config, data, headers=[]):
         for config_object in config:
             if config_object.get('key') == 'ts' or config_object.get('key') == 'timestamp':
-                value = config_object['value']
-                if '${' in config_object.get('value') and '}' in config_object.get('value') and headers:
-                    value = headers.index(re.sub(r'[^\w]', '', config_object['value']))
-                    return int(data[value])
-                return self._get_key_or_value(value, data)
+                value_expr = config_object['value']
+                
+                # TABLE view: try to resolve ${Header}
+                if headers:
+                    resolved = resolve_placeholder_value(headers, data, value_expr)
+                    if resolved != value_expr:
+                        return int(resolved)
+                
+                # Fallback: legacy behavior (SLICED view, slice syntax, literals)
+                return self._get_key_or_value(value_expr, data)
+
         return None
 
     def _get_device_name(self, data):
