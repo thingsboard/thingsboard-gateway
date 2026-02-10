@@ -258,17 +258,17 @@ class TBClient(threading.Thread):
                                                        daemon=True)
             self._check_cert_thread.start()
 
-        cert_required = CERT_REQUIRED if (self.__ca_cert and
-                                          self.__cert) else ssl.CERT_OPTIONAL if self.__cert else ssl.CERT_NONE
+            cert_required = CERT_REQUIRED if (self.__ca_cert and
+                                              self.__cert) else ssl.CERT_OPTIONAL if self.__cert else ssl.CERT_NONE
 
-        self.client._client.tls_set(ca_certs=self.__ca_cert,
-                                    certfile=self.__cert,
-                                    keyfile=self.__private_key,
-                                    tls_version=ssl.PROTOCOL_TLSv1_2,
-                                    cert_reqs=cert_required,
-                                    ciphers=None)  # noqa pylint: disable=protected-access
-        if credentials.get("insecure", False):
-            self.client._client.tls_insecure_set(True)  # noqa pylint: disable=protected-access
+            self.client._client.tls_set(ca_certs=self.__ca_cert,
+                                        certfile=self.__cert,
+                                        keyfile=self.__private_key,
+                                        tls_version=ssl.PROTOCOL_TLSv1_2,
+                                        cert_reqs=cert_required,
+                                        ciphers=None)  # noqa pylint: disable=protected-access
+            if credentials.get("insecure", False):
+                self.client._client.tls_insecure_set(True)  # noqa pylint: disable=protected-access
         if self.__logger.isEnabledFor(10):
             self.client._client.enable_logger(self.__logger)  # noqa pylint: disable=protected-access
         if self.__proxy_host is not None:
