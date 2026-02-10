@@ -15,6 +15,7 @@
 import io
 import re
 from ftplib import FTP, FTP_TLS
+from logging import Logger
 from queue import Queue
 from random import choice
 from re import fullmatch
@@ -237,9 +238,9 @@ class FTPConnector(Connector, Thread):
 
                     file.set_new_hash(current_hash)
 
-                    handle_stream = io.BytesIO()
-                    self.__log.trace("Retrieving file %s...", file.path_to_file)
+                    self._on_file_preprocessing(ftp, self.__log, file)
 
+                    handle_stream = io.BytesIO()
                     ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
 
                     handled_str = str(handle_stream.getvalue(), 'UTF-8')
@@ -306,6 +307,7 @@ class FTPConnector(Connector, Thread):
                                     self.__send_data(converted_data)
 
                     handle_stream.close()
+                    self._on_file_postprocessing(ftp, self.__log, file)
 
     def __is_file_hash_changed(self, file: File, current_hash: str):
         return (file.has_hash() and current_hash != file.hash) or not file.has_hash()
@@ -317,6 +319,16 @@ class FTPConnector(Connector, Thread):
             self.__gateway.send_to_storage(self.name, self.get_id(), converted_data)
             self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
             self.__log.debug("Data being sent to ThingsBoard: %s", converted_data)
+
+    @staticmethod
+    def _on_file_preprocessing(ftp: FTP, log: Logger, file: File):
+        # Hook called before a file is processed. Override in subclasses if needed.
+        log.trace("Retrieving file %s...", file.path_to_file)
+
+    @staticmethod
+    def _on_file_postprocessing(ftp: FTP, log: Logger, file: File):
+        # Hook called after a file has been processed. Override in subclasses if needed.
+        pass
 
     def close(self):
         self.__stopped = True
