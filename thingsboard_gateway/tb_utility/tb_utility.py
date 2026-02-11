@@ -297,13 +297,11 @@ class TBUtility:
 
     @staticmethod
     def get_package_version(package):
-        from pkg_resources import get_distribution
-        current_package_version = None
+        from importlib.metadata import version
         try:
-            current_package_version = get_distribution(package)
+            return version(package)
         except Exception:
-            pass
-        return current_package_version
+            return None
 
     @staticmethod
     def get_or_create_connector_id(connector_conf):
