@@ -43,7 +43,7 @@ if [ ! -f "$FIRSTLAUNCH" ]; then\n\
 fi\n\
 echo "nameserver 8.8.8.8" >> /etc/resolv.conf\n\
 python /thingsboard_gateway/tb_gateway.py' > /start-gateway.sh && chmod +x /start-gateway.sh && \
-    python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    python3 -m pip install --no-cache-dir --upgrade pip "setuptools<82.0.0" wheel && \
     python3 -m pip install --no-cache-dir cryptography && \
     python3 -m pip install --no-cache-dir -r requirements.txt && \
     RUN rustup self uninstall -y || { \

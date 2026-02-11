@@ -1,4 +1,4 @@
-setuptools
+setuptools<82.0.0
 packaging==23.1
 jsonpath-rw
 regex

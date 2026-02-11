@@ -51,7 +51,7 @@ getent passwd thingsboard_gateway || useradd -r -U -d /var/lib/thingsboard_gatew
 # Create the Python virtual environment if not present.
 if [ ! -d /var/lib/thingsboard_gateway/venv ]; then
     python3 -m venv /var/lib/thingsboard_gateway/venv
-    /var/lib/thingsboard_gateway/venv/bin/pip install --upgrade pip setuptools
+    /var/lib/thingsboard_gateway/venv/bin/pip install --upgrade pip "setuptools<82.0.0"
 fi
 # Install the locally built wheel into the venv.
 if [ -f /var/lib/thingsboard_gateway/thingsboard_gateway-%{version}-py3-none-any.whl ]; then
