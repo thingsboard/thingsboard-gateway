@@ -19,5 +19,9 @@ class Utils:
     @staticmethod
     def get_value_from_topic(topic, expression):
         search_result = search(expression, topic)
-        if search_result is not None:
-            return search_result.group(0)
+        if search_result is None:
+            return
+        last_group_index = search_result.lastindex
+        if last_group_index:
+            return search_result.group(last_group_index)
+        return search_result.group(0)
