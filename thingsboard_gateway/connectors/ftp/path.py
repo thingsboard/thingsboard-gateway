@@ -13,7 +13,8 @@
 #     limitations under the License.
 
 import os
-
+import posixpath
+from ftplib import error_perm
 from regex import compile
 
 from thingsboard_gateway.connectors.ftp.file import File
@@ -65,7 +66,8 @@ class Path:
 
             for folder_or_file in folder_and_files:
                 try:
-                    cur_file_name, cur_file_ext = folder_or_file.split('.')
+                    # rsplit() avoids issues with filenames containing multiple dots
+                    cur_file_name, cur_file_ext = folder_or_file.rsplit('.', 1)
                     if cur_file_ext in COMPATIBLE_FILE_EXTENSIONS \
                             and self.__is_file(ftp, folder_or_file):
                         if (file_name == file_ext == '*') \
@@ -73,7 +75,18 @@ class Path:
                                 or (cur_file_ext == file_ext and file_name == cur_file_name) \
                                 or (file_name != '*' and cur_file_name == file_name and (
                                 file_ext == cur_file_ext or file_ext == '*')):
-                            kwargs[ftp.voidcmd(f"MDTM {folder_or_file}")] = (item + ('/' if item else "") + folder_or_file)
+                            # Use the timestamp as primary sort key: include path to avoid collisions
+                            # when multiple files share the same modification second
+                            try:
+                                resp = ftp.sendcmd(f"MDTM {folder_or_file}")
+                                ts = resp.split()[1]
+                            except (error_perm, IndexError):
+                                # Fallback if MDTM is not supported by the server
+                                ts = "00000000000000"
+
+                            # Collision-free key: (timestamp, full_path)
+                            full_path = posixpath.join(item, folder_or_file)
+                            kwargs[(ts, full_path)] = full_path
                 except ValueError:
                     continue
 
