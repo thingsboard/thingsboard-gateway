@@ -15,7 +15,6 @@
 import io
 import re
 from ftplib import FTP, FTP_TLS
-from logging import Logger
 from queue import Queue
 from random import choice
 from re import fullmatch
@@ -32,7 +31,7 @@ from thingsboard_gateway.connectors.ftp.path import Path
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
-from thingsboard_gateway.tb_utility.tb_logger import init_logger
+from thingsboard_gateway.tb_utility.tb_logger import init_logger, TbLogger
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -177,7 +176,6 @@ class FTPConnector(Connector, Thread):
                 ftp.login(self.security['username'], self.security['password'])
                 self.__log.info("Logged in as %s", str(self.security['username']))
 
-
         except Exception as e:
             self.__log.error("Connection failed to %s:%d: due to %r", self.host, self.port, str(e))
             self.__log.debug("Error:", exc_info=e)
@@ -321,12 +319,12 @@ class FTPConnector(Connector, Thread):
             self.__log.debug("Data being sent to ThingsBoard: %s", converted_data)
 
     @staticmethod
-    def _on_file_preprocessing(ftp: FTP, log: Logger, file: File):
+    def _on_file_preprocessing(ftp: FTP, log: TbLogger, file: File):
         # Hook called before a file is processed. Override in subclasses if needed.
         log.trace("Retrieving file %s...", file.path_to_file)
 
     @staticmethod
-    def _on_file_postprocessing(ftp: FTP, log: Logger, file: File):
+    def _on_file_postprocessing(ftp: FTP, log: TbLogger, file: File):
         # Hook called after a file has been processed. Override in subclasses if needed.
         pass
 
@@ -401,7 +399,8 @@ class FTPConnector(Connector, Thread):
                                     io_stream = self._get_io_stream(data_expression)
                                     ftp.storbinary('STOR ' + file.path_to_file, io_stream)
                                     io_stream.close()
-                                    self.__log.info("Successfully process attribute update %s on override request", attribute_key)
+                                    self.__log.info(
+                                        "Successfully process attribute update %s on override request", attribute_key)
                                 else:
                                     handle_stream = io.BytesIO()
                                     ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
