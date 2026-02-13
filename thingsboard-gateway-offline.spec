@@ -106,7 +106,7 @@ if [ -f /var/lib/thingsboard_gateway/venv.tar.gz ]; then
 else
     if [ ! -d /var/lib/thingsboard_gateway/venv ]; then
         python3 -m venv /var/lib/thingsboard_gateway/venv
-        /var/lib/thingsboard_gateway/venv/bin/pip install --upgrade pip setuptools
+        /var/lib/thingsboard_gateway/venv/bin/pip install --upgrade pip "setuptools<82.0.0"
     fi
 
     # Install the locally built wheel into the venv.

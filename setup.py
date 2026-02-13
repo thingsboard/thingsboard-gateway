@@ -66,7 +66,7 @@ setup(
               'thingsboard_gateway.extensions.serial'
               ],
     install_requires=[
-        'setuptools',
+        'setuptools<82.0.0',
         'cryptography',
         'jsonpath-rw',
         'regex',

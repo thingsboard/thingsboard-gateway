@@ -91,7 +91,7 @@ else
     fi
 
     python3 -m venv "$VENV_PATH"
-    "$VENV_PATH/bin/pip" install --upgrade pip setuptools
+    "$VENV_PATH/bin/pip" install --upgrade pip "setuptools<82.0.0"
     # Install the locally built wheel from /var/lib/thingsboard_gateway.
     if [ -z "$WHEEL_FILE" ]; then
         echo "Postinst Error: No wheel file found in /var/lib/thingsboard_gateway." >&2
