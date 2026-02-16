@@ -501,7 +501,7 @@ class AsyncModbusConnector(Connector, Thread):
 
                 try:
                     converted_data = converted_data[0]
-                except IndexError and TypeError:
+                except (IndexError, TypeError):
                     pass
             elif config.function_code in (15, 16):
                 converted_data = device.downlink_converter.convert(config, data)
@@ -760,7 +760,7 @@ class AsyncModbusConnector(Connector, Thread):
         if config.function_code in (5, 6):
             try:
                 converted_data = converted_data[0]
-            except IndexError and TypeError:
+            except (IndexError, TypeError):
                 pass
 
         if converted_data is not None:

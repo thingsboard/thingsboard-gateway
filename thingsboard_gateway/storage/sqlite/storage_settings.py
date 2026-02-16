@@ -47,4 +47,3 @@ class StorageSettings:
             warnings.append("The oversize check period is too small - using the minimum value 1 minute;")
 
         return warnings
-
