@@ -243,9 +243,7 @@ class Database(Thread):
                     "Read %d records in %.2f ms", len(collected_data), elapsed_time
                 )
             return collected_data
-        except DatabaseError:
-            return []
-        except (ProgrammingError, InterfaceError) as e:
+        except (ProgrammingError, InterfaceError, DatabaseError) as e:
             self.__log.debug("Error reading data from storage: %s", e)
             return []
         except MemoryError:
