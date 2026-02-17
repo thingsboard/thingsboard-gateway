@@ -26,7 +26,8 @@ RUN mkdir -p /default-config/config /default-config/extensions/ &&  \
         "linux/arm64") DEFAULT_HOST="aarch64-unknown-linux-gnu";; \
         "linux/arm/v7") DEFAULT_HOST="armv7-unknown-linux-gnueabihf";; \
         *) \
-            echo "Unsupported platform detected. Trying to use default value...";; \
+            echo "Unsupported platform detected. Falling back to x86_64."; \
+            DEFAULT_HOST="x86_64-unknown-linux-gnu";; \
         esac && \
     curl https://sh.rustup.rs -sSf | sh -s -- -y --default-host=$DEFAULT_HOST --profile minimal && \
     apt-get clean && \
