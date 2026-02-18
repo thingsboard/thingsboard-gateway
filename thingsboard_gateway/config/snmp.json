@@ -6,6 +6,7 @@
       "ip": "snmp.live.gambitcommunications.com",
       "port": 161,
       "pollPeriod": 5000,
+      "pollSchedule": null,
       "community": "public",
       "attributes": [
         {
@@ -117,6 +118,7 @@
       "deviceType": "snmp",
       "ip": "127.0.0.1",
       "pollPeriod": 5000,
+      "pollSchedule": null,
       "community": "public",
       "converter": "CustomSNMPConverter",
       "attributes": [

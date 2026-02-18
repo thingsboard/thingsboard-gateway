@@ -25,6 +25,9 @@ from thingsboard_gateway.connectors.bacnet.entities.device_object_config import 
 from thingsboard_gateway.connectors.bacnet.entities.uplink_converter_config import UplinkConverterConfig
 from thingsboard_gateway.gateway.constants import UPLINK_PREFIX, CONVERTER_PARAMETER
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
+from thingsboard_gateway.tb_utility.poll_scheduler import (
+    PollScheduler, compute_next_poll
+)
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -74,6 +77,7 @@ class Device:
 
         self.__config_poll_period = self.__config.get('pollPeriod', 10000) / 1000
         self.__poll_period = self.__config_poll_period
+        self.__scheduler = PollScheduler(self.__config.get('pollSchedule'))
         self.attributes_updates = self.__config.get('attributeUpdates', [])
         self.shared_attributes_keys = self.__get_shared_attributes_keys()
         self.server_side_rpc = self.__config.get('serverSideRpc', [])
@@ -138,7 +142,9 @@ class Device:
         if len(self.uplink_converter_config.objects_to_read) > 0:
             self.__request_process_queue.put_nowait(self)
 
-        next_poll_time = monotonic() + self.__poll_period
+        next_poll_time = compute_next_poll(
+            monotonic(), self.__poll_period, self.__scheduler
+        )
 
         while not self.__stopped:
             current_time = monotonic()
@@ -146,7 +152,9 @@ class Device:
                 if len(self.uplink_converter_config.objects_to_read) > 0:
                     self.__request_process_queue.put_nowait(self)
 
-                next_poll_time = current_time + self.__poll_period
+                next_poll_time = compute_next_poll(
+                    current_time, self.__poll_period, self.__scheduler
+                )
 
             sleep_time = max(0.0, next_poll_time - current_time)
 

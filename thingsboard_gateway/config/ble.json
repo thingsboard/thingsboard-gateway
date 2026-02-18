@@ -11,6 +11,7 @@
       "name": "Temperature and humidity sensor",
       "MACAddress": "4C:65:A8:DF:85:C0",
       "pollPeriod": 500000,
+      "pollSchedule": null,
       "showMap": false,
       "timeout": 10000,
       "connectRetry": 5,

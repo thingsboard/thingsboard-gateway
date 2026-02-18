@@ -54,6 +54,9 @@ from thingsboard_gateway.gateway.constants import (
     DOWNLINK_PREFIX
 )
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
+from thingsboard_gateway.tb_utility.poll_scheduler import (
+    PollScheduler, compute_next_poll
+)
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
 if TYPE_CHECKING:
@@ -110,7 +113,8 @@ class Slave:
         self.device_name = config[DEVICE_NAME_PARAMETER]
         self.device_type = config.get(DEVICE_TYPE_PARAMETER, 'default')
 
-        self.poll_period = config['pollPeriod'] / 1000
+        self.poll_period = config.get('pollPeriod', 5000) / 1000
+        self.scheduler = PollScheduler(config.get('pollSchedule'))
 
         self.last_connect_time = 0
         self.last_polled_time = 0
@@ -132,13 +136,17 @@ class Slave:
     async def __timer(self):
         if self.__master is not None:
             self.__send_callback(monotonic())
-            next_poll_time = monotonic() + self.poll_period
+            next_poll_time = compute_next_poll(
+                monotonic(), self.poll_period, self.scheduler
+            )
 
             while not self.stopped and not self.connector.is_stopped():
                 current_time = monotonic()
                 if current_time >= next_poll_time:
                     self.__send_callback(current_time)
-                    next_poll_time = current_time + self.poll_period
+                    next_poll_time = compute_next_poll(
+                        current_time, self.poll_period, self.scheduler
+                    )
 
                 sleep_time = max(0.0, next_poll_time - monotonic())
                 await asyncio.sleep(sleep_time)

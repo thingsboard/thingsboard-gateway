@@ -37,6 +37,7 @@ from requests.exceptions import RequestException, JSONDecodeError
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
 from thingsboard_gateway.connectors.request.json_request_downlink_converter import JsonRequestDownlinkConverter
+from thingsboard_gateway.tb_utility.poll_scheduler import PollScheduler
 
 
 class RequestConnector(Connector, Thread):
@@ -230,6 +231,7 @@ class RequestConnector(Connector, Thread):
                 self.__requests_in_progress.append({"config": endpoint,
                                                     "converter": converter,
                                                     "next_time": time(),
+                                                    "scheduler": PollScheduler(endpoint.get("pollSchedule")),
                                                     "request": request})
             except Exception as e:
                 self._log.exception(e)
@@ -256,7 +258,12 @@ class RequestConnector(Connector, Thread):
     def __send_request(self, request, converter_queue, logger):
         url = ""
         try:
-            request["next_time"] = time() + request["config"].get("scanPeriod", 10)
+            scheduler = request.get("scheduler")
+            if scheduler and scheduler.is_active:
+                from time import monotonic
+                request["next_time"] = time() + (scheduler.next_poll_monotonic() - monotonic())
+            else:
+                request["next_time"] = time() + request["config"].get("scanPeriod", 10)
             if request.get("converter") is None and isinstance(request["config"].get("converter"), dict):
                 logger.error("Converter for request to '%s' endpoint is not defined. Request will be skipped.", request["config"].get("url"))
                 return
