@@ -447,7 +447,19 @@ class RESTConnector(Connector, Thread):
             if content_type == "application/json":
                 if headers:
                     base_params["headers"] = headers
-                base_params["json"] = data
+                try:
+                    data = json.loads(data)
+
+                except json.JSONDecodeError as e:
+                    self.__log.error("Failed to decode JSON data. %s", e)
+
+                except Exception as e:
+                    self.__log.error("Unexpected error occurred %s", e)
+                    self.__log.debug("Unexpected error occurred: %s", exc_info=e)
+
+                finally:
+                    base_params["json"] = data
+
                 return base_params
 
             if headers:
