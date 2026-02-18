@@ -447,7 +447,7 @@ class RESTConnector(Connector, Thread):
             if content_type == "application/json":
                 if headers:
                     base_params["headers"] = headers
-                base_params["json"] = data
+                base_params["json"] = data if isinstance(data, (dict, list)) else json.loads(data)
                 return base_params
 
             if headers:
