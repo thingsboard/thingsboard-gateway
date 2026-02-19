@@ -169,6 +169,12 @@ class RequestConnector(Connector, Thread):
         del response_queue
 
     def __check_and_process_reserved_rpc(self, content):
+        if content.get("data") is None:
+            content["data"] = {
+                "params": content["params"],
+                "method": content["method"],
+                "id": content["id"],
+            }
         rpc_method_name = content["data"]["method"]
 
         if rpc_method_name == 'get' or rpc_method_name == 'set':
