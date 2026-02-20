@@ -19,7 +19,7 @@ from os import environ
 from platform import system as platform_system
 from re import search, findall
 from time import monotonic, sleep
-from typing import Union, TYPE_CHECKING
+from typing import Union, TYPE_CHECKING, Any
 from uuid import uuid4
 
 from cachetools import TTLCache
@@ -364,7 +364,7 @@ class TBUtility:
         return config
 
     @staticmethod
-    def resolve_different_ts_formats(data: dict, config: dict, logger, default_ts: bool = True):
+    def resolve_different_ts_formats(data: dict[str, Any] | list[dict[str, Any]], config: dict, logger, default_ts: bool = True):
         ts_field_expression = config.get('tsField')
         if ts_field_expression is not None:
             ts_field_full_path = None
@@ -383,7 +383,17 @@ class TBUtility:
             except Exception as e:
                 logger.debug("Error while parsing timestamp %s: %s with configured tsField: %s",
                              ts_field_full_path, e, config['tsField'])
-        return data.get('ts', data.get('timestamp')) if default_ts else None
+
+        if not default_ts:
+            return None
+
+        if isinstance(data, list):
+            if not data:
+                return None
+            first = data[0]
+            return first.get("ts", first.get("timestamp"))
+
+        return data.get("ts", data.get("timestamp"))
 
     @staticmethod
     def find_ts_field_value(ts_field_name: str, data: dict):
