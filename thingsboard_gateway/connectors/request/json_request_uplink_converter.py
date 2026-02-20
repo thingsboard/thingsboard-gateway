@@ -86,6 +86,10 @@ class JsonRequestUplinkConverter(RequestConverter):
         try:
             for datatype in self.__datatypes:
                 for datatype_object_config in self.__config["converter"].get(datatype, []):
+                    if datatype_object_config["key"] not in data:
+                        self.__log.debug("The key %s is not found in the incoming data for device %s. Skipping this"
+                                           "datapoint.", datatype_object_config["key"], device_name)
+                        continue
                     values = TBUtility.get_values(datatype_object_config["value"], data, datatype_object_config["type"],
                                                   expression_instead_none=True)
                     values_tags = TBUtility.get_values(datatype_object_config["value"], data,
