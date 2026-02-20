@@ -63,7 +63,7 @@ class RequestJsonUplinkConverterTest(BaseUnitTest):
                 "attributes": [],
                 "telemetry": [
                     {"key": "temperature", "type": "float", "value": "${temperature}"},
-                    {"key": "humidity", "type": "float", "value": "${humidity}"},  # missing in payload
+                    {"key": "humidity", "type": "float", "value": "${humidity}"},
                 ],
             },
         }
@@ -114,5 +114,40 @@ class RequestJsonUplinkConverterTest(BaseUnitTest):
 
         converter = JsonRequestUplinkConverter(test_request_config, self.log)
         result = converter.convert(test_request_convert_config, test_request_body_to_convert)
+        self.assertEqual(len(result.telemetry), 1)
+        self.assertEqual(expected_result.telemetry[0].values, result.telemetry[0].values)
+
+    def test_convert_list_root_jsonpath_missing_placeholder_is_skipped(self):
+        test_request_config = {
+            "url": "/last",
+            "httpMethod": "GET",
+            "httpHeaders": {"ACCEPT": "application/json"},
+            "allowRedirects": True,
+            "timeout": 0.5,
+            "scanPeriod": 5,
+            "converter": {
+                "deviceNameJsonExpression": "${$[0].sensor}",
+                "deviceTypeJsonExpression": "default",
+                "type": "json",
+                "attributes": [],
+                "telemetry": [
+                    {"key": "temperature", "type": "float", "value": "${$[0].temperature}"},
+                    {"key": "humidity", "type": "float", "value": "${$[0].humidity}"},
+                ],
+            },
+        }
+
+        test_request_body_to_convert = [
+            {"sensor": "SD8500", "temperature": 21.5}
+        ]
+        test_request_convert_config = "127.0.0.1:5000/last"
+
+        expected_result = ConvertedData(device_name="SD8500", device_type="default")
+        telemetry_entry = TelemetryEntry({DatapointKey("temperature"): 21.5})
+        expected_result.add_to_telemetry(telemetry_entry)
+
+        converter = JsonRequestUplinkConverter(test_request_config, self.log)
+        result = converter.convert(test_request_convert_config, test_request_body_to_convert)
+
         self.assertEqual(len(result.telemetry), 1)
         self.assertEqual(expected_result.telemetry[0].values, result.telemetry[0].values)
