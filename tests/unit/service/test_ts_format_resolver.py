@@ -70,6 +70,19 @@ class TestTSFormatResolver(TestCase):
         timestamp = self.ts_resolver(data=self.data, config=self.config, logger=logging)
         self.assertEqual(timestamp, self.data['ts'])
 
+    def test_with_list_root_ts_fallback_first_element(self):
+        config = deepcopy(self.config)
+        del config["tsField"]
+
+        data = [
+            {"ts": 1771428315000},
+            {"ts": 1771428316000},
+        ]
+
+        new_timestamp = self.ts_resolver(data=data, config=config, logger=logging)
+        self.assertEqual(new_timestamp, 1771428315000)
+
+
 
 if __name__ == '__main__':
     main()
