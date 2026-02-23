@@ -18,7 +18,7 @@ from re import fullmatch
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep, time
-
+from json import loads
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -177,10 +177,18 @@ class RequestConnector(Connector, Thread):
             }
         rpc_method_name = content["data"]["method"]
 
-        if rpc_method_name == 'get' or rpc_method_name == 'set':
-            params = self.__parse_reserved_rpc_params(rpc_method_name, content["data"]["params"])
-
-            rpc_request = self.__format_rpc_reqeust(params)
+        if rpc_method_name in ("get", "set"):
+            try:
+                params = self.__parse_reserved_rpc_params(rpc_method_name, content["data"].get("params"))
+                rpc_request = self.__format_rpc_reqeust(params)
+            except ValueError as e:
+                self._log.error("Error in reserved RPC parameters: %s. Please check your RPC params.", e)
+                return
+            except Exception as e:
+                self._log.error("Please check your reserved RPC params format error: %s", e)
+                self._log.debug("Unexpected error in reserved RPC parameters: %s. Please check your RPC params.", e,
+                                exc_info=e)
+                return
 
             rpc_request['converter'] = JsonRequestDownlinkConverter(rpc_request, self._converter_log)
 
@@ -191,11 +199,11 @@ class RequestConnector(Connector, Thread):
         for param in params.split(';'):
             try:
                 (key, value) = param.split('=')
+                new_key = key.strip() if isinstance(key, str) else key
+                if key and value:
+                    result_params[new_key] = value
             except ValueError:
                 continue
-
-            if key and value:
-                result_params[key] = value
 
         if rpc_method_name == 'set':
             result_params['requestValueExpression'] = result_params.pop('value', None)
@@ -203,18 +211,36 @@ class RequestConnector(Connector, Thread):
         return result_params
 
     def __format_rpc_reqeust(self, params):
-        return {
-            'requestUrlExpression': params['requestUrlExpression'],
-            'responseTimeout': params.get('responseTimeout', 1),
-            'httpMethod': params.get('httpMethod', 'GET'),
-            'requestValueExpression': params.get('requestValueExpression', '${params}'),
-            'responseValueExpression': params.get('responseValueExpression', None),
-            'timeout': params.get('timeout', 0.5),
-            'tries': params.get('tries', 3),
-            'httpHeaders': params.get('httpHeaders', {
-                'Content-Type': 'application/json'
-            }),
-        }
+        received_params = {}
+        for key, value in params.items():
+            new_key = key.strip() if isinstance(key, str) else key
+            received_params[new_key] = value
+
+        params = received_params
+
+        try:
+            formated_request_value = {
+                "requestUrlExpression": params.get("requestUrlExpression"),
+                "responseTimeout": params.get("responseTimeout", 1),
+                "httpMethod": params.get("httpMethod", "GET"),
+                "requestValueExpression": params.get("requestValueExpression", "${params}"),
+                "responseValueExpression": params.get("responseValueExpression", None),
+                "timeout": params.get("timeout", 0.5),
+                "tries": params.get("tries", 3),
+                "httpHeaders": loads(params.get("httpHeaders", '{"Content-Type": "application/json"}'))
+            }
+        except Exception:
+            raise
+
+        if not formated_request_value.get("requestUrlExpression"):
+            self._log.error(
+                "requestUrlExpression parameter is required for reserved RPCs. Please check your RPC params."
+            )
+            raise ValueError(
+                "requestUrlExpression parameter is required for reserved RPCs. Please check your RPC params."
+            )
+
+        return formated_request_value
 
     def __fill_requests(self):
         self._log.debug(self.__config["mapping"])
