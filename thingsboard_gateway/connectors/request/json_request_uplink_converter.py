@@ -122,6 +122,22 @@ class JsonRequestUplinkConverter(RequestConverter):
 
                     datapoint_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy,
                                                                            datatype_object_config, self.__log)
+
+                    if isinstance(full_key, str) and full_key.startswith("${") and full_key.endswith("}"):
+                        self.__log.debug("Unresolved key expression %r for device %s. Skipping datapoint.", full_key,
+                                         device_name)
+                        continue
+
+                    if full_value is None:
+                        self.__log.debug("Resolved value is None for key %s on device %s. Skipping datapoint.",
+                                         full_key, device_name)
+                        continue
+
+                    if isinstance(full_value, str) and full_value.startswith("${") and full_value.endswith("}"):
+                        self.__log.debug("Unresolved value expression %r for key %s on device %s. Skipping datapoint.",
+                                         full_value, full_key, device_name)
+                        continue
+
                     if datatype == 'attributes':
                         converted_data.add_to_attributes(datapoint_key, full_value)
                     else:
