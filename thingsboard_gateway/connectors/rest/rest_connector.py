@@ -559,8 +559,8 @@ class BaseDataHandler:
     responses_queue = Queue()
     response_attribute_request = Queue()
 
-    def __init__(self, send_to_storage, name, id, endpoint, logger, connector_logger, provider=None):
-        self.convertor_logger = logger
+    def __init__(self, send_to_storage, name, id, endpoint, converter_logger, connector_logger, provider=None):
+        self.converter_logger = converter_logger
         self.connector_logger = connector_logger
         self.send_to_storage = send_to_storage
         self.connector_id = id
@@ -742,7 +742,7 @@ class AnonymousDataHandler(BaseDataHandler):
             self.connector_logger.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
             converted_config = endpoint_config['converter']
             converted_config.update({'reportStrategy': endpoint_config.get('reportStrategy')})
-            converter = self.endpoint['converter'](converted_config, self.convertor_logger)
+            converter = self.endpoint['converter'](converted_config, self.converter_logger)
             converted_data: ConvertedData = converter.convert(config=endpoint_config['converter'], data=data)
 
             self.modify_data_for_remote_response(converted_data, self.response_expected)
@@ -800,7 +800,7 @@ class BasicDataHandler(BaseDataHandler):
                 converter_config = endpoint_config['converter']
                 converter_config.update({'reportStrategy': endpoint_config.get('reportStrategy')})
 
-                converter = self.endpoint['converter'](converter_config, self.convertor_logger)
+                converter = self.endpoint['converter'](converter_config, self.converter_logger)
                 converted_data: ConvertedData = converter.convert(config=endpoint_config['converter'], data=data)
 
                 self.modify_data_for_remote_response(converted_data, self.response_expected)
