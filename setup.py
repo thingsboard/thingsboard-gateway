@@ -66,7 +66,7 @@ setup(
               'thingsboard_gateway.extensions.serial'
               ],
     install_requires=[
-        'setuptools<82.0.0',
+        'setuptools',
         'cryptography',
         'jsonpath-rw',
         'regex',
@@ -83,7 +83,7 @@ setup(
         'python-dateutil',
         'cachetools',
         'tb-paho-mqtt-client>=2.1.2',
-        'tb-mqtt-client==1.13.12',
+        'tb-mqtt-client==1.13.13',
         'packaging==23.1',
         'service-identity',
         'psutil',
