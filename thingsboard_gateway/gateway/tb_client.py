@@ -281,16 +281,16 @@ class TBClient(threading.Thread):
         rate_limits_config = {}
         if self.__config.get('messagesRateLimits'):
             rate_limits_config['messages_rate_limit'] = self.__config['messagesRateLimits']
-        if self.__config.get('telemetryRateLimits'):
+        if self.__config.get('rateLimits'):
             rate_limits_config['telemetry_rate_limit'] = self.__config['rateLimits']
-        if self.__config.get('telemetryDpRateLimits'):
+        if self.__config.get('dpRateLimits'):
             rate_limits_config['telemetry_dp_rate_limit'] = self.__config['dpRateLimits']
 
         if self.__config.get('deviceMessagesRateLimits'):
             rate_limits_config['device_messages_rate_limit'] = self.__config['deviceMessagesRateLimits']
-        if self.__config.get('deviceTelemetryRateLimits'):
+        if self.__config.get('deviceRateLimits'):
             rate_limits_config['device_telemetry_rate_limit'] = self.__config['deviceRateLimits']
-        if self.__config.get('deviceTelemetryDpRateLimits'):
+        if self.__config.get('deviceDpRateLimits'):
             rate_limits_config['device_telemetry_dp_rate_limit'] = self.__config['deviceDpRateLimits']
 
         if 'rate_limit' in inspect.signature(TBGatewayMqttClient.__init__).parameters:
