@@ -18,7 +18,7 @@ from re import fullmatch
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep, time
-from json import loads
+from simplejson import loads
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
