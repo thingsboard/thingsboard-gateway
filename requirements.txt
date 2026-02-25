@@ -1,4 +1,4 @@
-setuptools<82.0.0
+setuptools
 packaging==23.1
 jsonpath-rw
 regex
@@ -15,7 +15,7 @@ mmh3
 protobuf
 cachetools
 tb-paho-mqtt-client>=2.1.2
-tb-mqtt-client==1.13.12
+tb-mqtt-client==1.13.13
 service-identity
 psutil
 cryptography
