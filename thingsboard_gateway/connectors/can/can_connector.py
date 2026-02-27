@@ -36,6 +36,9 @@ except ImportError:
 from thingsboard_gateway.connectors.can.bytes_can_downlink_converter import BytesCanDownlinkConverter
 from thingsboard_gateway.connectors.can.bytes_can_uplink_converter import BytesCanUplinkConverter
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.tb_utility.poll_scheduler import (
+    PollScheduler, compute_next_poll
+)
 
 
 class CanConnector(Connector, Thread):
@@ -672,6 +675,7 @@ class Poller(Thread):
         super().__init__()
         self.connector = connector
         self.scheduler = sched.scheduler(time.time, time.sleep)
+        self._poll_schedulers = {}
         self.events = []
         self.first_run = True
         self.daemon = True
@@ -714,5 +718,15 @@ class Poller(Thread):
                                   self.connector.get_name(), config["period"], config["nodeId"], data)
         self.connector.send_data_to_bus(data, config, raise_exception=self.first_run)
 
-        event = self.scheduler.enter(config["period"], 1, self.__poll_and_schedule, argument=(data, config))
+        key = config.get("key", "")
+        if key not in self._poll_schedulers:
+            self._poll_schedulers[key] = PollScheduler(config.get("pollSchedule"))
+        ps = self._poll_schedulers[key]
+        if ps.is_active:
+            from time import monotonic as _mono
+            delay = max(0.0, ps.next_poll_monotonic() - _mono())
+        else:
+            delay = config["period"]
+
+        event = self.scheduler.enter(delay, 1, self.__poll_and_schedule, argument=(data, config))
         self.events.append(event)

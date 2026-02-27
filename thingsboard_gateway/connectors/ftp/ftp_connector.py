@@ -28,6 +28,9 @@ from thingsboard_gateway.connectors.ftp.backward_compatibility_adapter import FT
 from thingsboard_gateway.connectors.ftp.file import File
 from thingsboard_gateway.connectors.ftp.ftp_uplink_converter import FTPUplinkConverter
 from thingsboard_gateway.connectors.ftp.path import Path
+from thingsboard_gateway.tb_utility.poll_scheduler import (
+    PollScheduler, compute_next_poll
+)
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -149,13 +152,17 @@ class FTPConnector(Connector, Thread):
                         "extension": path["converter"]["extension"]
                     }
 
-                    path_parameters_list.append(Path(**base_path_config, **custom_path_config))
+                    p = Path(**base_path_config, **custom_path_config)
+                    p._poll_schedule = path.get('pollSchedule')
+                    path_parameters_list.append(p)
                 else:
                     base_path_config['telemetry'] = path.get('timeseries')
                     base_path_config['attributes'] = path.get('attributes')
                     base_path_config['device_name'] = path['devicePatternName']
                     base_path_config['device_type'] = path.get('devicePatternType', 'Device')
-                    path_parameters_list.append(Path(**base_path_config))
+                    p = Path(**base_path_config)
+                    p._poll_schedule = path.get('pollSchedule')
+                    path_parameters_list.append(p)
             except KeyError as e:
                 self.__log.debug("Failed to extract path arguments for path %s", str(e))
                 continue
@@ -187,7 +194,16 @@ class FTPConnector(Connector, Thread):
     def __process_paths(self, ftp):
         for path in self.paths:
             time_point = timer()
-            if time_point - path.last_polled_time >= path.poll_period or path.last_polled_time == 0:
+            if not hasattr(path, '_scheduler'):
+                path._scheduler = PollScheduler(getattr(path, '_poll_schedule', None))
+            if not hasattr(path, '_next_poll_time'):
+                path._next_poll_time = 0
+            if path._scheduler.is_active:
+                from time import monotonic as _mono
+                should_poll = _mono() >= path._next_poll_time
+            else:
+                should_poll = time_point - path.last_polled_time >= path.poll_period or path.last_polled_time == 0
+            if should_poll:
                 configuration = path.config
 
                 if path.custom_converter_type == "custom":
@@ -217,6 +233,9 @@ class FTPConnector(Connector, Thread):
                     converter = FTPUplinkConverter(configuration, self.__converter_log)
 
                 path.last_polled_time = time_point
+                if path._scheduler.is_active:
+                    from time import monotonic as _mono
+                    path._next_poll_time = path._scheduler.next_poll_monotonic()
 
                 if '*' in path.path:
                     path.find_files(ftp)
