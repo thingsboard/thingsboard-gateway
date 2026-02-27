@@ -30,6 +30,7 @@ from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
     DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
@@ -178,6 +179,7 @@ class OpcUaConnector(Connector, Thread):
 
         self.__device_nodes: List[Device] = []
         self.__nodes_config_cache: Dict[NodeId, List[Device]] = {}
+        self.__constant_telemetry_sent_devices = set()
         self.__next_poll = 0
         self.__next_scan = 0
         self.__client_recreation_required = True
@@ -982,16 +984,16 @@ class OpcUaConnector(Connector, Thread):
 
                         device_config = {**device_config, 'device_name': device_name, 'device_type': device_profile}
                         device_path = [node_path_node_object['path'] for node_path_node_object in node]
-                        self.__device_nodes.append(
-                            Device(path=device_path, name=device_name, device_profile=device_profile,
-                                   config=device_config,
-                                   converter=converter(
-                                       device_config, self.__converter_log),
-                                   converter_for_sub=converter(device_config,
-                                                               self.__converter_log) if self.__enable_subscriptions else None,
-                                   device_node=node[-1]['node'],
-                                   logger=self.__log))
+                        new_device = Device(path=device_path, name=device_name, device_profile=device_profile,
+                                            config=device_config,
+                                            converter=converter(device_config, self.__converter_log),
+                                            converter_for_sub=converter(device_config, self.__converter_log) if self.__enable_subscriptions else None,
+                                            device_node=node[-1]['node'],
+                                            logger=self.__log)
+                        self.__device_nodes.append(new_device)
                         self.__log.info('Added device node: %s', device_name)
+                        # Send constant attributes always on creation; constant telemetry only once per process
+                        self.__send_constants_for_device(new_device)
         self.__log.debug('Device nodes: %s', self.__device_nodes)
 
     async def _load_devices_nodes(self):
@@ -1286,6 +1288,49 @@ class OpcUaConnector(Connector, Thread):
         self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
         self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
         self.__log.debug('Count data msg to storage: %s', self.statistics['MessagesSent'])
+
+    def __send_constants_for_device(self, device: Device):
+        """
+        Send constant attributes on every device creation and reconnection (because devices are recreated),
+        and constant telemetry only once per process lifetime for a given device.
+        """
+        try:
+            has_attributes = False
+            has_telemetry = False
+            converted_data = ConvertedData(device_name=device.name, device_type=device.device_profile)
+
+            # Constant attributes
+            for entry in getattr(device, 'constant_attributes', []):
+                key = entry.get('key')
+                value = entry.get('value')
+                casted_value = self.__guess_type_and_cast(value)
+                dp_key = TBUtility.convert_key_to_datapoint_key(key, device.report_strategy or None, entry, self.__log)
+                converted_data.add_to_attributes({dp_key: casted_value})
+                has_attributes = True
+
+            # Constant telemetry (send once per device name per process)
+            if device.name not in self.__constant_telemetry_sent_devices:
+                telemetry_values = {}
+                for entry in getattr(device, 'constant_timeseries', []):
+                    key = entry.get('key')
+                    value = entry.get('value')
+                    casted_value = self.__guess_type_and_cast(value)
+                    dp_key = TBUtility.convert_key_to_datapoint_key(key, device.report_strategy or None, entry, self.__log)
+                    telemetry_values[dp_key] = casted_value
+
+                if telemetry_values:
+                    ts = int(time() * 1000)
+                    telemetry_entry = TelemetryEntry(telemetry_values, ts)
+                    converted_data.add_to_telemetry(telemetry_entry)
+                    has_telemetry = True
+                    self.__constant_telemetry_sent_devices.add(device.name)
+
+            if has_attributes or has_telemetry:
+                self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
+                self.__log.info("Sent constant data for device %s: attributes=%s, telemetry=%s",
+                                device.name, has_attributes, has_telemetry)
+        except Exception as e:
+            self.__log.exception("Failed to send constant data for device %s: %s", device.name, e)
 
     @staticmethod
     def get_rpc_node_pattern_and_base_path(params, device, logger):
