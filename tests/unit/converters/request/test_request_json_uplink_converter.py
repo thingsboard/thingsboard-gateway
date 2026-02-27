@@ -151,3 +151,64 @@ class RequestJsonUplinkConverterTest(BaseUnitTest):
 
         self.assertEqual(len(result.telemetry), 1)
         self.assertEqual(expected_result.telemetry[0].values, result.telemetry[0].values)
+
+    def test_convert_template_partial_missing_placeholder_keeps_key_with_null(self):
+        test_request_config = {
+            "url": "/last",
+            "httpMethod": "GET",
+            "httpHeaders": {"ACCEPT": "application/json"},
+            "allowRedirects": True,
+            "timeout": 0.5,
+            "scanPeriod": 5,
+            "converter": {
+                "deviceNameJsonExpression": "SD8500",
+                "deviceTypeJsonExpression": "default",
+                "type": "json",
+                "attributes": [],
+                "telemetry": [
+                    {
+                        "key": "developer_humidity",
+                        "type": "string",
+                        "value": "${Developer}:${hum}",
+                    }
+                ],
+            },
+        }
+        test_request_body_to_convert = {"Developer": "Tester"}
+        test_request_convert_config = "127.0.0.1:5000/last"
+
+        converter = JsonRequestUplinkConverter(test_request_config, self.log)
+        result = converter.convert(test_request_convert_config, test_request_body_to_convert)
+
+        self.assertEqual(len(result.telemetry), 1)
+        self.assertIn(DatapointKey("developer_humidity"), result.telemetry[0].values)
+        self.assertEqual(result.telemetry[0].values[DatapointKey("developer_humidity")], "Tester:null")
+
+    def test_convert_template_all_missing_placeholders_is_skipped(self):
+        test_request_config = {
+            "url": "/last",
+            "httpMethod": "GET",
+            "httpHeaders": {"ACCEPT": "application/json"},
+            "allowRedirects": True,
+            "timeout": 0.5,
+            "scanPeriod": 5,
+            "converter": {
+                "deviceNameJsonExpression": "SD8500",
+                "deviceTypeJsonExpression": "default",
+                "type": "json",
+                "attributes": [],
+                "telemetry": [
+                    {
+                        "key": "developer_humidity",
+                        "type": "string",
+                        "value": "${Developer}:${hum}",
+                    }
+                ],
+            },
+        }
+
+        test_request_body_to_convert = {}
+        test_request_convert_config = "127.0.0.1:5000/last"
+        converter = JsonRequestUplinkConverter(test_request_config, self.log)
+        result = converter.convert(test_request_convert_config, test_request_body_to_convert)
+        self.assertEqual(len(result.telemetry), 0)

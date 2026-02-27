@@ -100,8 +100,12 @@ class JsonRequestUplinkConverter(RequestConverter):
                     for (key, key_tag) in zip(keys, keys_tags):
                         is_valid_key = "${" in datatype_object_config["key"] and "}" in \
                                        datatype_object_config["key"]
-                        full_key = full_key.replace('${' + str(key_tag) + '}',
-                                                    str(key)) if is_valid_key else key_tag
+                        placeholder = '${' + str(key_tag) + '}'
+                        is_unresolved = (key is None or (
+                                isinstance(key, str) and key.startswith("${") and key.endswith("}")))
+                        replacement = "null" if is_unresolved else str(key)
+
+                        full_key = full_key.replace(placeholder, replacement if is_valid_key else key_tag)
 
                     raw_value_expression = datatype_object_config["value"]
                     is_pure_placeholder = (isinstance(raw_value_expression, str)
@@ -114,11 +118,27 @@ class JsonRequestUplinkConverter(RequestConverter):
                         self.__log.debug("The converted value is %s with datatype %s", full_value,
                                          datatype_object_config["type"])
                     else:
+                        resolved_any = False
                         full_value = raw_value_expression
                         for (value, value_tag) in zip(values, values_tags):
-                            full_value = full_value.replace('${' + str(value_tag) + '}', str(value))
-                            self.__log.debug("The converted value is %s with datatype %s", full_value,
-                                             datatype_object_config["type"])
+                            placeholder = '${' + str(value_tag) + '}'
+                            is_unresolved = (value is None or (
+                                    isinstance(value, str) and value.startswith("${") and value.endswith("}")))
+                            if is_unresolved:
+                                replacement = "null"
+                            else:
+                                replacement = str(value)
+                                resolved_any = True
+                            full_value = full_value.replace(placeholder, replacement)
+
+                        self.__log.debug("The converted value is %s with datatype %s",
+                                         full_value, datatype_object_config["type"])
+                        if not resolved_any:
+                            self.__log.debug(
+                                "All placeholders resolved to null for key %s on device %s. Skipping datapoint. Expression=%r",
+                                full_key, device_name, raw_value_expression
+                            )
+                            continue
 
                     datapoint_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy,
                                                                            datatype_object_config, self.__log)
