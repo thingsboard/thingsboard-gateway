@@ -251,6 +251,7 @@ class SQLiteEventStorage(EventStorage):
         )
         if not self.stopped.is_set():
             self.delete_data(self.delete_time_point)
+            self.__read_database.can_prepare_new_batch()
             if not self.__read_database.database_has_records():
 
                 self.__read_database.process_file_limit()
@@ -283,8 +284,6 @@ class SQLiteEventStorage(EventStorage):
                     int((monotonic() - self.__event_pack_processing_start) * 1000),
                     self.__read_database.get_stored_messages_count(),
                 )
-
-            self.__read_database.can_prepare_new_batch()
 
             return event_pack_messages
 
