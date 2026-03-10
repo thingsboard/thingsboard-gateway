@@ -16,6 +16,7 @@
       "readMode": "FULL",
       "maxFileSize": 5,
       "pollPeriod": 500,
+      "pollSchedule": null,
       "txtFileDataView": "SLICED",
       "withSortingFiles": true,
       "attributes": [

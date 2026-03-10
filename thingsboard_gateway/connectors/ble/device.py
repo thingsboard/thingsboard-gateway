@@ -32,6 +32,9 @@ from bleak import BleakClient
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics  # noqa
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.connectors.ble.error_handler import ErrorHandler
+from thingsboard_gateway.tb_utility.poll_scheduler import (
+    PollScheduler, compute_next_poll
+)
 
 MAC_ADDRESS_FORMAT = {
     'Darwin': '-',
@@ -64,6 +67,7 @@ class Device:
             self._log.error(e)
 
         self.poll_period = config.get('pollPeriod', 5000) / 1000
+        self.scheduler = PollScheduler(config.get('pollSchedule'))
         self.config = self._generate_config(config)
         self.adv_only = self._check_adv_mode()
         self.callback = config['callback']
@@ -125,10 +129,16 @@ class Device:
             self.stopped = True
 
     async def timer(self, scanned_devices_callback):
+        next_poll_time = compute_next_poll(
+            time(), self.poll_period, self.scheduler
+        )
         while True:
             try:
-                if time() - self.last_polled_time >= self.poll_period:
+                if time() >= next_poll_time:
                     self.last_polled_time = time()
+                    next_poll_time = compute_next_poll(
+                        time(), self.poll_period, self.scheduler
+                    )
                     await self.__process_self()
                     await self._process_adv_data(scanned_devices_callback=scanned_devices_callback)
                 else:
@@ -284,9 +294,16 @@ class Device:
 
                 await self.timer(scanned_devices_callback)
         else:
+            next_poll_time = compute_next_poll(
+                time(), self.poll_period, self.scheduler
+            )
             while not self.stopped:
                 await self._process_adv_data(scanned_devices_callback)
-                await sleep(self.poll_period)
+                sleep_time = max(0.0, next_poll_time - time())
+                await sleep(sleep_time)
+                next_poll_time = compute_next_poll(
+                    time(), self.poll_period, self.scheduler
+                )
 
     async def __show_map(self, return_result=False):
         result = f'MAP FOR {self.name.upper()}'

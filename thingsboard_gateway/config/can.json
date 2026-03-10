@@ -35,6 +35,7 @@
           "polling": {
             "type": "always",
             "period": 5,
+            "pollSchedule": null,
             "dataInHex": "aaaa bbbb aaaa bbbb"
           }
         },
@@ -47,6 +48,7 @@
           "polling": {
             "type": "always",
             "period": 30,
+            "pollSchedule": null,
             "dataInHex": "aa bb cc dd ee ff aa bb"
           }
         }
