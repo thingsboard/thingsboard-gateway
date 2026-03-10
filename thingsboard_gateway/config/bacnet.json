@@ -1,9 +1,9 @@
 {
   "application": {
     "objectName": "TB_gateway",
-    "host": "0.0.0.0",
+    "host": "192.168.2.1",
     "port": 47808,
-    "mask": "24",
+    "mask": 24,
     "objectIdentifier": 599,
     "maxApduLengthAccepted": 1476,
     "segmentationSupported": "segmentedBoth",
@@ -28,8 +28,8 @@
       },
       "altResponsesAddresses": [],
       "host": "192.168.2.110",
-      "port": "47808",
-      "mask": "24",
+      "port": 47808,
+      "mask": 24,
       "pollPeriod": 10000,
       "attributes": [
         {
