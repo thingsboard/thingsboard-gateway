@@ -296,7 +296,7 @@ class RequestConnector(Connector, Thread):
                             "\n\nCannot find extension module for %s url.\nPlease check your configuration.\n",
                             endpoint["url"])
                 else:
-                    converter = JsonRequestUplinkConverter(endpoint, self._log)
+                    converter = JsonRequestUplinkConverter(endpoint, self._converter_log)
                 self.__requests_in_progress.append({"config": endpoint,
                                                     "converter": converter,
                                                     "next_time": time(),
