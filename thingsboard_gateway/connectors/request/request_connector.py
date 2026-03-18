@@ -18,6 +18,8 @@ from re import fullmatch
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep, time
+import os
+
 from simplejson import loads
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -55,8 +57,33 @@ class RequestConnector(Connector, Thread):
                                           self.__config.get('logLevel', 'INFO'),
                                           enable_remote_logging=self.__config.get('enableRemoteLogging', False),
                                           is_converter_logger=True, attr_name=self.name)
-        self.__security = HTTPBasicAuth(self.__config["security"]["username"], self.__config["security"]["password"]) if \
-            self.__config["security"]["type"] == "basic" else None
+
+        security_cfg = self.__config.get("security", {})
+        security_type = security_cfg.get("type")
+        self.__security = None
+        if security_type == "basic":
+            username = security_cfg.get("username")
+            password = security_cfg.get("password")
+
+            if username is None or password is None:
+                username = os.getenv("REQUEST_BASIC_USERNAME")
+                password = os.getenv("REQUEST_BASIC_PASSWORD")
+
+                if username is None:
+                    raise RuntimeError(
+                        f"[{self.name}] BASIC auth: REQUEST_BASIC_USERNAME not found."
+                    )
+                if password is None:
+                    raise RuntimeError(
+                        f"[{self.name}] BASIC auth: REQUEST_BASIC_PASSWORD not found."
+                    )
+
+                self._log.info(
+                    f"BASIC Auth with ENV REQUEST_BASIC_USERNAME / REQUEST_BASIC_PASSWORD"
+                )
+
+            self.__security = HTTPBasicAuth(username, password)
+
         self.__host = None
         self.__service_headers = {}
         if "http://" in self.__config["host"].lower() or "https://" in self.__config["host"].lower():
