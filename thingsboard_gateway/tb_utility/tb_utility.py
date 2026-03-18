@@ -17,7 +17,7 @@ from getpass import getuser
 from logging import getLogger, setLoggerClass
 from os import environ
 from platform import system as platform_system
-from re import search, findall
+from re import escape as re_escape, search, findall
 from time import monotonic, sleep
 from typing import Union, TYPE_CHECKING, Any
 from uuid import uuid4
@@ -111,11 +111,11 @@ class TBUtility:
 
     @staticmethod
     def topic_to_regex(topic):
-        return topic.replace("+", "[^/]+").replace("#", ".+").replace('$', '\\$')
+        return re_escape(topic).replace(r'\+', '[^/]+').replace(r'\#', '.+')
 
     @staticmethod
     def regex_to_topic(regex):
-        return regex.replace("[^/]+", "+").replace(".+", "#").replace('\\$', '$')
+        return regex.replace('[^/]+', '+').replace('.+', '#')
 
     @staticmethod
     def get_value(expression, body=None, value_type="string", get_tag=False, expression_instead_none=False):
