@@ -18,7 +18,7 @@ from re import fullmatch
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep, time
-import os
+from os import environ
 
 from simplejson import loads
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
@@ -62,27 +62,7 @@ class RequestConnector(Connector, Thread):
         security_type = security_cfg.get("type")
         self.__security = None
         if security_type == "basic":
-            username = security_cfg.get("username")
-            password = security_cfg.get("password")
-
-            if username is None or password is None:
-                username = os.getenv("REQUEST_BASIC_USERNAME")
-                password = os.getenv("REQUEST_BASIC_PASSWORD")
-
-                if username is None:
-                    raise RuntimeError(
-                        f"[{self.name}] BASIC auth: REQUEST_BASIC_USERNAME not found."
-                    )
-                if password is None:
-                    raise RuntimeError(
-                        f"[{self.name}] BASIC auth: REQUEST_BASIC_PASSWORD not found."
-                    )
-
-                self._log.info(
-                    f"BASIC Auth with ENV REQUEST_BASIC_USERNAME / REQUEST_BASIC_PASSWORD"
-                )
-
-            self.__security = HTTPBasicAuth(username, password)
+            self.__security = self._get_basic_auth(security_cfg)
 
         self.__host = None
         self.__service_headers = {}
@@ -100,6 +80,21 @@ class RequestConnector(Connector, Thread):
         self.__fill_attribute_updates()
         self.__fill_rpc_requests()
         self.__fill_requests()
+
+    def _get_basic_auth(self, security_config):
+        username = environ.get("REQUEST_BASIC_USERNAME")
+        password = environ.get("REQUEST_BASIC_PASSWORD")
+
+        if username is None or password is None:
+            username = security_config.get("username")
+            password = security_config.get("password")
+
+            if username is None or password is None:
+                self._log.warning("Basic authentication requires username and password to be set")
+                self._log.warning("Will use anonymous authentication for requests")
+                return None
+
+        return HTTPBasicAuth(username, password)
 
     def run(self):
         while not self.__stopped:
