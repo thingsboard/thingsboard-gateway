@@ -13,6 +13,8 @@
 #     limitations under the License.
 
 
+from time import time
+
 from bacpypes3.basetypes import DateTime
 from bacpypes3.constructeddata import AnyAtomic, Array
 from bacpypes3.basetypes import (
@@ -48,6 +50,7 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
         device_report_strategy = self._get_device_report_strategy(self.__config.report_strategy,
                                                                   self.__config.device_name)
 
+        received_data_ts = int(time() * 1000)
         for item_config in config:
             try:
                 values_group = self.__find_values(data,
@@ -64,14 +67,18 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
                                                                                device_report_strategy,
                                                                                item_config,
                                                                                self.__log)
-                        converted_data_append_methods[item_config['type']]({datapoint_key: round(unsed_values[0]['value'], 2) if isinstance(unsed_values[0]['value'], float) else str(unsed_values[0]['value'])})  # noqa
+                        payload = {datapoint_key: round(unsed_values[0]['value'], 2) if isinstance(unsed_values[0]['value'], float) else str(unsed_values[0]['value'])}  # noqa
+                        payload['ts'] = received_data_ts
+                        converted_data_append_methods[item_config['type']](payload)  # noqa
                     else:
                         for item in unsed_values:
                             datapoint_key = TBUtility.convert_key_to_datapoint_key(f'{data_key}.{item["propName"]}',
                                                                                    device_report_strategy,
                                                                                    item_config,
                                                                                    self.__log)
-                            converted_data_append_methods[item_config['type']]({datapoint_key: round(item['value'], 2) if isinstance(item['value'], float) else str(item['value'])}) # noqa
+                            payload = {datapoint_key: round(item['value'], 2) if isinstance(item['value'], float) else str(item['value'])}  # noqa
+                            payload['ts'] = received_data_ts
+                            converted_data_append_methods[item_config['type']](payload)  # noqa
             except Exception as e:
                 self.__log.error("Error converting data for item %s: %s", item_config, e)
                 StatisticsService.count_connector_message(self.__log.name, 'convertersError', count=1)

@@ -128,7 +128,7 @@ class ConvertedData:
 
     def _add_single_telemetry_entry(self, telemetry_entry: Union[dict, TelemetryEntry]):
         if isinstance(telemetry_entry, dict):
-            telemetry_entry = TelemetryEntry(telemetry_entry, telemetry_entry.get("ts"))
+            telemetry_entry = TelemetryEntry(telemetry_entry, telemetry_entry.pop("ts", None))
 
         if telemetry_entry.ts in self.ts_index:
             index = self.ts_index[telemetry_entry.ts]
