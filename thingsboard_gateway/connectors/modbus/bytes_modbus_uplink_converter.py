@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from time import time
 from typing import List, Union
 
 from pymodbus.constants import Endian
@@ -44,6 +45,8 @@ class BytesModbusUplinkConverter(ModbusConverter):
             'attributes': result.add_to_attributes,
             'telemetry': result.add_to_telemetry
         }
+        
+        received_data_ts = int(time() * 1000)
 
         for device_data in data:
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
@@ -68,7 +71,11 @@ class BytesModbusUplinkConverter(ModbusConverter):
                                                                                    device_report_strategy,
                                                                                    config,
                                                                                    self._log)
-                            converted_data_append_methods[config_section]({datapoint_key: decoded_data})
+                            payload = {datapoint_key: decoded_data}
+                            if config_section == 'telemetry':
+                                payload['ts'] = received_data_ts
+
+                            converted_data_append_methods[config_section](payload)
 
         self._log.trace("Decoded data: %s", result)
         StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
