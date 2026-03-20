@@ -1581,9 +1581,11 @@ class OpcUaConnector(Connector, Thread):
             try:
                 await var.write_value(value)
             except (BadWriteNotSupported, BadTypeMismatch):
+                variant_type = await var.read_data_type_as_variant_type()
                 value = self.__guess_type_and_cast(value)
-                data_value = ua.DataValue(ua.Variant(value))
+                data_value = ua.DataValue(ua.Variant(value, variant_type))
                 await var.write_value(data_value)
+                self.__log.debug("Successfully wrote value with type casting %s to %s", value, path)
 
             result['value'] = value
             return result
@@ -1595,6 +1597,7 @@ class OpcUaConnector(Connector, Thread):
         except Exception as e:
             result['error'] = e.__str__()
             self.__log.error("Can not find node for provided path %s ", path)
+            self.__log.debug("Error", exc_info=e)
             return result
 
     @staticmethod
