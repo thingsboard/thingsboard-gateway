@@ -216,7 +216,7 @@ class AsyncBACnetConnector(Thread, Connector):
 
     async def __start(self):
         if not self.__is_valid_application_device_section():
-            self.__log.error('Can not start connector due to invalid application section in config.')
+            self.__log.error('Can not start connector due to invalid application/devices section in config.')
             return
 
         if self.__config.get('foreignDevice', {}).get('address', ''):
@@ -239,6 +239,28 @@ class AsyncBACnetConnector(Thread, Connector):
                              self.indication_callback(),
                              self.__application.confirmation_handler())
 
+    def __validate_and_normalize_port(self, section: dict, section_name: str) -> bool:
+        port = section.get('port')
+        if port is None:
+            section['port'] = 47808
+            return True
+
+        if isinstance(port, bool) or not isinstance(port, int):
+            self.__log.error(
+                "Invalid '%s.port': expected integer in range [1, 65535], got %r (%s).",
+                section_name, port, type(port).__name__
+            )
+            return False
+
+        if not (1 <= port <= 65535):
+            self.__log.error(
+                "Invalid '%s.port': value must be in range [1, 65535], got %d.",
+                section_name, port
+            )
+            return False
+
+        return True
+
     def __is_valid_application_device_section(self) -> bool:
         app = self.__config.get('application')
         if not isinstance(app, dict):
@@ -255,13 +277,24 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__log.error("Invalid IPv4 address in application section: %s", host)
             return False
 
-        port = app.get('port')
-        if not (1 <= int(port) <= 65535):
-            self.__log.error(
-                "The port inside application section must be in range [1, 65535], but got %d.",
-                port
-            )
+        if not self.__validate_and_normalize_port(app, 'application'):
             return False
+
+        devices = self.__config.get('devices', [])
+        if not isinstance(devices, list):
+            self.__log.error("Invalid 'devices' section in config: expected list, got %s.", type(devices).__name__)
+            return False
+
+        for index, device in enumerate(devices):
+            if not isinstance(device, dict):
+                self.__log.error(
+                    "Invalid 'devices[%d]' config section: expected object, got %s.",
+                    index, type(device).__name__
+                )
+                return False
+
+            if not self.__validate_and_normalize_port(device, f'devices[{index}]'):
+                return False
 
         apdu = app.get('maxApduLengthAccepted', 1476)
         if apdu not in ALLOWED_APDU:
@@ -271,23 +304,21 @@ class AsyncBACnetConnector(Thread, Connector):
             )
             app['maxApduLengthAccepted'] = 1476
 
-        mask = app.get('mask', "24")
+        mask = app.get('mask', 24)
         try:
-            if mask.isdigit():
-                mask_int = int(mask)
-                if not (0 <= mask_int <= 32):
-                    self.__log.warning(
-                        "The mask inside application section must be in range [0, 32], but got %s. Using default 24",
-                        mask)
-                    app['mask'] = "24"
-                else:
-                    app['mask'] = mask  # valid number string
+            if not isinstance(mask, int):
+                raise TypeError("mask must be int")
+
+            if not (0 <= mask <= 32):
+                self.__log.warning(
+                    "The mask inside application section must be in range [0, 32], but got %s. Using default 24",
+                    mask)
+                app['mask'] = 24
             else:
-                # Check if it's a valid dotted mask like 255.255.255.0
-                IPv4Network(f"{host}/{mask}", strict=False)
+                app['mask'] = mask
             return True
         except Exception as e:
-            app['mask'] = "24"
+            app['mask'] = 24
             self.__log.warning("Invalid subnet mask inside application section: %s : %s using default - 24", mask,
                                str(e))
 
