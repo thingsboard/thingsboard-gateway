@@ -168,8 +168,7 @@ class FTPConnector(Connector, Thread):
             ftp.connect(self.host, self.port)
 
             if isinstance(ftp, FTP_TLS):
-                ftp.sendcmd('USER ' + self.security['username'])
-                ftp.sendcmd('PASS ' + self.security['password'])
+                ftp.login(self.security['username'], self.security['password'])
                 ftp.prot_p()
                 self.__log.info('Data protection level set to "private"')
             else:
