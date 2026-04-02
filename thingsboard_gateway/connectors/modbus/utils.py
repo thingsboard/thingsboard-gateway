@@ -26,7 +26,7 @@ class Utils:
         return '-' in address
 
     @staticmethod
-    def parse_wide_range_request(address, objects_count=1):
+    def parse_wide_range_request(address, objects_count=1, max_registers_per_request=16):
         try:
             start_address, end_address = Utils.__parse_wide_range_address(address)
             result = []
@@ -35,12 +35,12 @@ class Utils:
             if registers_to_read <= 0:
                 raise ValueError('End address must be greater than start address')
 
-            if registers_to_read > 100:
+            if registers_to_read > max_registers_per_request:
                 current_start_address = start_address
                 remaining_registers = registers_to_read
 
                 while remaining_registers > 0:
-                    registers_chunk = min(100, remaining_registers)
+                    registers_chunk = min(max_registers_per_request, remaining_registers)
                     result.append((current_start_address, registers_chunk))
                     current_start_address += registers_chunk
                     remaining_registers -= registers_chunk
