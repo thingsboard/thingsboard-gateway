@@ -21,6 +21,9 @@
       "timeout": 0.5,
       "scanPeriod": 5,
       "dataUnpackExpression": "",
+      "queryParameters": {
+        "apikey": "97ebacf4-d52e-4f9b-a297-83315017e36c"
+      },
       "converter": {
         "type": "json",
         "deviceNameJsonExpression": "SD8500",
@@ -137,8 +140,16 @@
       "scanPeriod": 1800,
       "subRequests": {
         "cumPwr": {
-          "url": "/${id}/hist/values/ActiveEnergy/SUM13/3600?start=RELATIVE_-1HOUR&end=RELATIVE_-1HOUR&online=false&aggregate=false",
-          "processingFunction": "def process_data(data, key): return {key: float(data[\"values\"][0][\"avg\"])/1000.0}"
+          "url": "/hist/values/ActiveEnergy/SUM13/3600",
+          "processingFunction": "def process_data(data, key): return {key: float(data[\"values\"][0][\"avg\"])/1000.0}",
+          "queryParameters": {
+            "apikey": "97ebacf4-d52e-4f9b-a297-83315017e36c",
+            "start": "RELATIVE_-1HOUR",
+            "end": "RELATIVE_-1HOUR",
+            "online": false,
+            "aggregate": false,
+            "id": "${id}"
+          }
         }
       },
       "converter": {
