@@ -88,6 +88,7 @@ setup(
         'service-identity',
         'psutil',
         'PySocks',
+        'croniter>=1.3.8',
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % version.VERSION,
     entry_points={

@@ -20,6 +20,7 @@
         "retryOnEmpty": true,
         "retryOnInvalid": true,
         "pollPeriod": 5000,
+        "pollSchedule": null,
         "unitId": 1,
         "deviceName": "Temp Sensor",
         "sendDataOnlyOnChange": true,

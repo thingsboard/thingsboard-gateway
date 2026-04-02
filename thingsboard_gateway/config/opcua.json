@@ -4,6 +4,7 @@
     "timeoutInMillis": 5000,
     "scanPeriodInMillis": 3600000,
     "pollPeriodInMillis": 5000,
+    "pollSchedule": null,
     "enableSubscriptions": true,
     "subCheckPeriodInMillis": 100,
     "subDataMaxBatchSize": 1000,
