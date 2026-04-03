@@ -38,10 +38,10 @@ class JsonRequestDownlinkConverter(RequestConverter):
                 result = {
                     "url": self.__config["requestUrlExpression"].replace("${attributeKey}", quote(attribute_key))
                     .replace("${attributeValue}", quote(str(attribute_value)))
-                    .replace("${deviceName}", quote(data["device"])),
+                    .replace("${deviceName}", quote(data.get("device", ""))),
                     "data": self.__config["requestValueExpression"].replace("${attributeKey}", attribute_key)
                     .replace("${attributeValue}", str(attribute_value))
-                    .replace("${deviceName}", data["device"])
+                    .replace("${deviceName}", quote(data.get("device", ""))),
                 }
             else:
                 request_id = str(data["data"]["id"])
@@ -50,10 +50,10 @@ class JsonRequestDownlinkConverter(RequestConverter):
                 result = {
                     "url": self.__config["requestUrlExpression"].replace("${requestId}", request_id)
                     .replace("${methodName}", method_name)
-                    .replace("${deviceName}", quote(data["device"])),
+                    .replace("${deviceName}", quote(data.get("device", ""))),
                     "data": self.__config["requestValueExpression"].replace("${requestId}", request_id)
                     .replace("${methodName}", method_name)
-                    .replace("${deviceName}", data["device"])
+                    .replace("${deviceName}", quote(data.get("device", ""))),
                 }
 
             result['url'] = TBUtility.replace_params_tags(result['url'], data)
