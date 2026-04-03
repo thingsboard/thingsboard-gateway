@@ -52,6 +52,7 @@ setup(
               'thingsboard_gateway.connectors.opcua', 'thingsboard_gateway.extensions.opcua',
               'thingsboard_gateway.connectors.opcua.entities',
               'thingsboard_gateway.connectors.request', 'thingsboard_gateway.extensions.request',
+              'thingsboard_gateway.connectors.request.entities',
               'thingsboard_gateway.connectors.ocpp', 'thingsboard_gateway.extensions.ocpp',
               'thingsboard_gateway.connectors.can', 'thingsboard_gateway.extensions.can',
               'thingsboard_gateway.connectors.odbc', 'thingsboard_gateway.extensions.odbc',
