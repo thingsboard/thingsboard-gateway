@@ -39,6 +39,7 @@ from requests.exceptions import RequestException, JSONDecodeError
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
+from thingsboard_gateway.connectors.request.entities.rpc_request import RequestRpcRequest, RequestRpcType
 from thingsboard_gateway.connectors.request.json_request_downlink_converter import JsonRequestDownlinkConverter
 
 
@@ -139,17 +140,18 @@ class RequestConnector(Connector, Thread):
     def server_side_rpc_handler(self, content):
         self._log.info('Received server side rpc request: %r', content)
         try:
-            content = self.__process_rpc_request_payload(content)
-            if self.__is_reserved_rpc(content):
+            rpc_request = RequestRpcRequest(content=content)
+            content = rpc_request.content
+
+            if rpc_request.rpc_type == RequestRpcType.RESERVED:
                 self.__process_reserved_rpc(content)
 
-            elif self.__is_connector_rpc(content):
+            elif rpc_request.rpc_type == RequestRpcType.CONNECTOR:
                 response = self.__process_connector_rpc_request(content)
                 return response
 
-            elif content.get("device") and not self.__is_reserved_rpc(content):
+            elif rpc_request.rpc_type == RequestRpcType.DEVICE:
                 self.__process_device_rpc(content=content)
-
 
         except Exception as e:
             self._log.error('Failed to process server side rpc request: %s', e)
@@ -219,34 +221,6 @@ class RequestConnector(Connector, Thread):
         result = self.__prepare_and_execute_rpc(rpc_request, content)
         results.append(self.__result_to_dict(result))
         return results
-
-    @staticmethod
-    def __is_connector_rpc(content: dict):
-        try:
-            (connector_type, rpc_method_name) = content['data'].get('method').split('_')
-            if connector_type == "request" and content.get('device') is None:
-                return True
-
-        except (ValueError, AttributeError):
-            return False
-
-    @staticmethod
-    def __process_rpc_request_payload(content: dict):
-        if content.get("data") is None:
-            content["data"] = {
-                "params": content["params"],
-                "method": content["method"],
-                "id": content["id"],
-            }
-        return content
-
-    @staticmethod
-    def __is_reserved_rpc(content: dict):
-        rpc_method_name = content["data"]["method"].lower()
-        if rpc_method_name in ("get", "set") and content.get("device"):
-            return True
-
-        return False
 
     @staticmethod
     def __result_to_dict(result: RpcExecutionResult) -> dict:
