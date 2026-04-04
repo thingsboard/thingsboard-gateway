@@ -453,7 +453,6 @@ class OpcUaConnector(Connector, Thread):
                         await self.disconnect_if_connected()
                     except Exception:
                         pass
-                    self.__connected = False
                 await asyncio.sleep(.5)
 
     def __is_certificate_based_auth(self):
@@ -462,6 +461,7 @@ class OpcUaConnector(Connector, Thread):
 
     async def disconnect_if_connected(self):
         if self.__connected:
+            self.__connected = False
             try:
                 if self.__enable_subscriptions:
                     self.__client_recreation_required = True
@@ -531,12 +531,14 @@ class OpcUaConnector(Connector, Thread):
 
     async def _monitor_server_loop(self):
         """
-        Checks if the server is alive
+        Checks if the server is alive.
         """
         timeout = min(self.__client.session_timeout / 1000 / 2, self.__client._watchdog_intervall)
         try:
             while not self.__client._closing and not self.__stopped:
                 await asyncio.sleep(timeout)
+                if not self.__connected:
+                    continue
                 _ = await self.__client.nodes.server_state.read_value()
                 self.__last_contact_time = monotonic()
         except ConnectionError as e:
