@@ -59,6 +59,9 @@ class File:
         return True if self._hash else False
 
     def get_current_hash(self, ftp):
+        # ftplib resets transfer type to ASCII after calling NLST (via retrlines).
+        # SIZE requires binary mode, so we restore it explicitly before calling ftp.size().
+        ftp.sendcmd("TYPE I")
         return crc32((ftp.voidcmd(f'MDTM {self._path_to_file}') + str(ftp.size(self.path_to_file))).encode('utf-8'))
 
     def set_new_hash(self, file_hash):
@@ -72,4 +75,7 @@ class File:
         return round(r, 2)
 
     def check_size_limit(self, ftp):
+        # ftplib resets transfer type to ASCII after calling NLST (via retrlines).
+        # SIZE requires binary mode, so we restore it explicitly before calling ftp.size().
+        ftp.sendcmd("TYPE I")
         return self.convert_bytes_to_mb(ftp.size(self.path_to_file)) < self._max_size
