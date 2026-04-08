@@ -910,7 +910,7 @@ class TBGatewayService:
                                       connector_config_from_main['name'])
                             continue
                         else:
-                            self._implemented_connectors[connector_type] = connector_class
+                            self._implemented_connectors[connector_config_from_main['name']] = connector_class
                     elif connector_type == "grpc":
                         if connector_config_from_main.get('key') == "auto":
                             self._generate_persistent_key(connector_config_from_main, connectors_persistent_keys)
@@ -1011,9 +1011,11 @@ class TBGatewayService:
         for connector_type in self.connectors_configs:
             connector_type = connector_type.lower()
             for connector_config in self.connectors_configs[connector_type]:
-                if self._implemented_connectors.get(connector_type) is not None:
+                connector_name = connector_config["name"]
+                connector_class = self._implemented_connectors.get(connector_name)
+                if connector_class is not None:
 
-                    if connector_type == 'grpc' or 'Grpc' in self._implemented_connectors[connector_type].__name__:
+                    if connector_type == 'grpc' or 'Grpc' in self._implemented_connectors[connector_name].__name__:
                         self.__init_and_start_grpc_connector(connector_type, connector_config)
                         return
 
@@ -1049,7 +1051,7 @@ class TBGatewayService:
             available_connector = self.available_connectors_by_id.get(_id)
 
             if available_connector is None or available_connector.is_stopped():
-                connector = self._implemented_connectors[_type](self, deepcopy(configuration), _type)
+                connector = self._implemented_connectors[name](self, deepcopy(configuration), _type)
                 connector.name = name
                 self.available_connectors_by_id[_id] = connector
                 self.available_connectors_by_name[name] = connector
