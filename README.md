@@ -85,7 +85,7 @@ The IoT Gateway is implemented in **Python**, allowing powerful extension and cu
 
 - **Custom connectors** let you interface with new devices or services.
 - **Custom converters** allow transformation of incoming messages to a ThingsBoard-compatible format.
-- The Gateway provides simple integration APIs, and encapsulates common Thingsboard related tasks: device provisioning, local data persistence and delivery, message converters and other.  
+- The Gateway provides simple integration APIs, and encapsulates common ThingsBoard related tasks: device provisioning, local data persistence and delivery, message converters and other.  
 
 > Ideal for edge use cases where flexibility and protocol diversity are key.
 
