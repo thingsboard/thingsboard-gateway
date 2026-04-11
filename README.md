@@ -25,7 +25,7 @@ Curious how the ThingsBoard IoT Gateway works in action?
 
 ---
 
-[![What is ThingsBoard IoT Gateway?](https://thingsboard.io/images/gateway/python-gateway-animd-ff.svg)](https://thingsboard.io/docs/iot-gateway/what-is-iot-gateway/)
+[![What is ThingsBoard IoT Gateway?](https://img.thingsboard.io/gateway/python-gateway-animd-ff.svg)](https://thingsboard.io/docs/iot-gateway/what-is-iot-gateway/)
 
 ## 🔌 Gateway Features
 
