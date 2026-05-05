@@ -22,6 +22,7 @@ from threading import Thread
 from string import ascii_lowercase
 from random import choice
 from time import monotonic, sleep
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Tuple, Any
 
 from thingsboard_gateway.connectors.bacnet.constants import (
@@ -51,7 +52,7 @@ except ImportError:
 
 from bacpypes3.pdu import Address, IPv4Address
 from bacpypes3.primitivedata import Null, Real
-from bacpypes3.basetypes import DailySchedule, TimeValue, DeviceObjectPropertyReference, ObjectPropertyReference, PropertyIdentifier, ObjectIdentifier
+from bacpypes3.basetypes import DailySchedule, TimeValue, DeviceObjectPropertyReference, ObjectPropertyReference, PropertyIdentifier, ObjectIdentifier, Segmentation
 from thingsboard_gateway.connectors.bacnet.device import Device, Devices
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 from thingsboard_gateway.connectors.bacnet.application import Application
@@ -120,6 +121,8 @@ class AsyncBACnetConnector(Thread, Connector):
         self.__routers_cache = Routers()
         self.__devices_discover_period = self.__config.get('devicesDiscoverPeriodSeconds', 30)
         self.__previous_discover_time = 0
+        self.__active_reads = 0
+        self.__poll_cycle_start = 0
         self.__devices_rescan_objects_period = self.__config['application'].get('devicesRescanObjectsPeriodSeconds', 60)
 
     def __parse_ede_config(self):
@@ -209,10 +212,12 @@ class AsyncBACnetConnector(Thread, Connector):
     async def __rescan_devices(self):
         while not self.__stopped:
             try:
-                device = self.__process_device_rescan_queue.get_nowait()
+                device = await asyncio.wait_for(
+                    self.__process_device_rescan_queue.get(), timeout=1.0
+                )
                 self.loop.create_task(self.__rescan(device))
-            except QueueEmpty:
-                await asyncio.sleep(.1)
+            except TimeoutError:
+                pass
 
     async def __start(self):
         if not self.__is_valid_application_device_section():
@@ -231,13 +236,22 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__application = Application(DeviceObjectConfig(
                 self.__config['application']), self.__handle_indication, self.__log)
 
-        await self.__discover_devices()
-        await asyncio.gather(self.__main_loop(),
+        await asyncio.gather(self.__initial_discovery_then_main_loop(),
                              self.__rescan_devices(),
                              self.__convert_data(),
                              self.__save_data(),
                              self.indication_callback(),
                              self.__application.confirmation_handler())
+
+    async def __initial_discovery_then_main_loop(self):
+        """Run initial device discovery first, then enter the main polling loop.
+        This runs inside asyncio.gather so confirmation_handler is active
+        and can resolve BACnet responses during property probing."""
+        try:
+            await self.__discover_devices()
+        except Exception as e:
+            self.__log.error('Error during initial device discovery: %s', e)
+        await self.__main_loop()
 
     def __is_valid_application_device_section(self) -> bool:
         app = self.__config.get('application')
@@ -364,11 +378,14 @@ class AsyncBACnetConnector(Thread, Connector):
 
     async def __set_additional_device_info_to_apdu(self, apdu, device_config):
         if Device.need_to_retrieve_device_name(device_config):
+            fallback_device_name = apdu.deviceName if hasattr(apdu, 'deviceName') else None
             apdu.deviceName = None
             device_name = await self.__application.get_device_name(apdu.pduSource, apdu.iAmDeviceIdentifier)
 
             if device_name is not None:
                 apdu.deviceName = device_name
+            elif fallback_device_name is not None:
+                apdu.deviceName = fallback_device_name
 
         if Device.need_to_retrieve_router_info(device_config):
             try:
@@ -527,6 +544,14 @@ class AsyncBACnetConnector(Thread, Connector):
 
             device.config = new_config
 
+    async def __run_discovery(self):
+        try:
+            await self.__discover_devices()
+        except Exception as e:
+            self.__log.error('Error during device discovery: %s', e)
+        finally:
+            self.__discovery_in_progress = False
+
     async def __discover_devices(self):
         self.__previous_discover_time = monotonic()
         self.__log.info('Discovering devices...')
@@ -542,33 +567,228 @@ class AsyncBACnetConnector(Thread, Connector):
                     self.__log.error('Invalid address %s', device_config['address'])
                     continue
 
+                is_pattern_address = '*' in device_config['address'] or 'X' in device_config['address']
+                setup_without_discovery = self.__is_setup_without_discovery_enabled(device_config)
+
+                if setup_without_discovery and not is_pattern_address:
+                    self.__log.debug('setupWithoutDiscovery is enabled for device %s', device_config['address'])
+                    await self.__add_configured_device_without_iam(device_config)
+                    continue
+
+                if setup_without_discovery and is_pattern_address:
+                    self.__log.debug('setupWithoutDiscovery for pattern address %s is ignored. Falling back to WhoIs',
+                                     device_config['address'])
+
                 await self.__application.do_who_is(device_address=who_is_address)
                 self.__log.debug('WhoIs request sent to device %s', device_config['address'])
             except Exception as e:
                 self.__log.error('Error discovering device %s: %s', device_config['address'], e)
 
+    async def __add_configured_device_without_iam(self, device_config):
+        device_id = self.__get_explicit_device_id(device_config.get('deviceId'))
+        if device_id is None:
+            return
+
+        configured_address = device_config.get('address')
+        if configured_address is None:
+            return
+
+        if '*' in configured_address or 'X' in configured_address:
+            self.__log.debug('Skipping config-driven add for pattern address %s', configured_address)
+            return
+
+        try:
+            address = Address(configured_address)
+        except Exception as e:
+            self.__log.error('Invalid BACnet address in config %s: %s', configured_address, e)
+            return
+
+        device_unique_id = Devices.get_device_unique_id(str(address), device_id)
+        if len(await self.__devices.get_devices_by_id(device_unique_id)) > 0:
+            return
+
+        apdu = await self.__build_i_am_like_apdu(address, device_id, device_config)
+        if apdu is None:
+            return
+
+        self.__log.debug('Adding configured BACnet device by synthetic I-Am: %s (deviceId=%s)',
+                         configured_address,
+                         device_id)
+        await self.__add_device(apdu, device_config)
+
+    async def __build_i_am_like_apdu(self, address: Address, device_id: int, device_config: dict):
+        object_id = ('device', device_id)
+
+        device_name_from_config = self.__get_config_value(device_config, 'objectName')
+        vendor_id_from_config = self.__get_config_value(device_config, 'vendorID', 'vendorId', 'vendorIdentifier')
+        max_apdu_from_config = self.__get_config_value(device_config,
+                                                       'maxAPDULengthAccepted',
+                                                       'maxApduLengthAccepted')
+        segmentation_from_config = self.__get_config_value(device_config, 'segmentationSupported')
+
+        # Safe defaults used only when property probing and manual i-am values are unavailable.
+        # Use 300 as default — enough for typical BACnet/MSTP and sufficient to batch
+        # multiple objects per ReadPropertyMultiple request.
+        vendor_id = self.__parse_int_or_default(vendor_id_from_config, 0)
+        max_apdu_length = self.__parse_int_or_default(max_apdu_from_config, 300)
+        segmentation_supported = self.__parse_segmentation_or_default(segmentation_from_config,
+                                                                      Segmentation.noSegmentation)
+        device_name = str(device_name_from_config if device_name_from_config is not None else device_id)
+
+        # Collect which properties need to be probed from the device
+        properties_to_probe = []
+        if device_name_from_config is None:
+            properties_to_probe.append('objectName')
+        if vendor_id_from_config is None:
+            properties_to_probe.append('vendorIdentifier')
+        if max_apdu_from_config is None:
+            properties_to_probe.append('maxApduLengthAccepted')
+        if segmentation_from_config is None:
+            properties_to_probe.append('segmentationSupported')
+
+        probe_succeeded = False
+
+        if properties_to_probe:
+            probed_values = await self.__application.probe_device_properties(
+                address, object_id, properties_to_probe
+            )
+
+            if probed_values:
+                probe_succeeded = True
+
+                if 'objectName' in probed_values:
+                    device_name = str(probed_values['objectName'])
+                if 'vendorIdentifier' in probed_values:
+                    vendor_id = int(probed_values['vendorIdentifier'])
+                if 'maxApduLengthAccepted' in probed_values:
+                    max_apdu_length = int(probed_values['maxApduLengthAccepted'])
+                if 'segmentationSupported' in probed_values:
+                    segmentation_supported = self.__parse_segmentation_or_default(
+                        probed_values['segmentationSupported'], segmentation_supported
+                    )
+
+        if not probe_succeeded:
+            self.__log.debug('Device %s (deviceId=%s) is being added from config defaults without discovery response',
+                             address, device_id)
+
+        return SimpleNamespace(
+            pduSource=address,
+            iAmDeviceIdentifier=object_id,
+            vendorID=vendor_id,
+            maxAPDULengthAccepted=max_apdu_length,
+            segmentationSupported=segmentation_supported,
+            deviceName=device_name
+        )
+
+    @staticmethod
+    def __get_explicit_device_id(device_id_config):
+        if isinstance(device_id_config, int):
+            return device_id_config
+
+        if isinstance(device_id_config, str):
+            stripped_device_id = device_id_config.strip()
+            if stripped_device_id.isdigit():
+                return int(stripped_device_id)
+
+        if isinstance(device_id_config, list) and len(device_id_config) == 1:
+            single_value = device_id_config[0]
+            if isinstance(single_value, int):
+                return single_value
+            if isinstance(single_value, str):
+                stripped_device_id = single_value.strip()
+                if stripped_device_id.isdigit():
+                    return int(stripped_device_id)
+
+        return None
+
+    @staticmethod
+    def __is_setup_without_discovery_enabled(device_config):
+        value = device_config.get('setupWithoutDiscovery', True)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in ('1', 'true', 'yes', 'y', 'on')
+
+        return bool(value)
+
+    @staticmethod
+    def __get_config_value(config, *keys):
+        for key in keys:
+            if key in config:
+                return config.get(key)
+
+        return None
+
+    @staticmethod
+    def __parse_int_or_default(value, default):
+        if value is None:
+            return default
+
+        try:
+            return int(value)
+        except Exception:
+            return default
+
+    @staticmethod
+    def __parse_segmentation_or_default(value, default):
+        if value is None:
+            return default
+
+        if isinstance(value, Segmentation):
+            return value
+
+        try:
+            return Segmentation(value)
+        except Exception:
+            pass
+
+        value_str = str(value).strip()
+        if value_str:
+            try:
+                return Segmentation[value_str]
+            except Exception:
+                value_lower = value_str.lower()
+                for segmentation in Segmentation:
+                    if segmentation.name.lower() == value_lower:
+                        return segmentation
+
+        return default
+
     async def __main_loop(self):
+        self.__discovery_in_progress = False
+
         while not self.__stopped:
             try:
-                if monotonic() - self.__previous_discover_time >= self.__devices_discover_period:
-                    await self.__discover_devices()
+                if (not self.__discovery_in_progress
+                        and monotonic() - self.__previous_discover_time >= self.__devices_discover_period):
+                    self.__discovery_in_progress = True
+                    self.loop.create_task(self.__run_discovery())
             except Exception as e:
                 self.__log.error('Error in main loop during discovering devices: %s', e)
-                await asyncio.sleep(1)
 
-            try:
-                device: Device = self.__process_device_queue.get_nowait()
-                if device.stopped:
-                    self.__log.trace('Device %s stopped', device)
-                    continue
+            drained = False
+            while True:
+                try:
+                    device: Device = self.__process_device_queue.get_nowait()
+                    if device.stopped:
+                        self.__log.trace('Device %s stopped', device)
+                        continue
 
-                self.__log.info('Reading data from device %s...', device.details.address)
-                self.loop.create_task(self.__read_multiple_properties(device))
-                # TODO: Add handling for device activity/inactivity
-            except QueueEmpty:
+                    if self.__active_reads == 0:
+                        self.__poll_cycle_start = monotonic()
+
+                    self.__active_reads += 1
+                    self.__log.info('Reading data from device %s...', device.details.address)
+                    self.loop.create_task(self.__read_multiple_properties(device))
+                    drained = True
+                except QueueEmpty:
+                    break
+                except Exception as e:
+                    self.__log.error('Error processing device requests: %s', e)
+                    break
+
+            if not drained:
                 await asyncio.sleep(.1)
-            except Exception as e:
-                self.__log.error('Error processing device requests: %s', e)
 
     async def __read_multiple_properties(self, device):
         reading_started = monotonic()
@@ -584,6 +804,16 @@ class AsyncBACnetConnector(Thread, Connector):
 
         reading_ended = monotonic()
         current_reading_time = reading_ended - reading_started
+
+        self.__log.debug('Reading cycle complete for device %s (%s) — %d objects read in %.3fs',
+                        device.name, device.details.address,
+                        len(device.uplink_converter_config.objects_to_read),
+                        current_reading_time)
+
+        self.__active_reads -= 1
+        if self.__active_reads == 0:
+            total_cycle_time = reading_ended - self.__poll_cycle_start
+            self.__log.debug('=== Poll cycle complete — all devices read in %.3fs ===', total_cycle_time)
 
         if current_reading_time > device.poll_period:
             device.poll_period = current_reading_time
@@ -678,26 +908,30 @@ class AsyncBACnetConnector(Thread, Connector):
     async def __convert_data(self):
         while not self.__stopped:
             try:
-                device, config, values = self.__data_to_convert_queue.get_nowait()
+                device, config, values = await asyncio.wait_for(
+                    self.__data_to_convert_queue.get(), timeout=1.0
+                )
                 self.__log.trace('%s data to convert: %s', device, values)
 
                 converted_data = device.uplink_converter.convert(config, values)
                 self.__data_to_save_queue.put_nowait((device, converted_data))
-            except QueueEmpty:
-                await asyncio.sleep(.1)
+            except TimeoutError:
+                pass
             except Exception as e:
                 self.__log.error('Error converting data: %s', e)
 
     async def __save_data(self):
         while not self.__stopped:
             try:
-                device, data_to_save = self.__data_to_save_queue.get_nowait()
+                device, data_to_save = await asyncio.wait_for(
+                    self.__data_to_save_queue.get(), timeout=1.0
+                )
                 self.__log.trace('%s data to save: %s', device, data_to_save)
                 StatisticsService.count_connector_message(self.get_name(), stat_parameter_name='storageMsgPushed')
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), data_to_save)
                 self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
-            except QueueEmpty:
-                await asyncio.sleep(.1)
+            except TimeoutError:
+                pass
             except Exception as e:
                 self.__log.error('Error saving data: %s', e)
 
