@@ -201,13 +201,16 @@ class TBClient(threading.Thread):
             credentials_type = env_vars.get('type')
         else:
             credentials_type = credentials.get('type')
+
         if credentials_type is None and credentials.get('accessToken') is not None:
             credentials_type = 'accessToken'
-        if credentials_type == 'accessToken':
+
+        if credentials_type in ('accessToken', 'tlsAccessToken'):
             if env_vars.get('accessToken') is not None:
                 self.__username = str(env_vars["accessToken"])
-            else:
+            elif credentials.get('accessToken') is not None:
                 self.__username = str(credentials["accessToken"])
+
         if credentials_type == 'usernamePassword':
             if credentials.get("username") is not None:
                 if env_vars.get('username') is not None:
