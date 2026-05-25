@@ -12,6 +12,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import asyncio
+from threading import Thread
 from unittest.mock import MagicMock, patch
 from tests.unit.connectors.modbus.modbus_base_test import ServerSideRPCModbusSetUp
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
@@ -125,31 +127,68 @@ class TestDeviceServerSideRPC(ServerSideRPCModbusSetUp):
     async def test_write_device_rpc_function16_respects_configured_word_order(self):
         self.slave.downlink_converter = BytesModbusDownlinkConverter({}, self.logger)
 
-        content = {'data': {'id': 118, 'method': 'setValue', 'params': 0x12345678},
-                   'device': self.slave.device_name, 'id': 118}
-        rpc_request = RPCRequest(content=content)
-        config = {
-            'type': '32int',
-            'functionCode': 16,
-            'objectsCount': 2,
-            'address': 4
-        }
-
         test_cases = (
-            ('BIG', [0x1234, 0x5678]),
-            ('LITTLE', [0x5678, 0x1234]),
+            ('32int', 0x12345678, 'BIG', [0x1234, 0x5678]),
+            ('32int', 0x12345678, 'LITTLE', [0x5678, 0x1234]),
+            ('32float', 12.34, 'BIG', [0x4145, 0x70A4]),
+            ('32float', 12.34, 'LITTLE', [0x70A4, 0x4145]),
         )
 
-        for word_order, expected_registers in test_cases:
-            with self.subTest(word_order=word_order):
+        for value_type, value, word_order, expected_registers in test_cases:
+            with self.subTest(value_type=value_type, word_order=word_order):
                 self.slave.byte_order = 'BIG'
                 self.slave.word_order = word_order
                 self.slave.write.reset_mock()
+                content = {'data': {'id': 118, 'method': 'setValue', 'params': value},
+                           'device': self.slave.device_name, 'id': 118}
+                rpc_request = RPCRequest(content=content)
+                config = {
+                    'type': value_type,
+                    'functionCode': 16,
+                    'objectsCount': 2,
+                    'address': 4
+                }
 
                 out = await self.connector._AsyncModbusConnector__write_rpc_data(self.slave, config, rpc_request)
 
                 assert out == 78
                 self.slave.write.assert_awaited_once_with(16, 4, expected_registers)
+
+    async def test_device_rpc_function16_uses_configured_word_order(self):
+        self.slave.downlink_converter = BytesModbusDownlinkConverter({}, self.logger)
+        self.slave.rpc_requests_config = [{
+            'tag': 'setValue',
+            'type': '32int',
+            'functionCode': 16,
+            'objectsCount': 2,
+            'address': 4
+        }]
+        self.slave.byte_order = 'BIG'
+        self.slave.word_order = 'LITTLE'
+        content = {'data': {'id': 119, 'method': 'setValue', 'params': 0x12345678},
+                   'device': self.slave.device_name, 'id': 119}
+        rpc_request = RPCRequest(content=content)
+        loop_thread = Thread(target=self.connector.loop.run_forever, daemon=True)
+        loop_thread.start()
+
+        def _create_task_on_connector_loop(coro, args, kwargs):
+            return asyncio.run_coroutine_threadsafe(coro(*args, **kwargs), self.connector.loop)
+
+        try:
+            with patch.object(self.connector,
+                              "_AsyncModbusConnector__create_task",
+                              side_effect=_create_task_on_connector_loop):
+                out = self.connector._AsyncModbusConnector__process_device_rpc_request(rpc_request)
+
+            expected = {"value": 78}
+            assert out == expected
+            self.slave.write.assert_awaited_once_with(16, 4, [0x5678, 0x1234])
+            self.gateway.send_rpc_reply.assert_called_once_with(
+                self.slave.device_name, 119, {"result": expected}
+            )
+        finally:
+            self.connector.loop.call_soon_threadsafe(self.connector.loop.stop)
+            loop_thread.join(timeout=1)
 
     async def test_write_device_rpc_no_device_found(self):
         content = {'data': {'id': 115, 'method': 'setValue', 'params': 56},
