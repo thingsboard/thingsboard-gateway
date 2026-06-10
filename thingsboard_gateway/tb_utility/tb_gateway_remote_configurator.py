@@ -839,7 +839,10 @@ class RemoteConfigurator:
                     new_tb_client.stop()
                     while not self._gateway.stopped and new_tb_client.client.is_connected():
                         sleep(1)
-                    apply_start = time() * 1000
+                    # apply_start is compared against time() in seconds (the 30s budget above), so
+                    # reset it in seconds too - not milliseconds, which broke the retry timing and
+                    # prevented the new/old configuration fallback from ever toggling.
+                    apply_start = time()
                     use_new_config = not use_new_config
                 if self._gateway.stopped:
                     return False
