@@ -47,7 +47,7 @@ python /thingsboard_gateway/tb_gateway.py' > /start-gateway.sh && chmod +x /star
     python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
     python3 -m pip install --no-cache-dir cryptography && \
     python3 -m pip install --no-cache-dir -r requirements.txt && \
-    RUN rustup self uninstall -y || { \
+    rustup self uninstall -y || { \
         echo "rustup uninstall failed, removing manually..."; \
         rm -rf /root/.rustup /root/.cargo; \
     } && \

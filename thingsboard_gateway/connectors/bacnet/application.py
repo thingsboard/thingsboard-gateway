@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from asyncio import Queue, QueueEmpty, sleep
+from asyncio import Queue, wait_for
 from typing import List
 from bacpypes3.ipv4.app import NormalApplication, ForeignApplication
 from bacpypes3.local.device import DeviceObject
@@ -92,22 +92,22 @@ class Application(NormalApplication, ForeignApplication):
     async def confirmation_handler(self):
         while not self.__stopped:
             try:
-                apdu = self.__confirmation_queue.get_nowait()
+                apdu = await wait_for(self.__confirmation_queue.get(), timeout=1.0)
 
                 if apdu.pduSource is None:
                     self.__log.warning("Received APDU without source address: %s", apdu)
-                    return
+                    continue
 
                 pdu_source = apdu.pduSource
                 if pdu_source not in self._requests:
-                    return
+                    continue
 
                 requests = self._requests[pdu_source]
                 for indx, (request, future) in enumerate(requests):
                     if request.apduInvokeID == apdu.apduInvokeID:
                         break
                 else:
-                    return
+                    continue
 
                 if isinstance(apdu, (SimpleAckPDU, ComplexAckPDU)):
                     future.set_result(apdu)
@@ -115,8 +115,8 @@ class Application(NormalApplication, ForeignApplication):
                     future.set_exception(apdu)
                 else:
                     raise TypeError("apdu")
-            except QueueEmpty:
-                await sleep(0.1)
+            except TimeoutError:
+                pass
             except Exception as e:
                 self.__log.error("APDU confirmation error: %s", e)
 
@@ -209,11 +209,52 @@ class Application(NormalApplication, ForeignApplication):
 
         if not isinstance(result, ReadPropertyMultipleACK):
             self.__log.error("Invalid response type: %s", type(result))
+            fallback_result = await self.__read_single_object_with_fallback(device, object_list)
+            if fallback_result:
+                return fallback_result
             return []
 
         decoded_result = self.decode_tag_list(result, device.details.vendor_id)
 
         return decoded_result
+
+    async def __read_single_object_with_fallback(self, device, object_list):
+        if len(object_list) != 1:
+            return []
+
+        object_config = object_list[0]
+        try:
+            vendor_info = get_vendor_info(device.details.vendor_id)
+            object_id = object_config['objectId']
+            if not isinstance(object_id, ObjectIdentifier):
+                object_id = vendor_info.object_identifier(f"{object_config['objectType']},{object_id}")
+
+            properties = object_config['propertyId']
+            if not isinstance(properties, (set, list, tuple)):
+                properties = {properties}
+
+            fallback_result = []
+            for prop in properties:
+                property_identifier = vendor_info.property_identifier(prop)
+                property_value = await self.__send_request_wrapper(
+                    self.read_property,
+                    err_msg=f"Failed to read {object_id}:{property_identifier} in readProperty fallback",
+                    address=Address(device.details.address),
+                    objid=object_id,
+                    prop=property_identifier
+                )
+                if property_value is None:
+                    continue
+
+                fallback_result.append((object_id, property_identifier, None, property_value))
+
+            if fallback_result:
+                self.__log.debug("readProperty fallback succeeded for %s", object_id)
+
+            return fallback_result
+        except Exception as e:
+            self.__log.warning("readProperty fallback failed for object config %s: %s", object_config, e)
+            return []
 
     async def get_device_objects(self, device, with_all_properties=False, index_to_read=None):
         if device.details.is_segmentation_supported():
@@ -282,6 +323,111 @@ class Application(NormalApplication, ForeignApplication):
                                                         prop='objectName')
 
         return device_name
+
+    async def probe_device_properties(self, address: Address, object_id, property_names: list,
+                                       timeout: float = 10.0) -> dict:
+        """
+        Read multiple device-object properties in a single ReadPropertyMultiple request.
+        Returns a dict mapping property name -> value for properties that were successfully read.
+        The returned keys match the original property_names (camelCase) passed by the caller.
+        Falls back to individual ReadProperty calls if RPM fails.
+        The entire probe is guarded by a timeout (default 10s) to avoid hanging
+        if the device does not respond.
+        """
+        result = {}
+
+        # Build a lookup from kebab-case (as returned by bacpypes3) back to the original
+        # camelCase names the caller used, so the returned dict keys match the caller's expectations.
+        kebab_to_original = {str(PropertyIdentifier(p)): p for p in property_names}
+
+        try:
+            result = await wait_for(
+                self.__probe_device_properties_impl(address, object_id, property_names, kebab_to_original),
+                timeout=timeout
+            )
+        except TimeoutError:
+            self.__log.warning("Probe timed out after %.1fs for %s — device did not respond", timeout, address)
+        except Exception as e:
+            self.__log.warning("Probe failed for %s: %s", address, e)
+
+        # Log which properties were successfully read and which are missing
+        probed = set(result.keys())
+        missing = set(property_names) - probed
+        if probed:
+            self.__log.info("Probed device %s — read: %s", address, ', '.join(sorted(probed)))
+        if missing:
+            self.__log.info("Probed device %s — missing (using defaults): %s", address, ', '.join(sorted(missing)))
+        if not probed:
+            self.__log.warning("Probed device %s — could not read any properties, using all defaults", address)
+
+        return result
+
+    async def __probe_device_properties_impl(self, address, object_id, property_names, kebab_to_original):
+        result = {}
+
+        try:
+            property_references = [PropertyIdentifier(p) for p in property_names]
+            ras = ReadAccessSpecification(
+                objectIdentifier=ObjectIdentifier(f"device,{object_id[1]}" if isinstance(object_id, tuple) else object_id),
+                listOfPropertyReferences=property_references,
+            )
+            request = ReadPropertyMultipleRequest(
+                listOfReadAccessSpecs=SequenceOf(ReadAccessSpecification)([ras]),
+                destination=Address(str(address)),
+            )
+
+            rpm_result = await self.__send_request_wrapper(
+                self.request,
+                err_msg=f"Failed to probe device properties via RPM for {address}",
+                apdu=request
+            )
+
+            if isinstance(rpm_result, ReadPropertyMultipleACK):
+                for read_access_result in rpm_result.listOfReadAccessResults:
+                    for element in read_access_result.listOfResults:
+                        try:
+                            kebab_name = str(element.propertyIdentifier)
+                            original_name = kebab_to_original.get(kebab_name, kebab_name)
+                            read_result = element.readResult
+                            if read_result.propertyAccessError:
+                                self.__log.debug("Property %s returned access error for %s", original_name, address)
+                                continue
+                            vendor_info = get_vendor_info(0)
+                            object_class = vendor_info.get_object_class(ObjectIdentifier(
+                                f"device,{object_id[1]}" if isinstance(object_id, tuple) else object_id
+                            )[0])
+                            property_type = object_class.get_property_type(element.propertyIdentifier)
+                            if property_type is not None:
+                                value = read_result.propertyValue.cast_out(property_type)
+                                result[original_name] = value
+                        except Exception as e:
+                            self.__log.debug("Failed to decode probed property %s: %s",
+                                             element.propertyIdentifier, e)
+                return result
+            else:
+                self.__log.debug("RPM probe returned non-ACK (%s) for %s, falling back to individual reads",
+                                 type(rpm_result).__name__, address)
+        except Exception as e:
+            self.__log.debug("RPM probe failed for %s, falling back to individual reads: %s", address, e)
+
+        # Fallback: read properties individually
+        for prop_name in property_names:
+            if prop_name in result:
+                continue
+            try:
+                value = await self.__send_request_wrapper(
+                    self.read_property,
+                    err_msg=f"Failed to probe {prop_name} for {address}",
+                    address=address,
+                    objid=object_id,
+                    prop=prop_name
+                )
+                if value is not None:
+                    result[prop_name] = value
+            except Exception:
+                pass
+
+        return result
 
     async def get_router_info(self, device_address: Address):
         router_info = {}
