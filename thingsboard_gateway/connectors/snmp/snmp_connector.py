@@ -24,6 +24,9 @@ from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
+from thingsboard_gateway.tb_utility.poll_scheduler import (
+    PollScheduler, compute_next_poll
+)
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
@@ -94,7 +97,17 @@ class SNMPConnector(Connector, Thread):
             current_time = time() * 1000
             for device in self.__devices:
                 try:
-                    if device.get("previous_poll_time", 0) + device.get("pollPeriod", 10000) < current_time:
+                    if "__scheduler" not in device:
+                        device["__scheduler"] = PollScheduler(device.get("pollSchedule"))
+                    scheduler = device["__scheduler"]
+                    if scheduler.is_active:
+                        from time import monotonic as _mono
+                        if "__next_poll_mono" not in device:
+                            device["__next_poll_mono"] = scheduler.next_poll_monotonic()
+                        if _mono() >= device["__next_poll_mono"]:
+                            await self.__process_data(device)
+                            device["__next_poll_mono"] = scheduler.next_poll_monotonic()
+                    elif device.get("previous_poll_time", 0) + device.get("pollPeriod", 10000) < current_time:
                         await self.__process_data(device)
                         device["previous_poll_time"] = current_time
                 except Exception as e:

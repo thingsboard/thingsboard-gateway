@@ -27,6 +27,9 @@ from typing import Tuple, Any
 from cachetools import TTLCache
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.tb_utility.poll_scheduler import (
+    PollScheduler, compute_next_poll
+)
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
     DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
@@ -396,6 +399,7 @@ class OpcUaConnector(Connector, Thread):
                     self.__log.error("Error on fetching server limitations:\n %s", e)
 
                 poll_period = int(self.__server_conf.get('pollPeriodInMillis', 5000) / 1000)
+                scheduler = PollScheduler(self.__server_conf.get('pollSchedule'))
                 scan_period = int(self.__server_conf.get('scanPeriodInMillis', 3600000) / 1000)
 
                 if self.__enable_subscriptions:
@@ -412,7 +416,9 @@ class OpcUaConnector(Connector, Thread):
                         await self.__scan_device_nodes()
 
                     if not self.__enable_subscriptions and monotonic() >= self.__next_poll:
-                        self.__next_poll = monotonic() + poll_period
+                        self.__next_poll = compute_next_poll(
+                            monotonic(), poll_period, scheduler
+                        )
                         await self.__poll_nodes()
 
                     current_time = monotonic()

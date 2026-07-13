@@ -39,6 +39,7 @@ except ImportError:
     import pyodbc
 
 from thingsboard_gateway.connectors.odbc.odbc_uplink_converter import OdbcUplinkConverter
+from thingsboard_gateway.tb_utility.poll_scheduler import PollScheduler
 
 from thingsboard_gateway.connectors.connector import Connector
 
@@ -271,6 +272,7 @@ class OdbcConnector(Connector, Thread):
                 self.__rpc_cursor.execute("{{CALL {}}}".format(procedure_name))
 
     def run(self):
+        scheduler = PollScheduler(self.__config.get("polling", {}).get("pollSchedule"))
         while not self.__stopped:
             # Initialization phase
             if not self.is_connected():
@@ -293,9 +295,15 @@ class OdbcConnector(Connector, Thread):
             try:
                 self.__poll()
                 if not self.__stopped:
-                    polling_period = self.__config["polling"].get("period", self.DEFAULT_POLL_PERIOD)
-                    self._log.debug("[%s] Next polling iteration will be in %d second(s)", self.get_name(), polling_period)
-                    sleep(polling_period)
+                    if scheduler.is_active:
+                        from time import monotonic
+                        delay = max(0.0, scheduler.next_poll_monotonic() - monotonic())
+                        self._log.debug("[%s] Next polling iteration (cron) in %.1f second(s)", self.get_name(), delay)
+                        sleep(delay)
+                    else:
+                        polling_period = self.__config["polling"].get("period", self.DEFAULT_POLL_PERIOD)
+                        self._log.debug("[%s] Next polling iteration will be in %d second(s)", self.get_name(), polling_period)
+                        sleep(polling_period)
             except pyodbc.Warning as w:
                 self._log.warning("[%s] Warning while polling database: %s", self.get_name(), str(w))
             except pyodbc.Error as e:

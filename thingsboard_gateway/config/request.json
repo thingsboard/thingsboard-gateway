@@ -20,6 +20,7 @@
       "allowRedirects": true,
       "timeout": 0.5,
       "scanPeriod": 5,
+      "pollSchedule": null,
       "dataUnpackExpression": "",
       "converter": {
         "type": "json",
@@ -55,6 +56,7 @@
       "allowRedirects": true,
       "timeout": 0.5,
       "scanPeriod": 100,
+      "pollSchedule": null,
       "dataUnpackExpression": "",
       "converter": {
         "type": "custom",
@@ -135,6 +137,7 @@
       "allowRedirects": true,
       "timeout": 3.0,
       "scanPeriod": 1800,
+      "pollSchedule": null,
       "subRequests": {
         "cumPwr": {
           "url": "/${id}/hist/values/ActiveEnergy/SUM13/3600?start=RELATIVE_-1HOUR&end=RELATIVE_-1HOUR&online=false&aggregate=false",
