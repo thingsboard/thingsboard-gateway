@@ -82,8 +82,15 @@ class TBClient(threading.Thread):
         self.__stopped = False
         self.__stop_event = threading.Event()
         self.__paused = False
-        # TODO: remove this flag
+        # Set on first successful connect. The reconnection supervisor in run() relies on this so
+        # it only supervises a client that has connected at least once (never racing the blocking
+        # startup connect or the remote-configurator's own connect management).
         self.__initial_connection_done = False
+        # Reconnection supervisor state. After the first successful connect, reconnection is
+        # owned by paho's network-loop thread; the supervisor in run() restarts it if that
+        # thread dies (e.g. clean server disconnect or an unhandled error in the loop).
+        self.__connection_lock = threading.RLock()
+        self.__connecting = False
         self._last_cert_check_time = 0
         self.__service_subscription_callbacks = []
 
@@ -368,46 +375,62 @@ class TBClient(threading.Thread):
         return self.__is_connected and self.client.rate_limits_received
 
     def _on_connect(self, client, userdata, flags, result_code, parameters, *extra_params):
-        self.__logger.info('MQTT client connected to platform %s: %s', self.__host, self.__port)
-        self.__logger.debug('MQTT client %r connected to platform', str(client))
-        if ((isinstance(result_code, int) and result_code == 0) or
-                (hasattr(result_code, 'value') and result_code.value == 0)):
-            self.__is_connected = True
-            if self.__initial_connection_done:
-                self.client.rate_limits_received = True  # Added to avoid stuck on reconnect, if rate limits reached,
-                # TODO: move to high priority.
-            else:
-                self.__initial_connection_done = True
-        # pylint: disable=protected-access
-        self.client._on_connect(client, userdata, flags, result_code, parameters, *extra_params) # noqa pylint: disable=protected-access
+        # NOTE: paho invokes this from its network-loop thread and re-raises any exception that
+        # escapes it (suppress_exceptions defaults to False), which would terminate the loop thread
+        # and permanently stop reconnection. Everything here must therefore be exception-safe.
         try:
-            if isinstance(result_code, int) and result_code != 0:
-                if result_code in (159, 151):
-                    self.__logger.warning("Connection rate exceeded.")
-            else:
-                if result_code.getName().lower() == "connection rate exceeded":
-                    self.__logger.warning("Connection rate exceeded.")
-        except Exception as e:
-            self.__logger.exception("Error in on_connect callback: %s", exc_info=e)
+            self.__logger.info('MQTT client connected to platform %s: %s', self.__host, self.__port)
+            self.__logger.debug('MQTT client %r connected to platform', str(client))
+            if ((isinstance(result_code, int) and result_code == 0) or
+                    (hasattr(result_code, 'value') and result_code.value == 0)):
+                self.__is_connected = True
+                if self.__initial_connection_done:
+                    self.client.rate_limits_received = True  # Added to avoid stuck on reconnect, if rate limits reached,
+                    # TODO: move to high priority.
+                else:
+                    self.__initial_connection_done = True
+            # pylint: disable=protected-access
+            self.client._on_connect(client, userdata, flags, result_code, parameters, *extra_params) # noqa pylint: disable=protected-access
+            try:
+                if isinstance(result_code, int) and result_code != 0:
+                    if result_code in (159, 151):
+                        self.__logger.warning("Connection rate exceeded.")
+                else:
+                    if result_code.getName().lower() == "connection rate exceeded":
+                        self.__logger.warning("Connection rate exceeded.")
+            except Exception as e:
+                self.__logger.exception("Error in on_connect callback: %s", exc_info=e)
 
-        for callback in self.__service_subscription_callbacks:
-            callback()
+            for callback in self.__service_subscription_callbacks:
+                try:
+                    callback()
+                except Exception as e:
+                    self.__logger.exception("Error in service subscription callback: %s", exc_info=e)
+        except Exception as e:
+            self.__logger.exception("Unhandled error in on_connect handler: %s", exc_info=e)
 
     def _on_disconnect(self, client, userdata, disconnect_flags, result_code, properties=None):
+        # NOTE: paho invokes this from its network-loop thread and re-raises any exception that
+        # escapes it (suppress_exceptions defaults to False), which would terminate the loop thread
+        # and permanently stop reconnection. Everything here must therefore be exception-safe.
         # pylint: disable=protected-access
         self.__is_connected = False
-        if self.client._client != client: # noqa pylint: disable=protected-access
-            self.__logger.info("TB client %s has been disconnected. Current client for connection is: %s", str(client),
-                               str(self.client._client)) # noqa pylint: disable=protected-access
-            client.loop_stop()
-        else:
-            self.__is_connected = False
-            if len(inspect.signature(self.client._on_disconnect).parameters) == 5: # noqa pylint: disable=protected-access
-                self.client._on_disconnect(client, userdata, disconnect_flags, result_code, properties) # noqa pylint: disable=protected-access
-            elif len(inspect.signature(self.client._on_disconnect).parameters) == 4: # noqa pylint: disable=protected-access
-                self.client._on_disconnect(client, userdata, result_code, properties) # noqa pylint: disable=protected-access
+        try:
+            if self.client._client != client: # noqa pylint: disable=protected-access
+                self.__logger.info("TB client %s has been disconnected. Current client for connection is: %s",
+                                   str(client),
+                                   str(self.client._client)) # noqa pylint: disable=protected-access
+                client.loop_stop()
             else:
-                self.client._on_disconnect(client, userdata, result_code) # noqa pylint: disable=protected-access
+                self.__is_connected = False
+                if len(inspect.signature(self.client._on_disconnect).parameters) == 5: # noqa pylint: disable=protected-access
+                    self.client._on_disconnect(client, userdata, disconnect_flags, result_code, properties) # noqa pylint: disable=protected-access
+                elif len(inspect.signature(self.client._on_disconnect).parameters) == 4: # noqa pylint: disable=protected-access
+                    self.client._on_disconnect(client, userdata, result_code, properties) # noqa pylint: disable=protected-access
+                else:
+                    self.client._on_disconnect(client, userdata, result_code) # noqa pylint: disable=protected-access
+        except Exception as e:
+            self.__logger.exception("Unhandled error in on_disconnect handler: %s", exc_info=e)
 
     def stop(self):
         # self.disconnect()
@@ -425,56 +448,69 @@ class TBClient(threading.Thread):
         self.client.unsubscribe_from_attribute(subscription_id)
 
     def connect(self, min_reconnect_delay=5, timeout=None):
-        self.__paused = False
-        self.__stopped = False
-        self.__min_reconnect_delay = max(min_reconnect_delay, 2)
+        # Serialize connect attempts: only one retry loop may run per client at a time, so the
+        # startup call and the reconnection supervisor can never drive connect() concurrently.
+        with self.__connection_lock:
+            self.__connecting = True
+            try:
+                self.__paused = False
+                self.__stopped = False
+                self.__min_reconnect_delay = max(min_reconnect_delay, 2)
 
-        start_connect_time = time()
-        previous_connection_time = time()
-        first_connection = True
+                start_connect_time = time()
+                previous_connection_time = time()
+                first_connection = True
 
-        try:
-            while not self.client.is_connected() and not self.__stopped:
-                if not self.__paused:
-                    if self.__stopped:
-                        break
-                    if timeout is not None and time() - start_connect_time > timeout:
-                        self.__logger.error("Connection timeout.")
-                        break
-                    if self.client._client.is_connected():
-                        self.__logger.info("Client connected to platform.")
-                        if self.client.rate_limits_received:
-                            self.__logger.info("Rate limits received.")
-                        else:
-                            self.__logger.info("Waiting for rate limits configuration...")
-                    else:
-                        self.__logger.info("Connecting to ThingsBoard...")
+                # Stay in the loop until we are both connected AND paho's network loop is alive to
+                # maintain it. Requiring the live loop also covers the case where the loop thread
+                # died without an on_disconnect (leaving the client's internal connected flag stale)
+                # - we still re-issue the connect instead of returning a falsely "connected" client.
+                while not (self.client.is_connected() and self.__network_loop_running()) and not self.__stopped:
+                    # Catch every per-iteration error and keep looping. An exception must never
+                    # break out of the retry loop - if it did, connect() would return and nothing
+                    # would ever resume connecting (the gateway would be stuck disconnected).
                     try:
-                        if first_connection or time() - previous_connection_time > min_reconnect_delay:
-                            first_connection = False
-                            self.__send_connect()
-                            previous_connection_time = time()
-                        else:
-                            sleep(1)
-                    except ConnectionRefusedError:
-                        self.__logger.error("Connection refused.")
-                    except ConnectionError as e:
-                        self.__logger.error("Connection error, cannot connect with error: %s", e)
-                    except (ssl.SSLEOFError, ssl.SSLZeroReturnError) as e:
-                        self.__logger.warning("Cannot use TLS connection on this port. "
-                                              "Client will try to connect without TLS.")
-                        self.__logger.debug("Error: %s", e)
-                        self.client._client._ssl = False # noqa pylint: disable=protected-access
-                        try:
-                            self.__send_connect()
-                        except Exception:
-                            continue
+                        if not self.__paused:
+                            if self.__stopped:
+                                break
+                            if timeout is not None and time() - start_connect_time > timeout:
+                                self.__logger.error("Connection timeout.")
+                                break
+                            if self.client._client.is_connected():
+                                self.__logger.info("Client connected to platform.")
+                                if self.client.rate_limits_received:
+                                    self.__logger.info("Rate limits received.")
+                                else:
+                                    self.__logger.info("Waiting for rate limits configuration...")
+                            else:
+                                self.__logger.info("Connecting to ThingsBoard...")
+                            try:
+                                if first_connection or time() - previous_connection_time > min_reconnect_delay:
+                                    first_connection = False
+                                    self.__send_connect()
+                                    previous_connection_time = time()
+                                else:
+                                    sleep(1)
+                            except ConnectionRefusedError:
+                                self.__logger.error("Connection refused.")
+                            except ConnectionError as e:
+                                self.__logger.error("Connection error, cannot connect with error: %s", e)
+                            except (ssl.SSLEOFError, ssl.SSLZeroReturnError) as e:
+                                self.__logger.warning("Cannot use TLS connection on this port. "
+                                                      "Client will try to connect without TLS.")
+                                self.__logger.debug("Error: %s", e)
+                                self.client._client._ssl = False # noqa pylint: disable=protected-access
+                                try:
+                                    self.__send_connect()
+                                except Exception:
+                                    continue
+                            except Exception as e:
+                                self.__logger.error("Error in connect: %s", exc_info=e)
                     except Exception as e:
-                        self.__logger.error("Error in connect: %s", exc_info=e)
-                sleep(1)
-        except Exception as e:
-            self.__logger.exception(e)
-            sleep(10)
+                        self.__logger.exception("Unexpected error in connection loop: %s", exc_info=e)
+                    sleep(1)
+            finally:
+                self.__connecting = False
 
     def __send_connect(self):
         self.__logger.info(f"Sending connect to {self.__host}:{self.__port}")
@@ -485,18 +521,41 @@ class TBClient(threading.Thread):
         except socket.gaierror as e:
             raise ConnectionError(e) from e
 
+    def __network_loop_running(self):
+        # paho clears its network-loop thread reference when loop_forever() returns - on a clean
+        # disconnect, a loop_stop(), or an unhandled error inside the loop. A missing or dead
+        # thread means nobody is maintaining the connection or attempting to reconnect.
+        try:
+            paho_thread = getattr(self.client._client, '_thread', None)  # noqa pylint: disable=protected-access
+        except Exception:
+            return True  # be conservative: if we cannot tell, do not force a reconnect
+        return paho_thread is not None and paho_thread.is_alive()
+
+    def __should_supervise_reconnect(self):
+        # Only supervise a client that has connected at least once and is expected to stay
+        # connected. paho owns reconnection while its loop thread is alive; we only step in when
+        # that thread is gone (so we are not fighting paho's own backoff).
+        return (self.__initial_connection_done
+                and not self.__stopped
+                and not self.__paused
+                and not self.__connecting
+                and not self.__network_loop_running())
+
     def run(self):
         while not self.__stopped:
             try:
-                if self.__stop_event.wait(timeout=0.1):
+                if self.__should_supervise_reconnect():
+                    self.__logger.warning("MQTT network loop is not running while connection is "
+                                          "expected - restarting connection to ThingsBoard.")
+                    self.connect(min_reconnect_delay=self.__min_reconnect_delay)
+                if self.__stop_event.wait(timeout=1):
                     break
             except KeyboardInterrupt:
                 self.__stopped = True
                 self.__stop_event.set()
-            except TimeoutError:
-                sleep(0.1)
             except Exception as e:
                 self.__logger.exception("Error in main MQTT client loop: %s", exc_info=e)
+                self.__stop_event.wait(1)
 
     def get_config_folder_path(self):
         return self.__config_folder_path
