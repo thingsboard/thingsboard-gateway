@@ -138,14 +138,17 @@ class RemoteConfigurator:
         adopted_general_config = {}
         adopted_general_config.update(self.general_configuration)
 
+        # Self-provisioning gateways have no `security` section (credentials come from the
+        # `provisioning` section / provisioned_credentials.json), so it may be absent here.
         security_section = adopted_general_config.get('security')
-        security_type = security_section.get('type', 'accessToken')
-        if security_type == 'accessToken':
-            security_section.pop('clientId', None)
-            security_section.pop('username', None)
-            security_section.pop('password', None)
-        elif security_type == 'usernamePassword':
-            security_section.pop('accessToken', None)
+        if security_section is not None:
+            security_type = security_section.get('type', 'accessToken')
+            if security_type == 'accessToken':
+                security_section.pop('clientId', None)
+                security_section.pop('username', None)
+                security_section.pop('password', None)
+            elif security_type == 'usernamePassword':
+                security_section.pop('accessToken', None)
 
         return {
             'thingsboard': adopted_general_config,
@@ -1055,6 +1058,16 @@ class RemoteConfigurator:
 
     @staticmethod
     def __is_security_match(old_security, new_security):
+        # Self-provisioning gateways have no `security` section (credentials come from the
+        # `provisioning` section / provisioned_credentials.json). When neither side provides a
+        # security section there is nothing to compare, so the connection must not be treated as
+        # changed - otherwise every general_configuration update would force a needless reconnect.
+        # When only one side has a section, it is a genuine change; return without dereferencing None.
+        if not old_security and not new_security:
+            return True
+        if not old_security or not new_security:
+            return False
+
         if new_security.get('type'):
             is_match = RemoteConfigurator.__is_security_match_by_type(old_security, new_security)
         else:
