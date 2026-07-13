@@ -183,7 +183,6 @@ class Device:
             if device_config.get('deviceId') is not None:
                 if Device.is_device_identifier_match(device_identifier, device_config.get('deviceId')):
                     found_device_configs.append(device_config)
-                else:
                     continue
 
             if Device.is_address_match(apdu_address, device_config.get('address')):
