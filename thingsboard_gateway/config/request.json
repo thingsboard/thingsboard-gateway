@@ -204,7 +204,6 @@
       "requestUrlExpression": "sensor/${deviceName}/request/${methodName}/${requestId}",
       "responseTimeout": 1,
       "httpMethod": "GET",
-      "requestValueExpression": "${params}",
       "responseValueExpression": "${temp}",
       "timeout": 0.5,
       "tries": 3,

@@ -1,10 +1,10 @@
 {
   "server": {
-    "url": "localhost:4840/freeopcua/server/",
+    "url": "opc.tcp://127.0.0.1:4840/freeopcua/server/",
     "timeoutInMillis": 5000,
     "scanPeriodInMillis": 3600000,
     "pollPeriodInMillis": 5000,
-    "enableSubscriptions": true,
+    "enableSubscriptions": false,
     "subCheckPeriodInMillis": 100,
     "subDataMaxBatchSize": 1000,
     "subDataMinBatchCreationTimeMs": 200,
@@ -18,31 +18,41 @@
   },
   "mapping": [
     {
-      "deviceNodePattern": "Root\\.Objects\\.Device1",
       "deviceNodeSource": "path",
+      "deviceNodePattern": "Root\\.Objects\\.MyObject",
       "deviceInfo": {
-        "deviceNameExpression": "Device ${Root\\.Objects\\.Device1\\.serialNumber}",
-        "deviceNameExpressionSource": "path",
-        "deviceProfileExpression": "Device",
+        "deviceNameExpression": "Demo Device",
+        "deviceNameExpressionSource": "constant",
+        "deviceProfileExpression": "default",
         "deviceProfileExpressionSource": "constant"
       },
       "attributes": [
         {
-          "key": "temperature °C",
+          "key": "frequency",
           "type": "path",
-          "value": "${ns=2;i=5}"
+          "value": "${Frequency}"
+        },
+        {
+          "key": "power",
+          "type": "path",
+          "value": "${Power}"
         }
       ],
       "timeseries": [
         {
-          "key": "humidity",
+          "key": "temperature",
           "type": "path",
-          "value": "${Root\\.Objects\\.Device1\\.TemperatureAndHumiditySensor\\.Humidity}"
+          "value": "${Temperature}"
         },
         {
-          "key": "batteryLevel",
+          "key": "humidity",
           "type": "path",
-          "value": "${Battery\\.batteryLevel}"
+          "value": "${Humidity}"
+        },
+        {
+          "key": "relay",
+          "type": "path",
+          "value": "${Relay}"
         }
       ],
       "rpc_methods": [
@@ -58,17 +68,23 @@
               "value": 4
             }
           ]
+        },
+        {
+          "method": "get_relay",
+          "arguments": []
+        },
+        {
+          "method": "set_relay",
+          "arguments": []
         }
       ],
       "attributes_updates": [
         {
-          "key": "deviceName",
+          "key": "relay",
           "type": "path",
-          "value": "Root\\.Objects\\.Device1\\.serialNumber"
+          "value": "Root\\.Objects\\.MyObject\\.Relay"
         }
       ]
     }
   ]
 }
-
-
