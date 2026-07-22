@@ -23,9 +23,14 @@ set -e
 # Supported operations:
 #   1. Default: Build for current platform and load into local Docker
 #   2. --push:  Build for one or more platforms and push to remote registry
-#   3. --platform <list>: Manually specify platform(s) (e.g. linux/amd64,linux/arm64)
+#   3. --offline: Build with all connector dependencies pre-installed (no internet
+#                 required at runtime). Uses docker/Dockerfile.offline which installs
+#                 requirements-full.txt instead of requirements.txt.
+#   4. --save:  Build for current platform and export as a tar.gz file
+#              (for deployment in air-gapped / offline environments)
+#   5. --platform <list>: Manually specify platform(s) (e.g. linux/amd64,linux/arm64)
 #                         If omitted, supported platforms are auto-detected.
-#   4. --help:  Show this help
+#   6. --help:  Show this help
 #
 # Usage Examples:
 #   ./docker_build_multiarch.sh
@@ -37,9 +42,22 @@ set -e
 #   ./docker_build_multiarch.sh --push -r myregistry/tb-gateway --platform linux/amd64,linux/arm64
 #       → Push multi-arch image to registry with manually specified platforms
 #
+#   ./docker_build_multiarch.sh --offline
+#       → Build self-contained offline image (all connector deps included) for current platform
+#
+#   ./docker_build_multiarch.sh --offline --save
+#       → Build offline image and export as tar.gz for air-gapped deployment
+#
+#   ./docker_build_multiarch.sh --offline --push -r myregistry/tb-gateway
+#       → Build and push offline image to registry
+#
+#   ./docker_build_multiarch.sh --save
+#       → Build online image and export as tar.gz
+#
 # Notes:
 #   -r or --repository is required when using --push
 #   --platform is optional and overrides auto-detection when provided
+#   --save and --push are mutually exclusive
 ###############################################################################
 
 # ─── Configurable Defaults ────────────────────────────────────────────────
@@ -51,6 +69,8 @@ BUILDER_NAME="multiarch-builder"
 
 # ─── Argument Parsing ─────────────────────────────────────────────────────
 PUSH=false
+SAVE=false
+OFFLINE=false
 REPOSITORY=""
 
 while [[ $# -gt 0 ]]; do
@@ -71,6 +91,14 @@ while [[ $# -gt 0 ]]; do
             REPOSITORY="$2"
             shift 2
             ;;
+        --save)
+            SAVE=true
+            shift
+            ;;
+        --offline)
+            OFFLINE=true
+            shift
+            ;;
         -h|--help)
             echo "Usage: ./docker_build_multiarch.sh [OPTIONS]"
             echo ""
@@ -80,12 +108,18 @@ while [[ $# -gt 0 ]]; do
             echo "  --push                Push the image to a registry (requires -r)"
             echo "  -r, --repository REPO Target repository (e.g. myrepo/tb-gateway)"
             echo "  --platform PLATFORMS  Manually set platforms (comma-separated)"
+            echo "  --offline             Build self-contained image with all connector dependencies pre-installed"
+            echo "                        (uses Dockerfile.offline + requirements-full.txt, no internet needed at runtime)"
+            echo "  --save                Build and export image as a tar.gz file for air-gapped deployment"
             echo "  -h, --help            Show this help message"
             echo ""
             echo "Examples:"
             echo "  ./docker_build_multiarch.sh"
             echo "  ./docker_build_multiarch.sh --push -r myrepo/tb-gateway"
             echo "  ./docker_build_multiarch.sh --push -r myrepo/tb-gateway --platform linux/amd64,linux/arm64"
+            echo "  ./docker_build_multiarch.sh --offline"
+            echo "  ./docker_build_multiarch.sh --offline --save"
+            echo "  ./docker_build_multiarch.sh --offline --push -r myrepo/tb-gateway"
             exit 0
             ;;
         *)
@@ -100,6 +134,19 @@ if [[ "$PUSH" == true && -z "$REPOSITORY" ]]; then
     echo "[X] Error: --push requires -r <repository> to be set."
     exit 1
 fi
+
+if [[ "$PUSH" == true && "$SAVE" == true ]]; then
+    echo "[X] Error: --push and --save are mutually exclusive."
+    exit 1
+fi
+
+if [[ "$OFFLINE" == true ]]; then
+    DOCKERFILE_PATH="docker/Dockerfile.offline"
+    echo "[*] Offline mode: using $DOCKERFILE_PATH (requirements-full.txt, all connector deps pre-installed)"
+fi
+
+# ─── Version Detection ────────────────────────────────────────────────────
+VERSION=$(grep -Po 'VERSION[ ,]=[ ,]"\K(([0-9])+(\.){0,1})+' thingsboard_gateway/version.py 2>/dev/null || echo "latest")
 
 IMAGE_TAG="${REPOSITORY:-$DEFAULT_IMAGE}:${TAG}"
 
@@ -117,7 +164,7 @@ echo "[*] Registering QEMU emulation..."
 docker run --rm --privileged tonistiigi/binfmt --install all
 
 # ─── Detect Supported Platforms If Not Set ─────────────────────────────────
-if [[ -z "$PLATFORMS" ]]; then
+if [[ -z "${PLATFORMS:-}" ]]; then
     echo "[*] Parsing base image from Dockerfile..."
     BASE_IMAGE=$(awk '/^FROM/ { for (i=1; i<=NF; i++) if ($i !~ /FROM|--platform=|\$TARGETPLATFORM|AS/) print $i }' "$DOCKERFILE_PATH" | head -n1)
 
@@ -159,6 +206,42 @@ if [[ "$PUSH" == true ]]; then
         --tag "$IMAGE_TAG" \
         --build-arg BUILDKIT_INLINE_CACHE=1 \
         --push "$CONTEXT"
+
+elif [[ "$SAVE" == true ]]; then
+    # --save: build for a single platform and export as tar.gz for air-gapped deployment
+    SAVE_PLATFORM="${PLATFORMS%%,*}"  # use only the first platform if multiple specified
+    if [[ "$PLATFORMS" == *","* ]]; then
+        echo "[!] --save supports a single platform. Using: $SAVE_PLATFORM"
+        echo "[!] To export multiple platforms separately, run --save once per platform."
+    fi
+
+    ARCH="${SAVE_PLATFORM//\//_}"  # e.g. linux/amd64 → linux_amd64
+    OFFLINE_SUFFIX=""
+    [[ "$OFFLINE" == true ]] && OFFLINE_SUFFIX="-offline"
+    OUTPUT_FILE="tb-gateway-${VERSION}${OFFLINE_SUFFIX}-${ARCH}.tar.gz"
+
+    echo "[*] Building image for: $SAVE_PLATFORM"
+    docker buildx build \
+        --platform "$SAVE_PLATFORM" \
+        --file "$DOCKERFILE_PATH" \
+        --tag "$IMAGE_TAG" \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        --load "$CONTEXT"
+
+    echo "[*] Exporting image to: $OUTPUT_FILE"
+    docker save "$IMAGE_TAG" | gzip > "$OUTPUT_FILE"
+
+    echo "[✓] Build completed!"
+    echo "    Image Tag   : $IMAGE_TAG"
+    echo "    Platform    : $SAVE_PLATFORM"
+    echo "    Output file : $OUTPUT_FILE"
+    echo ""
+    echo "To deploy in an air-gapped environment:"
+    echo "  1. Transfer $OUTPUT_FILE to the target host"
+    echo "  2. docker load < $OUTPUT_FILE"
+    echo "  3. docker compose up -d   (update docker-compose.yml image: field to $IMAGE_TAG)"
+    exit 0
+
 else
     CURRENT_PLATFORM="$(docker version -f '{{.Server.Os}}')/$(docker version -f '{{.Server.Arch}}')"
     echo "[*] Building and loading image for current platform: $CURRENT_PLATFORM"
