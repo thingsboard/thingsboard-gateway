@@ -33,6 +33,8 @@ class TimedRotatingFileHandler(BaseTimedRotatingFileHandler):
             with open(file_path, 'w'):
                 pass
 
+        # The base class stores interval in seconds; keep the constructor units for copies.
+        self._original_interval = interval
         super().__init__(filename=file_path, when=when, interval=interval, backupCount=backupCount,
                          encoding=encoding, delay=delay, utc=utc)
 
@@ -93,7 +95,7 @@ class TimedRotatingFileHandler(BaseTimedRotatingFileHandler):
         handler_copy = TimedRotatingFileHandler(file_name,
                                                 when=handler.when,
                                                 backupCount=handler.backupCount,
-                                                interval=handler.interval,
+                                                interval=handler._original_interval,
                                                 encoding=handler.encoding,
                                                 delay=handler.delay,
                                                 utc=handler.utc,
