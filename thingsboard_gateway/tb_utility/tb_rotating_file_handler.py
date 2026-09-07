@@ -41,7 +41,7 @@ class TimedRotatingFileHandler(BaseTimedRotatingFileHandler):
         self.maxBytes = maxBytes
         if self.maxBytes > 0:
             self.suffix = "%Y-%m-%d_%H-%M-%S"
-            self.extMatch = compile(r"(?<!\d)\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?!\d)", ASCII)
+            self.extMatch = compile(r"(?<!\d)(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})(?:\.(\d+))?(?!\d)", ASCII)
 
     def shouldRolloverOnSize(self, record):
         if self.stream is None:
@@ -61,6 +61,34 @@ class TimedRotatingFileHandler(BaseTimedRotatingFileHandler):
 
     def shouldRollover(self, record):
         return self.shouldRolloverOnSize(record) or super().shouldRollover(record)
+
+    def rotation_filename(self, default_name):
+        if self.maxBytes > 0:
+            timestamp = default_name[len(self.baseFilename) + 1:]
+            # Do not reuse a lower index after pruning, including after a restart.
+            index = max((index for stamp, index, _ in self._get_archive_files()
+                         if stamp == timestamp), default=-1) + 1
+            if index:
+                default_name += f".{index}"
+        return super().rotation_filename(default_name)
+
+    def _get_archive_files(self):
+        for path in Path(self.baseFilename).parent.iterdir():
+            for match in self.extMatch.finditer(path.name):
+                default_name = self.baseFilename + "." + match[0]
+                # Honor custom namers and exclude archives belonging to other logs.
+                if Path(super().rotation_filename(default_name)) == path:
+                    yield match[1], int(match[2] or 0), str(path)
+                    break
+
+    def getFilesToDelete(self):
+        if self.maxBytes <= 0:
+            return super().getFilesToDelete()
+        if self.backupCount <= 0:
+            return []
+        # Sort the collision index numerically: .10 is newer than .9.
+        archives = sorted(self._get_archive_files())
+        return [filename for _, _, filename in archives[:-self.backupCount]]
 
     @staticmethod
     def get_connector_file_handler(file_name):
