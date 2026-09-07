@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Modified by Cybergrany, 2026-09-07: preserve cloned rotation intervals and
+# retain distinct archives when repeated size rollovers share a timestamp.
+
 import logging
 from os import sep
 from os.path import isfile, exists
