@@ -20,11 +20,12 @@ from queue import Queue
 from threading import Thread
 from random import choice
 from string import ascii_lowercase
-from time import sleep
+from time import sleep, monotonic
 
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -35,7 +36,7 @@ try:
     import ocpp
 except ImportError:
     print('OCPP library not found - installing...')
-    TBUtility.install_package("ocpp")
+    TBUtility.install_package("ocpp", "2.1.0")
     import ocpp
 
 try:
@@ -45,7 +46,7 @@ except ImportError:
     TBUtility.install_package("websockets")
     import websockets
 
-from ocpp.v16 import call
+from ocpp.v21 import call
 from thingsboard_gateway.connectors.ocpp.charge_point import ChargePoint
 
 
@@ -120,7 +121,7 @@ class OcppConnector(Connector, Thread):
     async def start_server(self):
         host = self._central_system_config.get('host', '0.0.0.0')
         port = self._central_system_config.get('port', 9000)
-        self._server = await websockets.serve(self.on_connect, host, port, subprotocols=['ocpp1.6'],
+        self._server = await websockets.serve(self.on_connect, host, port, subprotocols=['ocpp2.1'],
                                               ssl=self._ssl_context)
         self.__connected = True
         self._log.info('Central System is running on %s:%d', host, port)
@@ -129,27 +130,29 @@ class OcppConnector(Connector, Thread):
 
     def _auth(self, websocket):
         for sec in self._central_system_config['security']:
-            if sec['type'].lower() == 'token' and websocket.request_headers['authorization'] in sec['tokens']:
-                self._log.debug('Got Authorization: %s', websocket.request_headers['authorization'])
+            if sec['type'].lower() == 'token' and websocket.request.headers['authorization'] in sec['tokens']:
+                self._log.debug('Got Authorization: %s', websocket.request.headers['authorization'])
                 return
             elif sec['type'].lower() == 'basic':
                 for cred in sec['credentials']:
                     token = 'Basic {0}'.format(
                         base64.b64encode(bytes(cred['username'] + ':' + cred['password'], 'utf-8')).decode('ascii'))
-                    if websocket.request_headers['authorization'] == token:
-                        self._log.debug('Got Authorization: %s', websocket.request_headers['authorization'])
+                    if websocket.request.headers['authorization'] == token:
+                        self._log.debug('Got Authorization: %s', websocket.request.headers['authorization'])
                         return
 
         raise NotAuthorized('Charge Point not authorized')
 
-    async def on_connect(self, websocket, path):
+    async def on_connect(self, websocket):
         """ For every new charge point that connects, create a ChargePoint instance
         and start listening for messages.
 
         """
+        path = websocket.request.path
+
         requested_protocols = None
         try:
-            requested_protocols = websocket.request_headers[
+            requested_protocols = websocket.request.headers[
                 'Sec-WebSocket-Protocol']
         except KeyError:
             self._log.info("Client hasn't requested any Subprotocol. "
@@ -171,7 +174,7 @@ class OcppConnector(Connector, Thread):
             # so we have to manually close the connection.
             self._log.warning('Protocols Mismatched | Expected Subprotocols: %s,'
                               ' but client supports  %s | Closing connection',
-                              websocket.available_subprotocols,
+                              websocket.protocol.available_subprotocols,
                               requested_protocols)
             return await websocket.close()
 
@@ -278,6 +281,27 @@ class OcppConnector(Connector, Thread):
     async def _send_request(cp, request):
         return await cp.call(request)
 
+    @staticmethod
+    def __wait_task_with_timeout(task, timeout, poll_interval=0.2):
+        start_time = monotonic()
+        while not task.done():
+            sleep(poll_interval)
+            if monotonic() - start_time >= timeout:
+                task.cancel()
+                return False, None
+
+        return True, task.result()
+
+    def __call_and_wait(self, charge_point, request, timeout=RPC_DEFAULT_TIMEOUT):
+        task = self.__loop.create_task(self._send_request(charge_point, request))
+        task_completed, result = self.__wait_task_with_timeout(task, timeout)
+
+        if not task_completed:
+            self._log.warning('Timeout (%ss) waiting for %s response from Charge Point %s',
+                              timeout, request.__class__.__name__, charge_point.name)
+
+        return result
+
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         self._log.debug('Got attribute update: %s', content)
@@ -296,12 +320,8 @@ class OcppConnector(Connector, Thread):
                             .replace("${attributeKey}", str(attr_key)) \
                             .replace("${attributeValue}", str(attr_value))
                         request = call.DataTransfer('1', data=data)
-
-                        task = self.__loop.create_task(self._send_request(charge_point, request))
-                        while not task.done():
-                            sleep(.2)
-
-                        self._log.debug(task.result())
+                        timeout = attribute_update_config.get('timeout', RPC_DEFAULT_TIMEOUT)
+                        self._log.debug(self.__call_and_wait(charge_point, request, timeout))
         except Exception as e:
             self._log.exception(e)
 
@@ -316,7 +336,10 @@ class OcppConnector(Connector, Thread):
             return
 
         # check if RPC method is reserved get/set
-        self.__check_and_process_reserved_rpc(charge_point, content)
+        try:
+            self.__check_and_process_reserved_rpc(charge_point, content)
+        except Exception as e:
+            self._log.exception(e)
 
         try:
             for rpc in charge_point.config.get('serverSideRpc', []):
@@ -326,6 +349,9 @@ class OcppConnector(Connector, Thread):
             self._log.exception(e)
 
     def __process_rpc(self, charge_point, content, rpc):
+        if not rpc.get('valueExpression'):
+            return
+
         data_to_send_tags = TBUtility.get_values(rpc.get('valueExpression'), content['data'],
                                                  'params',
                                                  get_tag=True)
@@ -338,21 +364,19 @@ class OcppConnector(Connector, Thread):
             data_to_send = data_to_send.replace('${' + tag + '}', dumps(value))
 
         request = call.DataTransfer('1', data=data_to_send)
-
-        task = self.__loop.create_task(
-            self._send_request(charge_point, request))
-        while not task.done():
-            sleep(.2)
+        timeout = rpc.get('timeout', RPC_DEFAULT_TIMEOUT)
+        result = self.__call_and_wait(charge_point, request, timeout)
 
         if rpc.get('withResponse', True):
-            self._gateway.send_rpc_reply(content["device"], content["data"]["id"], {
-                                         'result': str(task.result())})
+            self._gateway.send_rpc_reply(content["device"], content["data"]["id"], {'result': str(result)})
 
-            return
+    @staticmethod
+    def __parse_rpc_params(raw_params):
+        if not isinstance(raw_params, str):
+            return {}
 
-    def __check_and_process_reserved_rpc(self, charge_point, content):
         params = {}
-        for param in content['data']['params'].split(';'):
+        for param in raw_params.split(';'):
             try:
                 (key, value) = param.split('=')
             except ValueError:
@@ -361,10 +385,58 @@ class OcppConnector(Connector, Thread):
             if key and value:
                 params[key] = value
 
-        if content['data']['method'] == 'set':
-            params['valueExpression'] = params.pop('value', None)
+        return params
 
-        self.__process_rpc(charge_point, content, params)
+    @staticmethod
+    def __build_component_variable(params):
+        component = {'name': params.get('component')}
+        if params.get('componentInstance'):
+            component['instance'] = params['componentInstance']
+        if params.get('evseId'):
+            component['evse'] = {'id': int(params['evseId'])}
+
+        variable = {'name': params.get('variable')}
+        if params.get('variableInstance'):
+            variable['instance'] = params['variableInstance']
+
+        return component, variable
+
+    def __send_set_variables(self, charge_point, content, params):
+        component, variable = self.__build_component_variable(params)
+        request = call.SetVariables(set_variable_data=[{
+            'attribute_value': params.get('value'),
+            'component': component,
+            'variable': variable,
+        }])
+        timeout = float(params.get('timeout', RPC_DEFAULT_TIMEOUT))
+        result = self.__call_and_wait(charge_point, request, timeout)
+        self._gateway.send_rpc_reply(content['device'], content['data']['id'], {'result': str(result)})
+
+    def __send_get_variables(self, charge_point, content, params):
+        component, variable = self.__build_component_variable(params)
+        request = call.GetVariables(get_variable_data=[{
+            'component': component,
+            'variable': variable,
+        }])
+        timeout = float(params.get('timeout', RPC_DEFAULT_TIMEOUT))
+        result = self.__call_and_wait(charge_point, request, timeout)
+        self._gateway.send_rpc_reply(content['device'], content['data']['id'], {'result': str(result)})
+
+    def __check_and_process_reserved_rpc(self, charge_point, content):
+        method = content['data']['method']
+        if method not in ('get', 'set'):
+            return
+
+        params = self.__parse_rpc_params(content['data'].get('params'))
+        if not params.get('component') or not params.get('variable'):
+            self._log.warning("Reserved RPC '%s' requires 'component' and 'variable' params "
+                              "(e.g. 'component=OCPPCommCtrlr;variable=HeartbeatInterval;value=30')", method)
+            return
+
+        if method == 'set':
+            self.__send_set_variables(charge_point, content, params)
+        else:
+            self.__send_get_variables(charge_point, content, params)
 
     def get_config(self):
         return {'CS': self._central_system_config, 'CP': self._charge_points_config}

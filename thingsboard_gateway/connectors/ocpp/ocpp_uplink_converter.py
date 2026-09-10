@@ -118,6 +118,11 @@ class OcppUplinkConverter(OcppConverter):
                             full_value = full_value.replace('${' + str(value_tag) + '}',
                                                             str(value)) if is_valid_value else str(value)
 
+                        value_unresolved = ("${" in datatype_config["value"]
+                                           and full_value == datatype_config["value"])
+                        if value_unresolved:
+                            continue
+
                         datapoint_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy,
                                                                                datatype_config, self._log)
                         if datatype == 'attributes':
