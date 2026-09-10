@@ -20,11 +20,12 @@ from queue import Queue
 from threading import Thread
 from random import choice
 from string import ascii_lowercase
-from time import sleep
+from time import sleep, monotonic
 
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -35,7 +36,7 @@ try:
     import ocpp
 except ImportError:
     print('OCPP library not found - installing...')
-    TBUtility.install_package("ocpp")
+    TBUtility.install_package("ocpp", "2.1.0")
     import ocpp
 
 try:
@@ -280,12 +281,26 @@ class OcppConnector(Connector, Thread):
     async def _send_request(cp, request):
         return await cp.call(request)
 
-    def __call_and_wait(self, charge_point, request):
-        task = self.__loop.create_task(self._send_request(charge_point, request))
+    @staticmethod
+    def __wait_task_with_timeout(task, timeout, poll_interval=0.2):
+        start_time = monotonic()
         while not task.done():
-            sleep(.2)
+            sleep(poll_interval)
+            if monotonic() - start_time >= timeout:
+                task.cancel()
+                return False, None
 
-        return task.result()
+        return True, task.result()
+
+    def __call_and_wait(self, charge_point, request, timeout=RPC_DEFAULT_TIMEOUT):
+        task = self.__loop.create_task(self._send_request(charge_point, request))
+        task_completed, result = self.__wait_task_with_timeout(task, timeout)
+
+        if not task_completed:
+            self._log.warning('Timeout (%ss) waiting for %s response from Charge Point %s',
+                              timeout, request.__class__.__name__, charge_point.name)
+
+        return result
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
@@ -305,7 +320,8 @@ class OcppConnector(Connector, Thread):
                             .replace("${attributeKey}", str(attr_key)) \
                             .replace("${attributeValue}", str(attr_value))
                         request = call.DataTransfer('1', data=data)
-                        self._log.debug(self.__call_and_wait(charge_point, request))
+                        timeout = attribute_update_config.get('timeout', RPC_DEFAULT_TIMEOUT)
+                        self._log.debug(self.__call_and_wait(charge_point, request, timeout))
         except Exception as e:
             self._log.exception(e)
 
@@ -348,7 +364,8 @@ class OcppConnector(Connector, Thread):
             data_to_send = data_to_send.replace('${' + tag + '}', dumps(value))
 
         request = call.DataTransfer('1', data=data_to_send)
-        result = self.__call_and_wait(charge_point, request)
+        timeout = rpc.get('timeout', RPC_DEFAULT_TIMEOUT)
+        result = self.__call_and_wait(charge_point, request, timeout)
 
         if rpc.get('withResponse', True):
             self._gateway.send_rpc_reply(content["device"], content["data"]["id"], {'result': str(result)})
@@ -391,7 +408,8 @@ class OcppConnector(Connector, Thread):
             'component': component,
             'variable': variable,
         }])
-        result = self.__call_and_wait(charge_point, request)
+        timeout = float(params.get('timeout', RPC_DEFAULT_TIMEOUT))
+        result = self.__call_and_wait(charge_point, request, timeout)
         self._gateway.send_rpc_reply(content['device'], content['data']['id'], {'result': str(result)})
 
     def __send_get_variables(self, charge_point, content, params):
@@ -400,7 +418,8 @@ class OcppConnector(Connector, Thread):
             'component': component,
             'variable': variable,
         }])
-        result = self.__call_and_wait(charge_point, request)
+        timeout = float(params.get('timeout', RPC_DEFAULT_TIMEOUT))
+        result = self.__call_and_wait(charge_point, request, timeout)
         self._gateway.send_rpc_reply(content['device'], content['data']['id'], {'result': str(result)})
 
     def __check_and_process_reserved_rpc(self, charge_point, content):
