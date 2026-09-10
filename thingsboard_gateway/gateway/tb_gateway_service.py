@@ -1651,7 +1651,7 @@ class TBGatewayService:
                         if self.connectors_configs.get(module):
                             log.debug("Connector \"%s\" for RPC request \"%s\" found", module, content["method"])
                             for connector_name in self.available_connectors_by_name:
-                                if self.available_connectors_by_name[connector_name]._connector_type == module: # noqa pylint: disable=protected-access
+                                if self.available_connectors_by_name[connector_name].get_type() == module: # noqa pylint: disable=protected-access
                                     log.debug("Sending command RPC %s to connector %s", content["method"],
                                               connector_name)
                                     content['id'] = request_id

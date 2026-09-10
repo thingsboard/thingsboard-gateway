@@ -110,6 +110,7 @@ class ChargePoint(CP):
         return call_result.Authorize(id_token_info={'status': 'Not authorized'})
 
     @on(Action.heartbeat)
+    @on(Action.heartbeat)
     def on_heartbeat(self):
         current_time = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S') + "Z"
 
@@ -120,6 +121,7 @@ class ChargePoint(CP):
         return call_result.Heartbeat(current_time=current_time)
 
     @on(Action.data_transfer)
+    @on(Action.data_transfer)
     def on_data_transfer(self, **kwargs):
         for (key, value) in kwargs.items():
             try:
@@ -128,6 +130,7 @@ class ChargePoint(CP):
                 continue
 
         self._callback((self._uplink_converter,
+                        {'deviceName': self.name, 'deviceType': self.type, 'messageType': Action.data_transfer,
                         {'deviceName': self.name, 'deviceType': self.type, 'messageType': Action.data_transfer,
                          'profile': self._profile}, kwargs))
         return call_result.DataTransfer(status=DataTransferStatusEnumType.accepted)

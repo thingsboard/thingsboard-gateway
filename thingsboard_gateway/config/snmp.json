@@ -7,6 +7,7 @@
       "port": 161,
       "pollPeriod": 5000,
       "community": "public",
+      "version": "v2c",
       "attributes": [
         {
           "key": "ReceivedFromGet",
@@ -118,6 +119,7 @@
       "ip": "127.0.0.1",
       "pollPeriod": 5000,
       "community": "public",
+      "version": "v2c",
       "converter": "CustomSNMPConverter",
       "attributes": [
         {

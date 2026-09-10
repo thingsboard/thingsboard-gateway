@@ -229,6 +229,12 @@ class LogoConfig(DeviceConfig):
         self.device_type = DeviceType.LOGO
         self.tsap_snap7 = config['tsapSnap7']
         self.tsap_logo = config['tsapLogo']
+        # TODO: refactor this
+        self.auto_reconnect = config.get('autoReconnect', DEFAULT_AUTO_RECONNECT)
+        self.max_retries = config.get('maxRetries', DEFAULT_MAX_RETRIES)
+        self.retry_delay = config.get('retryDelay', DEFAULT_RETRY_DELAY)
+        self.max_delay = config.get('maxDelay', DEFAULT_MAX_DELAY)
+        self.heartbeat_interval = config.get('heartbeatInterval', DEFAULT_HEARTBEAT_INTERVAL)
 
     def _format_config(self, config: dict) -> None:
         self._format_base_config_section(config)

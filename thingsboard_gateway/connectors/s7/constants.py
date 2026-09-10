@@ -31,12 +31,12 @@ RESERVED_SET_TAG_RPC_PATTERN = r'^type=tag;tag=(?P<tag>[^;]+);value=(?P<value>.+
 
 RESERVED_GET_DATA_RPC_SCHEMA = r'type=data;dbNumber=\d;start=\d;dataType=<type>;size=\d;[bit=\d;]'
 RESERVED_SET_DATA_RPC_SCHEMA = (r'type=data;dbNumber=\d;start=\d;dataType=<type>;'
-                               r'[size=\d;][bit=\d;]value=<value>;')
+                                r'[size=\d;][bit=\d;]value=<value>;')
 RESERVED_GET_DATA_RPC_PATTERN = (r'^type=data;dbNumber=(?P<dbNumber>\d+);start=(?P<start>\d+);'
-                                r'dataType=(?P<dataType>\w+);size=(?P<size>\d+);(bit=(?P<bit>\d+);)?$')
+                                 r'dataType=(?P<dataType>\w+);size=(?P<size>\d+);(bit=(?P<bit>\d+);)?$')
 RESERVED_SET_DATA_RPC_PATTERN = (r'^type=data;dbNumber=(?P<dbNumber>\d+);start=(?P<start>\d+);'
-                                r'dataType=(?P<dataType>\w+);(size=(?P<size>\d+);)?(bit=(?P<bit>\d+);)?'
-                                r'value=(?P<value>.+);$')
+                                 r'dataType=(?P<dataType>\w+);(size=(?P<size>\d+);)?(bit=(?P<bit>\d+);)?'
+                                 r'value=(?P<value>.+);$')
 
 RESERVED_GET_VM_RPC_SCHEMA = 'type=vm;vmAddress=<LOGO VM address>;'
 RESERVED_SET_VM_RPC_SCHEMA = 'type=vm;vmAddress=<LOGO VM address>;value=<value>;'
@@ -44,8 +44,8 @@ RESERVED_GET_VM_RPC_PATTERN = r'^type=vm;vmAddress=(?P<vmAddress>[^;]+);$'
 RESERVED_SET_VM_RPC_PATTERN = r'^type=vm;vmAddress=(?P<vmAddress>[^;]+);value=(?P<value>.+);$'
 
 RESERVED_GET_RPC_SCHEMA = ("type=tag;tag=<S7 tag address>; OR "
-                          r"type=data;dbNumber=\d;start=\d;dataType=<type>;size=\d;[bit=\d;] OR "
-                          "type=vm;vmAddress=<LOGO VM address>;")
+                           r"type=data;dbNumber=\d;start=\d;dataType=<type>;size=\d;[bit=\d;] OR "
+                           "type=vm;vmAddress=<LOGO VM address>;")
 RESERVED_SET_RPC_SCHEMA = ("type=tag;tag=<S7 tag address>;value=<value>; OR "
-                          r"type=data;dbNumber=\d;start=\d;dataType=<type>;[size=\d;][bit=\d;]value=<value>; OR "
-                          "type=vm;vmAddress=<LOGO VM address>;value=<value>;")
+                           r"type=data;dbNumber=\d;start=\d;dataType=<type>;[size=\d;][bit=\d;]value=<value>; OR "
+                           "type=vm;vmAddress=<LOGO VM address>;value=<value>;")

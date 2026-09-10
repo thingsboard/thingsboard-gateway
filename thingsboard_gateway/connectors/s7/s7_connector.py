@@ -83,7 +83,7 @@ class S7Connector(Thread, Connector):
         ('vm', 'get'): re.compile(RESERVED_GET_VM_RPC_PATTERN),
         ('vm', 'set'): re.compile(RESERVED_SET_VM_RPC_PATTERN),
     }
-    
+
     _RESERVED_RPC_SCHEMAS_BY_TYPE_AND_METHOD = {
             ('tag', 'get'): RESERVED_GET_TAG_RPC_SCHEMA,
             ('tag', 'set'): RESERVED_SET_TAG_RPC_SCHEMA,
@@ -336,20 +336,26 @@ class S7Connector(Thread, Connector):
         self.__log.debug('Received RPC request: %r', content)
 
         try:
-            device_name = content.get('device')
+            device_name = content.get('device', content.get('params', {}).get('deviceName'))
             device = self._get_device_by_name(device_name)
             if device is None:
                 error_msg = f"Device with name {device_name} not found for RPC request: {content}"
-                self._send_error_rpc_reply(
-                    device.config.device_name, content.get('data', {}).get('id'), error_msg)
-                return
+                self._send_error_rpc_reply(device_name, content.get('data', {}).get('id'), error_msg)
+                return {'error': error_msg, 'success': False}
 
-            rpc_method_name = content.get('data', {}).get('method')
+            rpc_method_name = self._get_rpc_method_name(content)
             if rpc_method_name is None:
                 error_msg = f"Method name not found in RPC request: {content}"
                 self._send_error_rpc_reply(
                     device.config.device_name, content.get('data', {}).get('id'), error_msg)
-                return
+                return {'error': error_msg, 'success': False}
+
+            if rpc_method_name.startswith(f"{self.__connector_type}_"):
+                return self._process_rpc(rpc_method_name,
+                                         content.get('params', {}),
+                                         device,
+                                         value=content.get('params', {}).get('value'),
+                                         with_reply=False)
 
             if rpc_method_name in ('get', 'set'):
                 self._process_reserved_rpc(rpc_method_name, content, device)
@@ -364,12 +370,24 @@ class S7Connector(Thread, Connector):
                 return
 
             for rpc_config in filtered_rpc_section_from_config:
-                self._process_rpc(rpc_method_name, rpc_config, content, device)
+                value = content.get('data', {}).get('params')
+                self._process_rpc(rpc_method_name,
+                                  rpc_config,
+                                  device,
+                                  value=value,
+                                  req_id=content.get('data', {}).get('id'))
                 return
         except Exception as e:
             error_msg = f"Error processing RPC request {content}: {e}"
             self._send_error_rpc_reply(
                 device.config.device_name, content.get('data', {}).get('id'), error_msg)
+            return {'error': error_msg, 'success': False}
+
+    def _get_rpc_method_name(self, content):
+        if content.get('params') is not None:
+            return content['method']
+
+        return content.get('data', {}).get('method')
 
     def _get_device_by_name(self, device_name):
         for device in self._devices:
@@ -377,15 +395,23 @@ class S7Connector(Thread, Connector):
                 return device
         return None
 
-    def _process_rpc(self, rpc_method_name, rpc_config, content, device):
+    def _process_rpc(self, rpc_method_name, rpc_config, device, req_id=None, value=None, with_reply=True):
+        result = None
         if rpc_config.get('requestType') == 'write':
-            self._process_write_rpc(rpc_method_name, rpc_config, content, device)
+            result = self._process_write_rpc(rpc_method_name, rpc_config, device, value)
         elif rpc_config.get('requestType') == 'read':
-            self._process_read_rpc(rpc_config, content, device)
+            result = self._process_read_rpc(rpc_config, device)
         else:
-            error_msg = f"Unsupported requestType {rpc_config.get('requestType')} for RPC method {rpc_method_name}"
-            self._send_error_rpc_reply(
-                device.config.device_name, content.get('data', {}).get('id'), error_msg)
+            result = f"Unsupported requestType {rpc_config.get('requestType')} for RPC method {rpc_method_name}"
+
+        if with_reply:
+            self.__gateway.send_rpc_reply(
+                device=device.config.device_name,
+                req_id=req_id,
+                content={"result": result}
+            )
+
+        return {'result': result}
 
     def _process_reserved_rpc(self, rpc_method_name, content, device):
         request_id = content.get('data', {}).get('id')
@@ -412,10 +438,11 @@ class S7Connector(Thread, Connector):
 
         rpc_config = self._build_reserved_rpc_config(address_type, rpc_method_name, match.groupdict())
 
-        if rpc_method_name == 'set':
-            content = {**content, 'data': {**content['data'], 'params': match.group('value')}}
-
-        self._process_rpc(rpc_method_name, rpc_config, content, device)
+        self._process_rpc(rpc_method_name,
+                          rpc_config,
+                          device,
+                          req_id=request_id,
+                          value=match.group('value') if rpc_method_name == 'set' else None)
 
     def _reply_reserved_rpc_schema_mismatch(self, rpc_method_name, request_id, device, address_type=None):
         if address_type is None:
@@ -450,44 +477,33 @@ class S7Connector(Thread, Connector):
 
         return rpc_config
 
-    def _process_write_rpc(self, rpc_method_name, rpc_config, content, device):
-        value = content.get('data', {}).get('params')
+    def _process_write_rpc(self, rpc_method_name, rpc_config, device, value):
         if value is None:
             error_msg = f"No 'params' found in RPC request for method {rpc_method_name}"
-            self._send_error_rpc_reply(
-                device.config.device_name, content.get('data', {}).get('id'), error_msg)
-            return
+            self.__log.error(error_msg)
+            return error_msg
 
         converted_value = device.downlink_converter.convert(
                     rpc_config, value)
         result = device.write(rpc_config, converted_value)
         if result != 0:
             error_msg = f"Failed to write value {converted_value} to device {device.config.device_name} for RPC method {rpc_method_name}"  # noqa: E501
-            self._send_error_rpc_reply(
-                device.config.device_name, content.get('data', {}).get('id'), error_msg)
+            self.__log.error(error_msg)
+            return error_msg
 
-        self.__gateway.send_rpc_reply(
-            device=device.config.device_name,
-            req_id=content.get('data', {}).get('id'),
-            content={"result": {
-                "success": f"Successfully wrote value {converted_value} to device {device.config.device_name} for RPC method {rpc_method_name}"}}  # noqa: E501
-        )
+        return result
 
-    def _process_read_rpc(self, rpc_config, content, device):
+    def _process_read_rpc(self, rpc_config, device):
         data = device.read(rpc_config)
         converted_value = device.uplink_converter.convert_data(rpc_config, data)
-        self.__gateway.send_rpc_reply(
-            device=device.config.device_name,
-            req_id=content.get('data', {}).get('id'),
-            content={"result": converted_value}
-        )
+        return converted_value
 
     def _send_error_rpc_reply(self, device_name, request_id, error_message):
         self.__log.error(error_message)
         self.__gateway.send_rpc_reply(
             device=device_name,
             req_id=request_id,
-            content={"result": {"error": error_message}}
+            content={"result": error_message}
         )
 
     def get_id(self):

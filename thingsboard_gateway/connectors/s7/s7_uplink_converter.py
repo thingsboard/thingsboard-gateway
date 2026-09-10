@@ -12,7 +12,9 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import re
 from time import time
+from datetime import datetime, timedelta, date, timezone
 import struct
 
 import snap7
@@ -98,7 +100,6 @@ class S7UplinkConverter(S7Converter):
         if not value:
             return None
 
-        # Normalize data type key and handle optional byte offset within buffer
         data_type = str(config.get("dataType", "raw")).lower().strip()
         offset = config.get("offset", 0)
         bit_index = config.get("bit", config.get("bitIndex", 0))
@@ -133,8 +134,99 @@ class S7UplinkConverter(S7Converter):
         elif data_type in ("string", "str", "s7string"):
             return snap7.util.get_string(value, offset)
 
+        elif data_type in ("char", "character"):
+            return chr(value[offset])
+
+        elif data_type in ("wchar", "widecharacter"):
+            val = struct.unpack_from(">H", value, offset)[0]
+            return chr(val)
+
+        elif data_type in ("lint", "int64"):
+            return struct.unpack_from(">q", value, offset)[0]
+
+        elif data_type in ("ulint", "uint64", "lword"):
+            return struct.unpack_from(">Q", value, offset)[0]
+
+        elif data_type in ("time", "dint_time"):
+            # TIME is 32-bit signed int (milliseconds) -> returns seconds as float
+            ms = snap7.util.get_dint(value, offset)
+            return ms / 1000.0
+
+        elif data_type == "ltime":
+            # LTIME is 64-bit signed int (nanoseconds) -> returns seconds as float
+            ns = struct.unpack_from(">q", value, offset)[0]
+            return ns / 1_000_000_000.0
+
+        elif data_type in ("tod", "time_of_day"):
+            # TOD is 32-bit unsigned int (milliseconds since midnight) -> "HH:MM:SS.mmm"
+            ms = snap7.util.get_dword(value, offset)
+            return str(timedelta(milliseconds=ms))
+
+        elif data_type == "ltod":
+            # LTOD is 64-bit unsigned int (nanoseconds since midnight)
+            ns = struct.unpack_from(">Q", value, offset)[0]
+            seconds = ns / 1_000_000_000.0
+            return str(timedelta(seconds=seconds))
+
+        elif data_type == "date":
+            # DATE is 16-bit unsigned int (days since 1990-01-01)
+            days = snap7.util.get_uint(value, offset)
+            base_date = date(1990, 1, 1)
+            return (base_date + timedelta(days=days)).isoformat()
+
+        elif data_type in ("dt", "date_and_time"):
+            # S7 DATE_AND_TIME (DT) is 8-byte BCD (Year, Month, Day, Hour, Min, Sec, MS, Dow)
+            def _bcd_to_int(bcd):
+                return ((bcd >> 4) * 10) + (bcd & 0x0F)
+
+            year = _bcd_to_int(value[offset])
+            year += 2000 if year < 90 else 1900
+            month = _bcd_to_int(value[offset + 1])
+            day = _bcd_to_int(value[offset + 2])
+            hour = _bcd_to_int(value[offset + 3])
+            minute = _bcd_to_int(value[offset + 4])
+            second = _bcd_to_int(value[offset + 5])
+            ms_bcd1 = _bcd_to_int(value[offset + 6])
+            ms_bcd2 = value[offset + 7] >> 4
+            ms = (ms_bcd1 * 10) + ms_bcd2
+
+            dt_val = datetime(year, month, day, hour, minute, second, ms * 1000)
+            return dt_val.isoformat()
+
+        elif data_type in ("ldt", "date_and_ltime"):
+            # LDT is 64-bit signed int (nanoseconds since 1970-01-01 00:00:00 UTC)
+            ns = struct.unpack_from(">q", value, offset)[0]
+            dt_val = datetime.fromtimestamp(ns / 1_000_000_000.0, tz=timezone.utc)
+            return dt_val.isoformat()
+
+        elif data_type == "dtl":
+            # DTL is 12 bytes structured date/time
+            year = struct.unpack_from(">H", value, offset)[0]
+            month = value[offset + 2]
+            day = value[offset + 3]
+            # offset + 4 is Day of Week
+            hour = value[offset + 5]
+            minute = value[offset + 6]
+            second = value[offset + 7]
+            ns = struct.unpack_from(">I", value, offset + 8)[0]
+
+            dt_val = datetime(year, month, day, hour, minute, second, ns // 1000)
+            return dt_val.isoformat()
+
+        # --- Fixed Length String (FSTRING[n]) ---
+        elif data_type.startswith("fstring") or data_type.startswith("char["):
+            # Extract fixed size n from config 'size' or parsing 'fstring[10]' / 'fstring10'
+            size = config.get("size")
+            if not size:
+                match = re.search(r"\[?(\d+)\]?", data_type)
+                size = int(match.group(1)) if match else 1
+
+            raw_chars = value[offset:offset + size]
+            # Decode ASCII/Latin1 and trim trailing null bytes / space padding
+            return raw_chars.decode("latin-1").rstrip("\x00 ").strip()
+
+        # --- Raw Bytes / Bytearray ---
         elif data_type in ("raw", "bytes", "bytearray", "array"):
-            # bytearray is not JSON-serializable; convert to list of ints
             return list(value[offset:])
 
         else:

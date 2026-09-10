@@ -34,19 +34,20 @@ from thingsboard_gateway.connectors.s7.constants import (
     DOWNLINK_PREFIX,
     CONNECTOR_TYPE,
 )
+from thingsboard_gateway.connectors.s7.entities.logo_client import LogoClient
 
-from snap7 import Client as PlcClient, Logo as LogoClient
+from snap7 import Client as PlcClient
 
 
 class Device:
     def __init__(self, logger, converter_logger, config: 'DeviceConfig', reading_request_queue: Queue) -> None:
         self.config = config
-        self.stopped = True
+        self.stopped = False
         self._reading_request_queue = reading_request_queue
         self._log = logger
         self.uplink_converter = self._load_converter(UPLINK_PREFIX, converter_logger)
         self.downlink_converter = self._load_converter(DOWNLINK_PREFIX, converter_logger)
-
+        self._client: PlcClient | LogoClient = None
 
     def _load_converter(self, converter_type: str, converter_logger):
         try:
@@ -100,12 +101,18 @@ class Device:
             sleep_time = max(0.0, next_poll_time - current_time)
             await sleep(sleep_time)
 
-    @abstractmethod
-    async def connect(self) -> None:
-        pass
+    def stop(self) -> None:
+        try:
+            self.stopped = True
+            self._client.disconnect()
+            self._log.info(
+                f"Disconnected from Logo device '{self.config.device_name}' at {self.config.address}:{self.config.port}")  # noqa: E501
+        except Exception as e:
+            self._log.error(
+                f"Failed to disconnect from Logo device '{self.config.device_name}' at {self.config.address}:{self.config.port}: {e}")  # noqa: E501
 
     @abstractmethod
-    def stop(self) -> None:
+    async def connect(self) -> None:
         pass
 
     @abstractmethod
@@ -147,30 +154,14 @@ class PLC(Device):
                 slot=self.config.slot,
                 tcp_port=self.config.port
             )
-            self.stopped = False
             self._log.info(
                 f"Connected to PLC device '{self.config.device_name}' at {self.config.address}:{self.config.port}")
         except Exception as e:
             self._log.error(
                 f"Failed to connect to PLC device '{self.config.device_name}' at {self.config.address}:{self.config.port}: {e}")  # noqa: E501
-            self.stop()
             raise
 
-    def stop(self) -> None:
-        try:
-            self.stopped = True
-            self._client.disconnect()
-            self._log.info(
-                f"Disconnected from Logo device '{self.config.device_name}' at {self.config.address}:{self.config.port}")  # noqa: E501
-        except Exception as e:
-            self._log.error(
-                f"Failed to disconnect from Logo device '{self.config.device_name}' at {self.config.address}:{self.config.port}: {e}")  # noqa: E501
-
     def write(self, config, data):
-        if not self._client.get_connected():
-            raise ConnectionError(
-                f"PLC device '{self.config.device_name}' is not connected. Cannot write data.")
-
         request_type = config.get('type')
         if request_type == 'data':
             return self._client.db_write(config['dbNumber'], config['start'], data)
@@ -197,10 +188,6 @@ class PLC(Device):
         return results
 
     def read(self, config):
-        if not self._client.get_connected():
-            raise ConnectionError(
-                f"PLC device '{self.config.device_name}' is not connected. Cannot read data.")
-
         request_type = config.get('type')
         if request_type == 'data':
             return self._client.db_read(config['dbNumber'], config['start'], config['size'])
@@ -214,7 +201,13 @@ class PLC(Device):
 class Logo(Device):
     def __init__(self, logger, converter_logger, config: 'LogoConfig', reading_request_queue: Queue) -> None:
         super().__init__(logger, converter_logger, config, reading_request_queue)
-        self._client = LogoClient()
+        self._client = LogoClient(
+            auto_reconnect=config.auto_reconnect,
+            max_retries=config.max_retries,
+            retry_delay=config.retry_delay,
+            max_delay=config.max_delay,
+            heartbeat_interval=config.heartbeat_interval
+        )
 
     async def connect(self) -> None:
         try:
@@ -230,11 +223,7 @@ class Logo(Device):
         except Exception as e:
             self._log.error(
                 f"Failed to connect to Logo device '{self.config.device_name}' at {self.config.address}:{self.config.port}: {e}")  # noqa: E501
-            self.stop()
             raise
-
-    def stop(self) -> None:
-        self.stopped = True
 
     async def read_configured_data(self):
         results = []
@@ -251,15 +240,7 @@ class Logo(Device):
         return results
 
     def read(self, config):
-        if not self._client.connected:
-            raise ConnectionError(
-                f"Logo device '{self.config.device_name}' is not connected. Cannot read data.")
-
         return self._client.read(config['vmAddress'])
 
     def write(self, config, data):
-        if not self._client.connected:
-            raise ConnectionError(
-                f"Logo device '{self.config.device_name}' is not connected. Cannot write data.")
-
         return self._client.write(config['vmAddress'], data)

@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 from datetime import timedelta
+from ipaddress import IPv4Address, IPv6Address
 
 from thingsboard_gateway.connectors.converter import Converter
 from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
@@ -64,10 +65,12 @@ class SNMPUplinkConverter(Converter):
                         value = item_data.decode("UTF-8")
                     elif isinstance(item_data, timedelta):
                         value = item_data.total_seconds()
+                    elif isinstance(item_data, (IPv4Address, IPv6Address)):
+                        value = str(item_data)
                     else:
                         value = item_data
 
-                    if value:
+                    if value is not None:
                         datapoint_key = TBUtility.convert_key_to_datapoint_key(data_key, device_report_strategy,
                                                                                datatype_config, self._log)
                         if datatype == 'attributes':

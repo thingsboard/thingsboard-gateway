@@ -51,8 +51,12 @@ class EventStorageReader:
                 current_line_in_file = self.new_pos.get_line()
                 self.buffered_reader = self.get_or_init_buffered_reader(self.new_pos)
                 if self.buffered_reader is not None:
+                    line_start_offset = self.buffered_reader.tell()
                     line = self.buffered_reader.readline()
                     while line != b'':
+                        if not line.endswith(b'\n'):
+                            self.buffered_reader.seek(line_start_offset)
+                            return self.current_batch
                         try:
                             self.current_batch.append(b64decode(line).decode("utf-8"))
                             records_to_read -= 1
@@ -68,6 +72,7 @@ class EventStorageReader:
                         finally:
                             current_line_in_file += 1
                             if records_to_read > 0:
+                                line_start_offset = self.buffered_reader.tell()
                                 line = self.buffered_reader.readline()
                         self.new_pos.set_line(current_line_in_file)
                         if records_to_read == 0:
@@ -132,12 +137,10 @@ class EventStorageReader:
                 new_file_to_read_path = self.settings.get_data_folder_path() + pointer.get_file()
                 self.buffered_reader = BufferedReader(FileIO(new_file_to_read_path, 'r'))
                 lines_to_skip = pointer.get_line()
-                if lines_to_skip > 0:
-                    while self.buffered_reader.readline() is not None:
-                        if lines_to_skip > 0:
-                            lines_to_skip -= 1
-                        else:
-                            break
+                while lines_to_skip > 0:
+                    if self.buffered_reader.readline() == b'':
+                        break
+                    lines_to_skip -= 1
 
             return self.buffered_reader
 
