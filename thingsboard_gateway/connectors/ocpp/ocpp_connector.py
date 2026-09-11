@@ -22,7 +22,7 @@ from random import choice
 from string import ascii_lowercase
 from time import sleep, monotonic
 
-from simplejson import dumps
+from simplejson import dumps, loads
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
@@ -363,12 +363,38 @@ class OcppConnector(Connector, Thread):
         for (tag, value) in zip(data_to_send_tags, data_to_send_values):
             data_to_send = data_to_send.replace('${' + tag + '}', dumps(value))
 
-        request = call.DataTransfer('1', data=data_to_send)
+        request = self.__build_ocpp_request(rpc, data_to_send)
+        if request is None:
+            return
+
         timeout = rpc.get('timeout', RPC_DEFAULT_TIMEOUT)
         result = self.__call_and_wait(charge_point, request, timeout)
 
         if rpc.get('withResponse', True):
             self._gateway.send_rpc_reply(content["device"], content["data"]["id"], {'result': str(result)})
+
+    def __build_ocpp_request(self, rpc, data_to_send):
+        action = rpc.get('action')
+        if not action:
+            return call.DataTransfer('1', data=data_to_send)
+
+        call_cls = getattr(call, action, None)
+        if call_cls is None:
+            self._log.error("Unknown OCPP action '%s' configured for RPC '%s'", action, rpc.get('methodRPC'))
+            return None
+
+        try:
+            payload = loads(data_to_send)
+        except ValueError as e:
+            self._log.error("Invalid JSON payload for RPC '%s' action '%s': %s", rpc.get('methodRPC'), action, e)
+            return None
+
+        try:
+            return call_cls(**payload)
+        except TypeError as e:
+            self._log.error("Invalid payload fields for OCPP action '%s' (RPC '%s'): %s", action,
+                            rpc.get('methodRPC'), e)
+            return None
 
     @staticmethod
     def __parse_rpc_params(raw_params):
