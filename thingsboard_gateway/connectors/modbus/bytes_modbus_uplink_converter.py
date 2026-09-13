@@ -281,7 +281,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
             decoded = decoder_functions[lower_type]()
             decoded_lastbyte = decoder_functions[lower_type]()
             decoded += decoded_lastbyte
-            decoded = decoded[len(decoded)-objects_count:]
+            decoded = decoded[:objects_count]
 
         elif lower_type == "string":
             decoded = decoder_functions[lower_type](objects_count * 2)

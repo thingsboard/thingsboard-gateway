@@ -214,6 +214,22 @@ class ModbusConverterTests(BaseUnitTest):
         result = converter.convert(test_modbus_convert_config, test_modbus_body_to_convert)
         self.assertDictEqual(result, test_modbus_result)
 
+    def test_decode_coils_preserves_leading_bit_order(self):
+        converter = object.__new__(BytesModbusUplinkConverter)
+        config = {
+            "functionCode": 1,
+            "type": "bits",
+            "objectsCount": 2,
+        }
+        encoded_data = [True, False, False, False, False, False, False, False]
+        result = converter.decode_data(
+            encoded_data,
+            config,
+            Endian.LITTLE,
+            Endian.BIG,
+        )
+        self.assertEqual([True, False], result)
+
 
 if __name__ == '__main__':
     unittest.main()
