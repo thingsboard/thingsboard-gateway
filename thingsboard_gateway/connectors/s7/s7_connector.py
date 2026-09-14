@@ -491,7 +491,9 @@ class S7Connector(Thread, Connector):
             self.__log.error(error_msg)
             return error_msg
 
-        return result
+        success_msg = f"Successfully wrote value {converted_value} to device {device.config.device_name} for RPC method {rpc_method_name}"  # noqa: E501
+        self.__log.debug(success_msg)
+        return success_msg
 
     def _process_read_rpc(self, rpc_config, device):
         data = device.read(rpc_config)
