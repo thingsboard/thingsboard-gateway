@@ -439,8 +439,8 @@ class FTPConnector(Connector, Thread):
                 if connector_type == self._connector_type:
                     value_expression = content['data']['params']['valueExpression']
                     converted_data, success_sent = self.__process_rpc(rpc_method_name, value_expression)
-                    self.__send_rpc_reply({}, content, converted_data, success_sent)
-                    return
+                    self.__log.info("Successfully sent RPC request to FTP for %s rpc method", rpc_method_name)
+                    return {'success': bool(success_sent), 'result': converted_data}
             except ValueError:
                 pass
 
@@ -483,7 +483,7 @@ class FTPConnector(Connector, Thread):
 
         except Exception as e:
             self.__log.error(
-                "Failed to perform incoming server side RPC for content %s and rpc method due to %r", str(e))
+                "Failed to perform incoming server side RPC for content %s and rpc method due to %r", content, str(e))
             self.__log.debug("Error:", exc_info=e)
 
     def __process_rpc(self, method, value_expression):
