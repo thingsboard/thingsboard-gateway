@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from collections import Counter
 from time import time
 from typing import List, Union
 
@@ -33,6 +34,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
     def __init__(self, config: BytesUplinkConverterConfig, logger):
         self._log = logger
         self.__config = config
+        self.__reported_override_collisions = set()
 
     @CollectStatistics(start_stat_type='receivedBytesFromDevices',
                        end_stat_type='convertedBytesFromDevice')
@@ -52,6 +54,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
 
             for config_section in converted_data_append_methods:
+                section_datapoints = []
                 for config in getattr(self.__config, config_section):
                     encoded_data = device_data[config_section].get(config['tag'])
 
@@ -65,17 +68,19 @@ class BytesModbusUplinkConverter(ModbusConverter):
                                         encoded_data, config, e)
                         continue
 
-                    for datapoint in datapoints:
-                        for key_name, decoded_data in datapoint.items():
-                            datapoint_key = TBUtility.convert_key_to_datapoint_key(key_name,
-                                                                                   device_report_strategy,
-                                                                                   config,
-                                                                                   self._log)
-                            payload = {datapoint_key: decoded_data}
-                            if config_section == 'telemetry':
-                                payload['ts'] = received_data_ts
+                    section_datapoints.extend(datapoints)
 
-                            converted_data_append_methods[config_section](payload)
+                self.__resolve_tag_override_collisions(section_datapoints)
+                for datapoint in section_datapoints:
+                    datapoint_key = TBUtility.convert_key_to_datapoint_key(datapoint['key'],
+                                                                           device_report_strategy,
+                                                                           datapoint['config'],
+                                                                           self._log)
+                    payload = {datapoint_key: datapoint['value']}
+                    if config_section == 'telemetry':
+                        payload['ts'] = received_data_ts
+
+                    converted_data_append_methods[config_section](payload)
 
         self._log.trace("Decoded data: %s", result)
         StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
@@ -86,24 +91,30 @@ class BytesModbusUplinkConverter(ModbusConverter):
         return result
 
     def __process_wide_range_response(self, config, encoded_data):
-        encoded_data = self.__validate_wide_range_encoded_data(encoded_data)
+        encoded_data = self.__validate_wide_range_encoded_data(
+            encoded_data,
+            reject_incomplete=bool(config.get('tagOverrides'))
+        )
+        if encoded_data is None:
+            return []
         registers_data = self.__get_registers_from_wide_range_encoded_data(encoded_data,
                                                                            config['functionCode'])
         datapoints = self.__process_wide_range_response_encoded_data(config, registers_data)
         return datapoints
 
-    def __validate_wide_range_encoded_data(self, encoded_data):
-        invalid_chunks = []
-
+    def __validate_wide_range_encoded_data(self, encoded_data, reject_incomplete=False):
+        valid_chunks = []
         for chunk in encoded_data:
             if not Utils.is_encoded_data_valid(chunk):
-                invalid_chunks.append(chunk)
+                if reject_incomplete:
+                    self._log.error("Encoded data chunk is invalid: %s. Skipping incomplete wide-range response",
+                                    chunk)
+                    return None
                 self._log.error("Encoded data chunk is invalid: %s. Skipping", chunk)
+                continue
+            valid_chunks.append(chunk)
 
-        if len(invalid_chunks) > 0:
-            encoded_data = [chunk for chunk in encoded_data if chunk not in invalid_chunks]
-
-        return encoded_data
+        return valid_chunks
 
     def __get_registers_from_wide_range_encoded_data(self, encoded_data, function_code):
         registers_data = []
@@ -128,7 +139,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
         return datapoints
 
     def __process_wide_range_response_encoded_data(self, config, encoded_data):
-        result = []
+        decoded_datapoints = []
 
         try:
             current_address = Utils.get_start_address(config['address'])
@@ -147,12 +158,14 @@ class BytesModbusUplinkConverter(ModbusConverter):
                 self._log.warning("Decoded data is empty, with config: %s", config)
                 continue
 
-            key_name = self.__get_key_name(config, current_address)
-            result.append({key_name: decoded_data})
+            decoded_datapoints.append((current_address, decoded_data))
 
             current_address += config.get('objectsCount', 1)
 
-        return result
+        return [
+            self.__build_wide_range_datapoint(config, address, decoded_data)
+            for address, decoded_data in decoded_datapoints
+        ]
 
     def __process_single_address_response_encoded_data(self, config, encoded_data):
         decoded_data = self.decode_data(encoded_data, config,
@@ -165,7 +178,14 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
         key_name = self.__get_key_name(config)
 
-        return [{key_name: decoded_data}]
+        return [{
+            'key': key_name,
+            'legacyKey': key_name,
+            'override': None,
+            'address': None,
+            'value': decoded_data,
+            'config': config,
+        }]
 
     def __get_key_name(self, config, current_address=None):
         if Utils.is_wide_range_request(config['address']) and current_address is not None:
@@ -189,6 +209,43 @@ class BytesModbusUplinkConverter(ModbusConverter):
                                     str(result_value)) if is_valid_key else result_tag
 
         return result
+
+    def __build_wide_range_datapoint(self, config, address, decoded_data):
+        legacy_name = self.__get_wide_range_key_name(config, address)
+        override_name = config.get('tagOverrides', {}).get(str(address))
+        return {
+            'key': override_name or legacy_name,
+            'legacyKey': legacy_name,
+            'override': override_name,
+            'address': address,
+            'value': decoded_data,
+            'config': config,
+        }
+
+    def __resolve_tag_override_collisions(self, datapoints):
+        while True:
+            duplicated_names = {
+                name for name, count in Counter(datapoint['key'] for datapoint in datapoints).items() if count > 1
+            }
+            conflicting_datapoints = [
+                datapoint for datapoint in datapoints
+                if datapoint['key'] in duplicated_names and datapoint['override'] is not None
+            ]
+            if not conflicting_datapoints:
+                break
+
+            for datapoint in conflicting_datapoints:
+                config = datapoint['config']
+                warning_key = (config.get('tag'), datapoint['address'], datapoint['override'])
+                if warning_key not in self.__reported_override_collisions:
+                    self._log.warning(
+                        "tagOverrides name %r at address %s conflicts with another key in datapoint %s. "
+                        "Using tag fallback.",
+                        datapoint['override'], datapoint['address'], config.get('tag')
+                    )
+                    self.__reported_override_collisions.add(warning_key)
+                datapoint['key'] = datapoint['legacyKey']
+                datapoint['override'] = None
 
     def __get_info_for_key_name(self, config):
         return {
