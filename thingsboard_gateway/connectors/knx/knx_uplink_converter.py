@@ -40,7 +40,13 @@ class KNXUplinkConverter(KNXConverter):
         for section in ('attributes', 'timeseries'):
             for config in self.__config.get(section, []):
                 try:
-                    converted_value = data.get(config.get('groupAddress'))['response']
+                    group_address = config.get('groupAddress')
+                    response_entry = data.get(group_address)
+                    if response_entry is None:
+                        self.__log.trace('No data received yet for group address %s, skipping', group_address)
+                        continue
+
+                    converted_value = response_entry['response']
                     if isinstance(converted_value, knx_Bool):
                         converted_value = converted_value.value
 
