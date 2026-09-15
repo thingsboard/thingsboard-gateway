@@ -101,6 +101,12 @@ class Device:
             sleep_time = max(0.0, next_poll_time - current_time)
             await sleep(sleep_time)
 
+    def is_connected(self) -> bool:
+        try:
+            return bool(self._client.get_connected())
+        except Exception:
+            return False
+
     def stop(self) -> None:
         try:
             self.stopped = True
