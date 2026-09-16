@@ -194,8 +194,8 @@
                 "address": 27
               },
               {
-                "tag": "bits",
-                "type": "4bits",
+                "tag": "4bits",
+                "type": "bits",
                 "functionCode": 4,
                 "objectsCount": 4,
                 "address": 2
