@@ -45,7 +45,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
             'attributes': result.add_to_attributes,
             'telemetry': result.add_to_telemetry
         }
-        
+
         received_data_ts = int(time() * 1000)
 
         for device_data in data:
@@ -88,7 +88,8 @@ class BytesModbusUplinkConverter(ModbusConverter):
     def __process_wide_range_response(self, config, encoded_data):
         encoded_data = self.__validate_wide_range_encoded_data(encoded_data)
         registers_data = self.__get_registers_from_wide_range_encoded_data(encoded_data,
-                                                                           config['functionCode'])
+                                                                           config['functionCode'],
+                                                                           config['type'])
         datapoints = self.__process_wide_range_response_encoded_data(config, registers_data)
         return datapoints
 
@@ -105,11 +106,11 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
         return encoded_data
 
-    def __get_registers_from_wide_range_encoded_data(self, encoded_data, function_code):
+    def __get_registers_from_wide_range_encoded_data(self, encoded_data, function_code, data_type):
         registers_data = []
 
         for chunk in encoded_data:
-            registers_chunk = Utils.get_registers_from_encoded_data(chunk, function_code)
+            registers_chunk = Utils.get_registers_from_encoded_data(chunk, function_code, data_type)
             registers_data.extend(registers_chunk)
 
         return registers_data
