@@ -16,7 +16,6 @@ from pymodbus import ExceptionResponse
 from pymodbus.exceptions import ModbusIOException
 
 
-
 class Utils:
     @staticmethod
     def is_wide_range_request(address):
@@ -26,12 +25,12 @@ class Utils:
         return '-' in address
 
     @staticmethod
-    def parse_wide_range_request(address, objects_count=1, max_registers_per_request=16):
+    def parse_wide_range_request(address, max_registers_per_request=16):
         try:
             start_address, end_address = Utils.__parse_wide_range_address(address)
             result = []
 
-            registers_to_read = end_address - start_address + objects_count
+            registers_to_read = (end_address - start_address) + 1
             if registers_to_read <= 0:
                 raise ValueError('End address must be greater than start address')
 
@@ -76,9 +75,11 @@ class Utils:
         return not isinstance(encoded_data, ModbusIOException) and not isinstance(encoded_data, ExceptionResponse)
 
     @staticmethod
-    def get_registers_from_encoded_data(encoded_data, function_code):
+    def get_registers_from_encoded_data(encoded_data, function_code, data_type=None):
         if function_code in (1, 2):
             encoded_data = encoded_data.bits
+            if data_type == 'bit':
+                encoded_data = [encoded_data[0] if len(encoded_data) > 0 else None]
         elif function_code in (3, 4):
             encoded_data = encoded_data.registers
         else:

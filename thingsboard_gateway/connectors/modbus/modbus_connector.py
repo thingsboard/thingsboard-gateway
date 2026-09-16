@@ -322,7 +322,6 @@ class AsyncModbusConnector(Connector, Thread):
             address_ranges.append((config['address'], config['objectsCount']))
         else:
             address_ranges.extend(Utils.parse_wide_range_request(config['address'],
-                                                                 config['objectsCount'],
                                                                  config.get('maxRegistersPerRequest', 16)))
 
         return address_ranges
