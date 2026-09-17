@@ -184,7 +184,7 @@ class S7Connector(Thread, Connector):
             try:
                 device = Device.create_device_from_config(
                     self.__log, self.__converter_log, device_config, self.__process_device_queue,
-                    self.__gateway, self.get_id())
+                    self.__delete_device_from_platform)
                 self._devices.append(device)
             except DeviceConfigValidationError as e:
                 self.__log.error(
@@ -396,6 +396,12 @@ class S7Connector(Thread, Connector):
             if device.config.device_name == device_name:
                 return device
         return None
+
+    def __delete_device_from_platform(self, device):
+        if device.config.device_name in self.__gateway.get_devices(connector_id=self.get_id()):
+            self.__log.warning('Device %s is disconnected, removing it from the platform.',
+                              device.config.device_name)
+            self.__gateway.del_device(device.config.device_name)
 
     def get_device_shared_attributes_keys(self, device_name):
         device = self._get_device_by_name(device_name)

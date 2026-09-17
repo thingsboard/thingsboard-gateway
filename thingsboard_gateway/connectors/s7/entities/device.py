@@ -41,13 +41,12 @@ from snap7 import Client as PlcClient
 
 class Device:
     def __init__(self, logger, converter_logger, config: 'DeviceConfig', reading_request_queue: Queue,
-                 gateway=None, connector_id=None) -> None:
+                 on_disconnect=None) -> None:
         self.config = config
         self.stopped = False
         self._reading_request_queue = reading_request_queue
         self._log = logger
-        self._gateway = gateway
-        self._connector_id = connector_id
+        self._on_disconnect_callback = on_disconnect
         self.uplink_converter = self._load_converter(UPLINK_PREFIX, converter_logger)
         self.downlink_converter = self._load_converter(DOWNLINK_PREFIX, converter_logger)
         self._client: PlcClient | LogoClient = None
@@ -72,16 +71,16 @@ class Device:
                 converter_type, self.config.device_name, e)
     @staticmethod
     def create_device_from_config(logger, converter_logger, config: dict, reading_request_queue,
-                                   gateway=None, connector_id=None) -> 'Device':
+                                   on_disconnect=None) -> 'Device':
         device_type: str = config.get('type', '').upper()
 
         if device_type == DeviceType.PCL.value:
             device_config = PlcConfig(logger, config)
-            return PLC(logger, converter_logger, device_config, reading_request_queue, gateway, connector_id)
+            return PLC(logger, converter_logger, device_config, reading_request_queue, on_disconnect)
 
         if device_type == DeviceType.LOGO.value:
             device_config = LogoConfig(logger, config)
-            return Logo(logger, converter_logger, device_config, reading_request_queue, gateway, connector_id)
+            return Logo(logger, converter_logger, device_config, reading_request_queue, on_disconnect)
 
         raise DeviceConfigValidationError(
             f'Invalid device type. Available: {DeviceTypes}')
@@ -116,10 +115,8 @@ class Device:
                 f"Failed to disconnect from Logo device '{self.config.device_name}' at {self.config.address}:{self.config.port}: {e}")  # noqa: E501
 
     def on_disconnect(self) -> None:
-        if self.config.device_name in self._gateway.get_devices(connector_id=self._connector_id):
-            self._log.warning('Device %s is disconnected, removing it from the platform.',
-                              self.config.device_name)
-            self._gateway.del_device(self.config.device_name)
+        if self._on_disconnect_callback is not None:
+            self._on_disconnect_callback(self)
 
     @abstractmethod
     async def connect(self) -> None:
@@ -147,8 +144,8 @@ class Device:
 
 class PLC(Device):
     def __init__(self, logger, converter_logger, config: 'PlcConfig', reading_request_queue: Queue,
-                 gateway=None, connector_id=None) -> None:
-        super().__init__(logger, converter_logger, config, reading_request_queue, gateway, connector_id)
+                 on_disconnect=None) -> None:
+        super().__init__(logger, converter_logger, config, reading_request_queue, on_disconnect)
         self._client = PlcClient(
             auto_reconnect=config.auto_reconnect,
             max_retries=config.max_retries,
@@ -212,8 +209,8 @@ class PLC(Device):
 
 class Logo(Device):
     def __init__(self, logger, converter_logger, config: 'LogoConfig', reading_request_queue: Queue,
-                 gateway=None, connector_id=None) -> None:
-        super().__init__(logger, converter_logger, config, reading_request_queue, gateway, connector_id)
+                 on_disconnect=None) -> None:
+        super().__init__(logger, converter_logger, config, reading_request_queue, on_disconnect)
         self._client = LogoClient(
             auto_reconnect=config.auto_reconnect,
             max_retries=config.max_retries,
