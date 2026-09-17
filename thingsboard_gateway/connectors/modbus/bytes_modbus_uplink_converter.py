@@ -281,8 +281,14 @@ class BytesModbusUplinkConverter(ModbusConverter):
         if lower_type in ['bit', 'bits']:
             decoded = decoder_functions[lower_type]()
             decoded_lastbyte = decoder_functions[lower_type]()
+            if configuration.get('functionCode') in (1, 2):
+                # BinaryPayloadDecoder.fromCoils() (used for coils/discrete inputs) reverses
+                # the bit order within each decoded byte relative to the original coil
+                # order, so undo that reversal before concatenating.
+                decoded = decoded[::-1]
+                decoded_lastbyte = decoded_lastbyte[::-1]
             decoded += decoded_lastbyte
-            decoded = decoded[len(decoded)-objects_count:]
+            decoded = decoded[:objects_count]
 
         elif lower_type == "string":
             decoded = decoder_functions[lower_type](objects_count * 2)

@@ -101,6 +101,12 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             if "Exception" in str(builder):
                 self._log.exception(builder)
                 builder = str(builder)
+            if function_code in (5, 15) and isinstance(builder, list):
+                # BinaryPayloadBuilder.to_coils() extracts each register's bits MSB-first,
+                # which reverses the order within every 8 bits relative to the order they
+                # were added in via add_bits(); undo that so written coils preserve the
+                # original bit order (mirrors the fix in BytesModbusUplinkConverter).
+                builder = [bit for i in range(0, len(builder), 8) for bit in builder[i:i + 8][::-1]]
             # if function_code is 5 , is using first coils value
             if function_code == 5:
                 if isinstance(builder, list):

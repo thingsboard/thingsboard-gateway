@@ -177,7 +177,7 @@ class ModbusConverterTests(BaseUnitTest):
                                   {'64int': -3735928559}]
                               }
 
-        builder = BinaryPayloadBuilder(byteorder=Endian.Big)
+        builder = BinaryPayloadBuilder(byteorder=Endian.BIG)
         builder_registers = {"string": (builder.add_string, 'abcdefgh'),
                              "bits": (builder.add_bits, [0, 1, 0, 1, 0, 0, 1, 1]),
                              "bits2": (builder.add_bits, [1, 1]),
@@ -213,6 +213,56 @@ class ModbusConverterTests(BaseUnitTest):
         converter = BytesModbusUplinkConverter({"deviceName": "Modbus Test", "deviceType": "default", "unitId": 1}, logger=self.log)
         result = converter.convert(test_modbus_convert_config, test_modbus_body_to_convert)
         self.assertDictEqual(result, test_modbus_result)
+
+    def test_decode_bits_preserves_original_bit_order(self):
+        """Regression test for https://github.com/thingsboard/thingsboard-gateway/issues/2146:
+        decoding 'bit'/'bits' values must return the bits in their original order instead of
+        reading them backwards."""
+        converter = BytesModbusUplinkConverter({"deviceName": "Modbus Test", "deviceType": "default", "unitId": 1},
+                                               logger=self.log)
+
+        # Coils/discrete inputs (functionCode 1/2) are decoded via BinaryPayloadDecoder.fromCoils(),
+        # which internally reverses bit order within each byte.
+        coils = [True, False, False, False, False, False, False, False]
+        self.assertEqual(
+            converter.decode_data(coils, {'functionCode': 2, 'type': 'bit', 'objectsCount': 2},
+                                  Endian.LITTLE, Endian.BIG),
+            [True, False])
+        self.assertEqual(
+            converter.decode_data(coils, {'functionCode': 1, 'type': 'bit', 'objectsCount': 1},
+                                  Endian.LITTLE, Endian.BIG),
+            True)
+
+        coils_full_byte = [True, True, False, True, False, False, True, False]
+        self.assertEqual(
+            converter.decode_data(coils_full_byte, {'functionCode': 1, 'type': 'bits', 'objectsCount': 8},
+                                  Endian.LITTLE, Endian.BIG),
+            coils_full_byte)
+
+        coils_two_bytes = [True, True, False, False, False, False, False, False,
+                           True, False, False, False, False, False, False, False]
+        self.assertEqual(
+            converter.decode_data(coils_two_bytes, {'functionCode': 1, 'type': 'bits', 'objectsCount': 16},
+                                  Endian.LITTLE, Endian.BIG),
+            coils_two_bytes)
+
+        # Holding/input registers (functionCode 3/4) are decoded via BinaryPayloadDecoder.fromRegisters(),
+        # which does not reverse bit order, so no un-reversal should be applied there.
+        builder = BinaryPayloadBuilder(byteorder=Endian.BIG)
+        builder.add_bits([0, 1, 0, 1, 0, 0, 1, 1])
+        registers = builder.to_registers()
+        self.assertEqual(
+            converter.decode_data(registers, {'functionCode': 4, 'type': 'bits', 'objectsCount': 8},
+                                  Endian.BIG, Endian.BIG),
+            [False, True, False, True, False, False, True, True])
+
+        builder.reset()
+        builder.add_bits([1, 1])
+        registers = builder.to_registers()
+        self.assertEqual(
+            converter.decode_data(registers, {'functionCode': 4, 'type': 'bits', 'objectsCount': 2},
+                                  Endian.BIG, Endian.BIG),
+            [True, True])
 
 
 if __name__ == '__main__':
