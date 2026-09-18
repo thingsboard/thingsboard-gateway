@@ -41,7 +41,7 @@ from snap7 import Client as PlcClient
 
 class Device:
     def __init__(self, logger, converter_logger, config: 'DeviceConfig', reading_request_queue: Queue,
-                 on_disconnect=None) -> None:
+                 on_disconnect) -> None:
         self.config = config
         self.stopped = False
         self._reading_request_queue = reading_request_queue
@@ -71,7 +71,7 @@ class Device:
                 converter_type, self.config.device_name, e)
     @staticmethod
     def create_device_from_config(logger, converter_logger, config: dict, reading_request_queue,
-                                   on_disconnect=None) -> 'Device':
+                                   on_disconnect) -> 'Device':
         device_type: str = config.get('type', '').upper()
 
         if device_type == DeviceType.PCL.value:
@@ -144,7 +144,7 @@ class Device:
 
 class PLC(Device):
     def __init__(self, logger, converter_logger, config: 'PlcConfig', reading_request_queue: Queue,
-                 on_disconnect=None) -> None:
+                 on_disconnect) -> None:
         super().__init__(logger, converter_logger, config, reading_request_queue, on_disconnect)
         self._client = PlcClient(
             auto_reconnect=config.auto_reconnect,
@@ -209,7 +209,7 @@ class PLC(Device):
 
 class Logo(Device):
     def __init__(self, logger, converter_logger, config: 'LogoConfig', reading_request_queue: Queue,
-                 on_disconnect=None) -> None:
+                 on_disconnect) -> None:
         super().__init__(logger, converter_logger, config, reading_request_queue, on_disconnect)
         self._client = LogoClient(
             auto_reconnect=config.auto_reconnect,
