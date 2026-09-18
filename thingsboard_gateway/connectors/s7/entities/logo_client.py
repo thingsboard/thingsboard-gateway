@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from typing import Optional
+from typing import Callable, Optional
 
 from snap7 import Logo
 
@@ -23,11 +23,13 @@ class LogoClient(Logo):
                  max_retries: int = 3,
                  retry_delay: float = 1.0,
                  max_delay: float = 10.0,
-                 heartbeat_interval: float = 30.0) -> None:
+                 heartbeat_interval: float = 30.0,
+                 on_disconnect: Optional[Callable[[], None]] = None) -> None:
         super(Logo, self).__init__(auto_reconnect=auto_reconnect,
                                    max_retries=max_retries,
                                    retry_delay=retry_delay,
                                    max_delay=max_delay,
-                                   heartbeat_interval=heartbeat_interval)
+                                   heartbeat_interval=heartbeat_interval,
+                                   on_disconnect=on_disconnect)
         self._logo_tsap_snap7: Optional[int] = None
         self._logo_tsap_logo: Optional[int] = None
