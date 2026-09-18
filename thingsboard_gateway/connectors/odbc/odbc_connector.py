@@ -14,7 +14,7 @@
 
 from time import time
 from hashlib import sha1
-from os import path
+from os import getenv, path
 from pathlib import Path
 from random import choice
 from string import ascii_lowercase
@@ -358,7 +358,11 @@ class OdbcConnector(Connector, Thread):
 
             converted_data.device_name = eval(self.__config["mapping"]["device"]["name"], globals(), data)
 
-            device_type = eval(self.__config["mapping"]["device"]["type"], globals(), data)
+            type_config = self.__config["mapping"]["device"]["type"]
+            try:
+                device_type = eval(type_config, globals(), data)
+            except (NameError, SyntaxError):
+                device_type = type_config
             if not device_type:
                 device_type = self.__config["mapping"]["device"].get("type", "default")
             converted_data.device_type = device_type
@@ -384,11 +388,22 @@ class OdbcConnector(Connector, Thread):
             self.__gateway.send_to_storage(self.get_name(), self.get_id(), to_send)
             self.statistics['MessagesSent'] += 1
 
+    def __substitute_env_placeholders(self, connection_str):
+        for placeholder in TBUtility.get_values(connection_str, get_tag=True):
+            env_value = getenv(placeholder)
+            if env_value is None:
+                self._log.debug("[%s] No environment variable found for placeholder '%s'",
+                                self.get_name(), placeholder)
+                continue
+            connection_str = connection_str.replace("${" + placeholder + "}", env_value)
+        return connection_str
+
     def __init_connection(self):
         try:
             self._log.debug("[%s] Opening connection to database", self.get_name())
             connection_config = self.__config["connection"]
-            self.__connection = pyodbc.connect(connection_config["str"], **connection_config.get("attributes", {}))
+            connection_str = self.__substitute_env_placeholders(connection_config["str"])
+            self.__connection = pyodbc.connect(connection_str, **connection_config.get("attributes", {}))
             if connection_config.get("encoding", ""):
                 self._log.info("[%s] Setting encoding to %s", self.get_name(), connection_config["encoding"])
                 self.__connection.setencoding(connection_config["encoding"])
