@@ -48,6 +48,8 @@ class DeviceConfig(ABC):
         self.datapoints = config['datapoints']
         self.server_side_rpc = config.get('serverSideRpc', [])
         self.attributes_updates = config.get('attributeUpdates', [])
+        self.shared_attributes_keys = [attribute_update_config['key']
+                                       for attribute_update_config in self.attributes_updates]
 
     def _format_base_config(self, config: dict) -> None:
         """
