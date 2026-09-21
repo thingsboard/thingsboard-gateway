@@ -121,7 +121,7 @@ class Database(Thread):
                     self.process()
 
                 remaining = sleep_time - (monotonic() - processing_started)
-                if remaining > 0 and self.process_queue.empty():
+                if remaining > 0 and (not self.__should_write or self.process_queue.empty()):
                     sleep(remaining)
                 if not self.__reached_size_limit:
                     now = monotonic()
