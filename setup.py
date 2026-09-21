@@ -84,7 +84,7 @@ setup(
         'python-dateutil',
         'cachetools',
         'tb-paho-mqtt-client>=2.1.2',
-        'tb-mqtt-client==1.13.13',
+        'tb-mqtt-client==1.13.14',
         'packaging',
         'service-identity',
         'psutil',
