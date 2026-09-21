@@ -115,8 +115,7 @@ class Device:
                 f"Failed to disconnect from Logo device '{self.config.device_name}' at {self.config.address}:{self.config.port}: {e}")  # noqa: E501
 
     def on_disconnect(self) -> None:
-        if self._on_disconnect_callback is not None:
-            self._on_disconnect_callback(self)
+        self._on_disconnect_callback(self)
 
     @abstractmethod
     async def connect(self) -> None:
