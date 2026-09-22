@@ -34,6 +34,7 @@ ThingsBoard IoT Gateway supports a wide range of industrial and IoT protocols ou
 ### 📟 Industrial & SCADA Protocols
 - [**Modbus**](https://thingsboard.io/docs/iot-gateway/config/modbus/) – Integrate with Modbus TCP/RTU devices like PLCs and energy meters.
 - [**OPC-UA**](https://thingsboard.io/docs/iot-gateway/config/opc-ua/) – Connect to industrial automation systems using the OPC-UA protocol.
+- [**S7**](https://thingsboard.io/docs/iot-gateway/config/s7/) - Connect to Siemens S7 PLCs and collect data from them.
 - [**CAN**](https://thingsboard.io/docs/iot-gateway/config/can/) – Communicate with devices over the Controller Area Network (e.g., automotive, industrial equipment).
 - [**ODBC**](https://thingsboard.io/docs/iot-gateway/config/odbc/) – Retrieve telemetry from SQL-compliant databases.
 
