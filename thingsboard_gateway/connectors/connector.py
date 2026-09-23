@@ -13,9 +13,10 @@
 #     limitations under the License.
 
 from abc import ABC, abstractmethod
-from logging import getLogger
 from threading import Thread
 from time import sleep
+
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 
 class Connector(ABC):
@@ -66,7 +67,7 @@ class DummyCustomConnector(Connector, Thread):
     loaded (e.g. wrong or missing "class" name in the configuration), so the gateway still
     starts and keeps reporting the reason in the logs instead of silently dropping it."""
 
-    WARNING_PERIOD_SECONDS = 30
+    WARNING_PERIOD_SECONDS = 60
 
     def __init__(self, gateway, config, connector_type):
         super().__init__()
@@ -74,8 +75,11 @@ class DummyCustomConnector(Connector, Thread):
         self._gateway = gateway
         self._config = config
         self._connector_type = connector_type
-        self.name = 'Dummy Custom Connector'
-        self.__log = getLogger('service')
+        self.name = self.get_name()
+        self.__log = init_logger(self._gateway, self.name,
+                                 self._config.get('logLevel', 'INFO'),
+                                 enable_remote_logging=self._config.get('enableRemoteLogging', False),
+                                 is_connector_logger=True)
         self.__stopped = True
         self.__connected = False
 
@@ -92,7 +96,7 @@ class DummyCustomConnector(Connector, Thread):
     def run(self):
         self.__connected = True
         while not self.__stopped:
-            self.__log.warning(
+            self.__log.error(
                 "Connector '%s' is not implemented: class '%s' was not found. "
                 "Implement the real custom connector class to start receiving/sending data.",
                 self.get_name(), self._get_requested_class_name())
