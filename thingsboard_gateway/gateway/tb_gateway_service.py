@@ -34,7 +34,7 @@ from importlib.util import spec_from_file_location, module_from_spec
 from simplejson import JSONDecodeError, dumps, load, loads
 from yaml import safe_load
 
-from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.connectors.connector import Connector, DummyCustomConnector
 from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import DEFAULT_CONNECTORS, CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME, RENAMING_PARAMETER, CONNECTOR_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, \
@@ -904,11 +904,11 @@ class TBGatewayService:
                             for error in connector_class:
                                 log.error("The following error occurred during importing connector class: %s",
                                           error, exc_info=error)
-                            continue
+                            self._implemented_connectors[connector_config_from_main['name']] = DummyCustomConnector
                         elif connector_class is None:
                             log.error("Connector implementation not found for %s",
                                       connector_config_from_main['name'])
-                            continue
+                            self._implemented_connectors[connector_config_from_main['name']] = DummyCustomConnector
                         else:
                             self._implemented_connectors[connector_config_from_main['name']] = connector_class
                     elif connector_type == "grpc":
