@@ -84,6 +84,11 @@ class DeviceConfig(ABC):
                 f"Invalid pollPeriod value for device '{device_name}'. Using default value: {DEFAULT_POLL_PERIOD} ms")
             config['pollPeriod'] = DEFAULT_POLL_PERIOD
 
+        if config.get('heartbeatInterval', DEFAULT_HEARTBEAT_INTERVAL) == 0:
+            self._log.warning(
+                f"Invalid heartbeatInterval value for device '{device_name}'. Using default value: {DEFAULT_HEARTBEAT_INTERVAL}")  # noqa: E501
+            config['heartbeatInterval'] = DEFAULT_HEARTBEAT_INTERVAL
+
     def _validate_datapoint_config_section(self, config_section, config_section_type):
         result = []
 
