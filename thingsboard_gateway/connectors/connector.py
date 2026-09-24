@@ -75,7 +75,7 @@ class DummyCustomConnector(Connector, Thread):
         self._gateway = gateway
         self._config = config
         self._connector_type = connector_type
-        self.name = self.get_name()
+        self.name = config.get('name')
         self.__log = init_logger(self._gateway, self.name,
                                  self._config.get('logLevel', 'INFO'),
                                  enable_remote_logging=self._config.get('enableRemoteLogging', False),
@@ -110,7 +110,7 @@ class DummyCustomConnector(Connector, Thread):
         return self._config.get('id')
 
     def get_name(self):
-        return self._config.get('name')
+        return self.name
 
     def get_type(self):
         return self._connector_type
@@ -128,7 +128,7 @@ class DummyCustomConnector(Connector, Thread):
         pass
 
     def server_side_rpc_handler(self, content):
-        self.__log.warning(
+        self.__log.error(
             "Cannot process RPC request for connector '%s': real custom connector class '%s' is not implemented.",
             self.get_name(), self._get_requested_class_name())
         return {"error": f"Custom connector '{self.get_name()}' is not implemented."}
