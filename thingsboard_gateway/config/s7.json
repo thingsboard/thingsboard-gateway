@@ -12,7 +12,7 @@
       "maxRetries": 3,
       "retryDelay": 1.0,
       "maxDelay": 30.0,
-      "heartbeatInterval": 0,
+      "heartbeatInterval": 5,
       "pollPeriod": 10000,
       "attributes": [
         {
