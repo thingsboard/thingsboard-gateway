@@ -14,6 +14,13 @@
 
 from abc import ABC, abstractmethod
 
+from thingsboard_gateway.gateway.entities.rpc_request import (
+    ReservedRPCRequest,
+    DeviceRPCRequest,
+    ConnectorRPCRequest
+)
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
+
 
 class Connector(ABC):
 
@@ -54,5 +61,5 @@ class Connector(ABC):
         pass
 
     @abstractmethod
-    def server_side_rpc_handler(self, content):
+    def server_side_rpc_handler(self, rpc_request: DeviceRPCRequest | ReservedRPCRequest | ConnectorRPCRequest) -> RPCResponse:  # noqa
         pass
