@@ -408,7 +408,7 @@ class S7Connector(Thread, Connector):
             error_msg = f"The requested RPC does not match with the schema: {expected_schema}"
             self.__log.error(err_msg)
             response = RPCResponse(rpc_request.id, device=device.config.device_name)
-            response.set_error_msg(err_msg)
+            response.set_error_msg(error_msg)
             return response
 
         rpc_config = self._build_reserved_rpc_config(address_type, rpc_request.method_name, match.groupdict())

@@ -135,8 +135,8 @@ class ConnectorRPCRequest(RPCRequestBase):
         self.value = content[DATA_PARAMETER][RPC_PARAMS_PARAMETER].get('value')
         self.device_name = self.params.get('deviceName')
 
-        def __str__(self):
-            return f"RPC To Connector: id={self.id}, connector_type={self.connector_type}, method_name={self.method_name}, params={self.params}"  # noqa
+    def __str__(self):
+        return f"RPC To Connector: id={self.id}, connector_type={self.connector_type}, method_name={self.method_name}, params={self.params}"  # noqa
 
 
 class DeviceRPCRequest(RPCRequestBase):
