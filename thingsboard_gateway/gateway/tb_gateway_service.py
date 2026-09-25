@@ -46,6 +46,8 @@ from thingsboard_gateway.gateway.device_filter import DeviceFilter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
+from thingsboard_gateway.gateway.entities.rpc_request import create_rpc_request_from_dict, RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.gateway.report_strategy.report_strategy_service import ReportStrategyService
 from thingsboard_gateway.gateway.shell.proxy import AutoProxy
 from thingsboard_gateway.gateway.statistics.decorators import CountMessage, CollectStorageEventsStatistics, \
@@ -1633,108 +1635,117 @@ class TBGatewayService:
             log.error("Error while sending data to ThingsBoard, it will be resent.", exc_info=e)
 
     @CountMessage('msgsReceivedFromPlatform')
-    def _rpc_request_handler(self, request_id, content):
+    def _rpc_request_handler(self, gateway_or_connector_req_id, content):
         try:
-            if not isinstance(request_id, int) and 'data' in content:
-                request_id = content['data'].get('id')
-            device = content.get("device")
-            if device is not None:
-                self.__rpc_to_devices_queue.put((request_id, content, monotonic()))
+            rpc_request = create_rpc_request_from_dict(content,
+                                                       gateway_or_connector_req_id=gateway_or_connector_req_id)
+
+            response = None
+            if rpc_request.rpc_type in (RPCType.DEVICE, RPCType.RESERVED):
+                self.__rpc_to_devices_queue.put((rpc_request, monotonic()))
+            elif rpc_request.rpc_type == RPCType.CONNECTOR:
+                response = self._process_rpc_to_connector(rpc_request)
+                response.to_connector_rpc = True
+            elif rpc_request.rpc_type == RPCType.GATEWAY:
+                response = self._process_rpc_to_gateway(rpc_request)
             else:
-                try:
-                    method_split = content["method"].split('_')
-                    module = None
-                    if len(method_split) > 0:
-                        module = method_split[0]
-                    if module is not None:
-                        result = None
-                        if self.connectors_configs.get(module):
-                            log.debug("Connector \"%s\" for RPC request \"%s\" found", module, content["method"])
-                            for connector_name in self.available_connectors_by_name:
-                                if self.available_connectors_by_name[connector_name].get_type() == module: # noqa pylint: disable=protected-access
-                                    log.debug("Sending command RPC %s to connector %s", content["method"],
-                                              connector_name)
-                                    content['id'] = request_id
-                                    result = self.available_connectors_by_name[connector_name].server_side_rpc_handler(content) # noqa E501
-                        elif module == 'gateway' or (self.__remote_shell and module in self.__remote_shell.shell_commands): # noqa
-                            result = self.__rpc_gateway_processing(request_id, content)
-                        else:
-                            log.error("Connector \"%s\" not found", module)
-                            result = {"error": "%s - connector not found in available connectors." % module,
-                                      "code": 404}
-                        if result is None:
-                            self.send_rpc_reply(None, request_id, success_sent=False)
-                        elif isinstance(result, dict) and "qos" in result:
-                            self.send_rpc_reply(None, request_id,
-                                                dumps({k: v for k, v in result.items() if k != "qos"}),
-                                                quality_of_service=result["qos"])
-                        else:
-                            self.send_rpc_reply(None, request_id, dumps(result))
-                except Exception as e:
-                    self.send_rpc_reply(None, request_id, "{\"error\":\"%s\", \"code\": 500}" % str(e))
-                    log.error("Error while processing RPC request to service", exc_info=e)
+                log.error("Unknown RPC type for content: %r", content)
+                self.send_rpc_reply(None, rpc_request.id, "{\"error\":\"Unknown RPC type\", \"code\": 400}")
+
+            if response is not None:
+                self.send_rpc_reply(response.device_name,
+                                    response.id,
+                                    dumps(response.message),
+                                    to_connector_rpc=True)
         except Exception as e:
             log.error("Error while processing RPC request", exc_info=e)
+
+    def _process_rpc_to_connector(self, rpc_request):
+        found_connectors = self.find_connectors_by_type(rpc_request.connector_type)
+        if not found_connectors:
+            log.error("Received RPC request but connector of type %s not found. Request data: \n %s",
+                      rpc_request.connector_type,
+                      dumps(rpc_request))
+            return f"{{\"error\":\"Connector of type {rpc_request.connector_type} not found\", \"code\": 404}}"
+
+        for connector in found_connectors:
+            return connector.server_side_rpc_handler(rpc_request)
+
+    def find_connectors_by_type(self, connector_type):
+        connectors = []
+        for connector_name in self.available_connectors_by_name:
+            if self.available_connectors_by_name[connector_name].get_type() == connector_type:
+                connectors.append(self.available_connectors_by_name[connector_name])
+        return connectors
 
     def __rpc_to_devices_processing(self):
         while not self.stopped:
             try:
-                request_id, content, received_time = self.__rpc_to_devices_queue.get_nowait()
-                timeout = content.get("params", {}).get("timeout", self.DEFAULT_TIMEOUT)
-                if monotonic() - received_time > timeout:
-                    log.error("RPC request %s timeout", request_id)
-                    self.send_rpc_reply(content["device"], request_id, "{\"error\":\"Request timeout\", \"code\": 408}")
+                rpc_request, received_time = self.__rpc_to_devices_queue.get_nowait()
+                if monotonic() - received_time > rpc_request.timeout:
+                    log.error("RPC request %s timeout", rpc_request.id)
+                    self.send_rpc_reply(rpc_request.device_name,
+                                        rpc_request.id,
+                                        "{\"error\":\"Request timeout\", \"code\": 408}")
                     continue
-                device = content.get("device")
-                original_name = TBUtility.get_dict_key_by_value(self.__renamed_devices, device)
+
+                original_name = TBUtility.get_dict_key_by_value(self.__renamed_devices, rpc_request.device_name)
                 if original_name is not None:
-                    content['device'] = original_name
-                    device = original_name
-                if device in self.get_devices():
-                    connector = self.get_devices()[content['device']].get(CONNECTOR_PARAMETER)
-                    if connector is not None:
-                        content['id'] = request_id
-                        result = connector.server_side_rpc_handler(content)
-                        if result is not None and isinstance(result, dict) and 'error' in result:
-                            self.send_rpc_reply(device, request_id, dumps(result), success_sent=False)
-                    else:
-                        log.error("Received RPC request but connector for the device %s not found. Request data: \n %s",
-                                  content["device"],
-                                  dumps(content))
-                else:
-                    self.__rpc_to_devices_queue.put((request_id, content, received_time))
+                    rpc_request.device_name = original_name
+
+                devices = self.get_devices()
+                if rpc_request.device_name not in devices:
+                    self.__rpc_to_devices_queue.put((rpc_request, received_time))
+                    continue
+
+                connector = devices[rpc_request.device_name].get(CONNECTOR_PARAMETER)
+                if connector is None:
+                    err_msg = f"Received RPC {rpc_request} but connector for the device {rpc_request.device_name} not found."  # noqa
+                    log.error(err_msg)
+                    self.send_rpc_reply(rpc_request.device_name,
+                                        rpc_request.id,
+                                        err_msg)
+                    continue
+
+                response = connector.server_side_rpc_handler(rpc_request)
+                self.send_rpc_reply(response.device_name,
+                                    response.id,
+                                    dumps(response.message))
             except (TimeoutError, Empty):
                 self.stop_event.wait(.1)
 
-    def __rpc_gateway_processing(self, request_id, content):
-        log.info("Received RPC request to the gateway, id: %s, method: %s", str(request_id), content["method"])
-        arguments = content.get('params', {})
-        method_to_call = content["method"].replace("gateway_", "")
+    def _process_rpc_to_gateway(self, rpc_request):
+        log.info("Received RPC request to the gateway, id: %s, method: %s",
+                 str(rpc_request.id),
+                 rpc_request.method_name)
 
-        if self.__remote_shell is not None:
-            method_function = self.__remote_shell.shell_commands.get(method_to_call,
-                                                                     self.__gateway_rpc_methods.get(method_to_call))
+        response = RPCResponse(rpc_request.id)
+
+        if self.__remote_shell is not None and rpc_request.method_name in self.__remote_shell.shell_commands:
+            method_function = self.__remote_shell.shell_commands.get(rpc_request.method_name,
+                                                                     self.__gateway_rpc_methods.get(rpc_request.method_name))  # noqa
         else:
-            method_function = self.__gateway_rpc_methods.get(method_to_call)
+            method_function = self.__gateway_rpc_methods.get(rpc_request.method_name)
 
-        if method_function is None and method_to_call in self.__rpc_scheduled_methods_functions:
-            seconds_to_restart = arguments * 1000 if arguments and arguments != '{}' else 1000
+        if method_function is None and rpc_request.method_name in self.__rpc_scheduled_methods_functions:
+            seconds_to_restart = rpc_request.params.get("secondsToRestart", 1000)
             seconds_to_restart = max(seconds_to_restart, 1000)
             self.__scheduled_rpc_calls.append([time() * 1000 + seconds_to_restart,
-                                               self.__rpc_scheduled_methods_functions[method_to_call]])
-            log.info("Gateway %s scheduled in %i seconds", method_to_call, seconds_to_restart / 1000)
-            result = {"success": True}
-        elif method_function is None:
-            log.error("RPC method %s - Not found", content["method"])
-            return {"error": "Method not found", "code": 404}
-        elif isinstance(arguments, list):
-            result = method_function(*arguments)
-        elif arguments == '{}' or arguments is None:
-            result = method_function()
-        else:
-            result = method_function(arguments)
+                                               self.__rpc_scheduled_methods_functions[rpc_request.method_name]])
+            log.info("Gateway %s scheduled in %i seconds", rpc_request.method_name, seconds_to_restart / 1000)
 
-        return result
+            response.set_message('Success')
+        elif method_function is None:
+            log.error("RPC method %s - Not found", rpc_request.method_name)
+            response.set_error_msg('Method not found')
+        elif isinstance(rpc_request.params, list):
+            response.set_message(method_function(*rpc_request.params))
+        elif rpc_request.params == '{}' or rpc_request.params is None:
+            response.set_message(method_function())
+        else:
+            response.set_message(method_function(rpc_request.params))
+
+        return response
 
     @staticmethod
     def __rpc_ping(*args):
