@@ -21,6 +21,8 @@ from string import ascii_lowercase
 from threading import Thread
 
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.rpc_request import RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -63,8 +65,6 @@ class CanConnector(Connector, Thread):
     DEFAULT_STRICT_EVAL_FLAG = True
 
     DEFAULT_SIGNED_FLAG = False
-
-    DEFAULT_RPC_RESPONSE_SEND_FLAG = False
 
     def __init__(self, gateway, config, connector_type):
         self.statistics = {'MessagesReceived': 0,
@@ -149,109 +149,82 @@ class CanConnector(Connector, Thread):
                 self._log.error("[%s] Failed to update '%s' attribute for '%s' device",
                           self.get_name(), attr_name, content["device"])
 
-    def server_side_rpc_handler(self, content):
-        if self.__is_reserved_rpc(content):
-            self.__process_reserved_rpc(content)
-            return
+    def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
+        self._log.debug("[%s] Received RPC request: %s", self.get_name(), rpc_request)
 
-        rpc_config = self.__rpc_calls.get(content["device"], {}).get(content["data"]["method"])
+        try:
+            if rpc_request.rpc_type == RPCType.DEVICE:
+                return self._process_rpc_to_device(rpc_request)
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                return self.__rpc_error_response(
+                    rpc_request, f"Reserved RPC '{rpc_request.method_name}' is not supported by CAN connector")
+            elif rpc_request.rpc_type == RPCType.CONNECTOR:
+                return self.__rpc_error_response(rpc_request, "Connector RPC is not supported by CAN connector")
+
+            return self.__rpc_error_response(rpc_request, f"Invalid RPC type request: {rpc_request}")
+        except Exception as e:
+            self._log.exception(e)
+            return self.__rpc_error_response(rpc_request, f"Error processing RPC request {rpc_request}: {e}")
+
+    def __rpc_error_response(self, rpc_request, error_msg) -> RPCResponse:
+        self._log.error("[%s] %s", self.get_name(), error_msg)
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+        response.set_error_msg(error_msg)
+        return response
+
+    def _process_rpc_to_device(self, rpc_request) -> RPCResponse:
+        device_name = rpc_request.device_name
+        method = rpc_request.method_name
+
+        device = self.__devices.get(device_name)
+        if device is None:
+            return self.__rpc_error_response(rpc_request, f"Device '{device_name}' not found")
+
+        if not self.__connected:
+            return self.__rpc_error_response(rpc_request, "CAN bus is not connected")
+
+        rpc_config = self.__rpc_calls.get(device_name, {}).get(method)
         if rpc_config is None:
-            if not self.__devices[content["device"]]["enableUnknownRpc"]:
-                self._log.warning("[%s] No configuration for '%s' RPC request (id=%s), ignore it",
-                            self.get_name(), content["data"]["method"], content["data"]["id"])
-                return
-            else:
-                rpc_config = {}
+            if not device["enableUnknownRpc"]:
+                return self.__rpc_error_response(rpc_request, f"No configuration for '{method}' RPC request")
+            rpc_config = {}
+
+        params = rpc_request.params if rpc_request.params is not None else {}
 
         self._log.debug("[%s] Processing %s '%s' RPC request (id=%s) for '%s' device: params=%s",
-                  self.get_name(), "pre-configured" if rpc_config else "UNKNOWN", content["data"]["method"],
-                  content["data"]["id"], content["device"], content["data"].get("params"))
+                        self.get_name(), "pre-configured" if rpc_config else "UNKNOWN", method,
+                        rpc_request.id, device_name, params)
 
-        if self.__devices[content["device"]]["overrideRpcConfig"]:
-            if rpc_config:
-                conversion_config = self.__merge_rpc_configs(content["data"].get("params", {}), rpc_config)
-                self._log.debug("[%s] RPC request (id=%s) params and connector config merged to conversion config %s",
-                          self.get_name(), content["data"]["id"], conversion_config)
-            else:
-                self._log.debug("[%s] RPC request (id=%s) will use its params as conversion config",
-                          self.get_name(), content["data"]["id"])
-                conversion_config = content["data"].get("params", {})
-        else:
-            conversion_config = rpc_config
+        conversion_config = self.__resolve_conversion_config(rpc_request, device, rpc_config, params)
 
-        data = self.__converters[content["device"]]["downlink"].convert(conversion_config,
-                                                                        content["data"].get("params", {}))
-        if data is not None:
-            done = self.send_data_to_bus(data, conversion_config, data_check=True)
-            if done:
-                self._log.debug("[%s] Processed '%s' RPC request (id=%s) for '%s' device",
-                          self.get_name(), content["data"]["method"], content["data"]["id"], content["device"])
-            else:
-                self._log.error("[%s] Failed to process '%s' RPC request (id=%s) for '%s' device",
-                          self.get_name(), content["data"]["method"], content["data"]["id"], content["device"])
-        else:
-            done = False
-            self._log.error("[%s] Failed to process '%s' RPC request (id=%s) for '%s' device: data conversion failure",
-                      self.get_name(), content["data"]["method"], content["data"]["id"], content["device"])
-
-        if conversion_config.get("response", self.DEFAULT_RPC_RESPONSE_SEND_FLAG):
-            self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], {"success": done})
-
-    def __is_reserved_rpc(self, rpc):
-        rpc_method_name = rpc.get('data', {}).get('method')
-
-        if rpc_method_name == 'set':
-            return True
-
-        return False
-
-    def __get_reserved_rpc_params(self, rpc):
-        params = {}
-
-        rpc_params = rpc.get('data', {}).get('params')
-        if rpc_params is None:
-            return {}
-
-        for param in rpc_params.split(';'):
-            try:
-                (key, value) = param.split('=')
-            except ValueError:
-                continue
-
-            if key and value:
-                params[key] = value
-
-        return params
-
-    def __process_reserved_rpc(self, rpc):
-        params = self.__get_reserved_rpc_params(rpc)
-        if params is None:
-            self._log.warning('RPC params are empty')
-            self.__gateway.send_rpc_reply(device=rpc['device'],
-                                          req_id=rpc['data']['id'],
-                                          content={rpc['data']['method']: 'RPC params are empty.'})
-            return
-
-        data = self.__converters[rpc["device"]]["downlink"].convert(params,
-                                                                    rpc["data"].get("params", {}))
+        data = self.__converters[device_name]["downlink"].convert(conversion_config, params)
         if data is None:
-            self._log.error('Converted data is empty.')
-            self.__gateway.send_rpc_reply(device=rpc['device'],
-                                          req_id=rpc['data']['id'],
-                                          content={rpc['data']['method']: 'Converted data is empty.'})
-            return
+            return self.__rpc_error_response(
+                rpc_request, f"Failed to convert '{method}' RPC data for '{device_name}' device")
 
-        done = self.send_data_to_bus(data, params, data_check=True)
-        if not done:
-            self._log.error('Failed to process RPC request')
-            self.__gateway.send_rpc_reply(device=rpc['device'],
-                                          req_id=rpc['data']['id'],
-                                          content={rpc['data']['method']: 'Error during sending message to CANbus'})
-            return
+        if not self.send_data_to_bus(data, conversion_config, data_check=True):
+            return self.__rpc_error_response(rpc_request, f"Failed to send '{method}' RPC data to CAN bus")
 
-        self.__gateway.send_rpc_reply(device=rpc["device"],
-                                      req_id=rpc["data"]["id"],
-                                      content={'result': {"success": True}})
+        self._log.debug("[%s] Processed '%s' RPC request (id=%s) for '%s' device",
+                        self.get_name(), method, rpc_request.id, device_name)
+
+        response = RPCResponse(rpc_request.id, device=device_name)
+        response.set_message({"success": True})
+        return response
+
+    def __resolve_conversion_config(self, rpc_request, device, rpc_config, params):
+        if not device["overrideRpcConfig"]:
+            return rpc_config
+
+        if not rpc_config:
+            self._log.debug("[%s] RPC request (id=%s) will use its params as conversion config",
+                            self.get_name(), rpc_request.id)
+            return params
+
+        conversion_config = self.__merge_rpc_configs(params, rpc_config)
+        self._log.debug("[%s] RPC request (id=%s) params and connector config merged to conversion config %s",
+                        self.get_name(), rpc_request.id, conversion_config)
+        return conversion_config
 
     def run(self):
         need_run = True
@@ -361,7 +334,6 @@ class CanConnector(Connector, Thread):
             "isExtendedId": self.DEFAULT_EXTENDED_ID_FLAG,
             "isFd": self.DEFAULT_FD_FLAG,
             "bitrateSwitch": self.DEFAULT_BITRATE_SWITCH_FLAG,
-            "response": True,
             "dataLength": 1,
             "dataByteorder": self.DEFAULT_BYTEORDER,
             "dataSigned": self.DEFAULT_SIGNED_FLAG,
