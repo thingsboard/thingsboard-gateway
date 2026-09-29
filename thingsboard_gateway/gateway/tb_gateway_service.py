@@ -1728,8 +1728,11 @@ class TBGatewayService:
             method_function = self.__gateway_rpc_methods.get(rpc_request.method_name)
 
         if method_function is None and rpc_request.method_name in self.__rpc_scheduled_methods_functions:
-            seconds_to_restart = rpc_request.params.get("secondsToRestart", 1000)
-            seconds_to_restart = max(seconds_to_restart, 1000)
+            try:
+                seconds_to_restart = int(rpc_request.params)
+            except Exception:
+                seconds_to_restart = 1000
+
             self.__scheduled_rpc_calls.append([time() * 1000 + seconds_to_restart,
                                                self.__rpc_scheduled_methods_functions[rpc_request.method_name]])
             log.info("Gateway %s scheduled in %i seconds", rpc_request.method_name, seconds_to_restart / 1000)
