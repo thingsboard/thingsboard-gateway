@@ -29,6 +29,8 @@ from requests.exceptions import RequestException, JSONDecodeError
 
 from thingsboard_gateway.connectors.rest.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.rpc_request import RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -278,71 +280,99 @@ class RESTConnector(Connector, Thread):
         except Exception as e:
             self.__log.exception(e)
 
-    def server_side_rpc_handler(self, content):
+    def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
+        self.__log.debug('Received RPC request: %s', rpc_request)
+
         try:
-            if content.get('data') is None:
-                content['data'] = {'params': content['params'], 'method': content['method']}
+            if rpc_request.rpc_type == RPCType.DEVICE:
+                return self._process_rpc_to_device(rpc_request)
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                return self._process_reserved_rpc(rpc_request)
+            elif rpc_request.rpc_type == RPCType.CONNECTOR:
+                return self._process_rpc_to_connector(rpc_request)
 
-            rpc_method = content['data']['method']
-
-            # check if RPC type is connector RPC (can be only 'get' or 'set')
-            try:
-                (connector_type, rpc_method_name) = rpc_method.split('_')
-                if connector_type == self._connector_type:
-                    rpc_method = rpc_method_name
-                    content['device'] = content['params'].split(' ')[0].split('=')[-1]
-            except (IndexError, ValueError):
-                pass
-
-            # check if RPC method is reserved get/set
-            if rpc_method == 'get' or rpc_method == 'set':
-                device = content.get('device')
-                params = {}
-                for param in content['data']['params'].split(';'):
-                    try:
-                        (key, value) = param.split('=')
-                    except ValueError:
-                        continue
-
-                    if key and value:
-                        params[key] = value
-
-                params['valueExpression'] = params.pop('value', None)
-
-                uplink_converter = self._default_uplink_converter
-                downlink_converter = self._default_downlink_converter(params, self.__log)
-                converted_data = downlink_converter.convert(config=params, data=content)
-
-                request_dict = {'config': {**params, **converted_data}, 'request': regular_request,
-                                'converter': uplink_converter}
-                response = self.__send_request(request_dict, Queue(1), with_queue=False)
-
-                self.__log.debug('Response from RPC request: %s', response)
-                self.__gateway.send_rpc_reply(device=device,
-                                              req_id=content["data"].get('id'),
-                                              content={'result': response[2]} if response and len(response) >= 3 else {'result': response[0] if response else response })
-            else:
-                for rpc_request in self.__rpc_requests:
-                    if fullmatch(rpc_request["deviceNameFilter"], content["device"]) and \
-                            fullmatch(rpc_request["methodFilter"], rpc_method):
-                        converted_data = rpc_request["downlink_converter"].convert(config=rpc_request, data=content)
-
-                        request_dict = {"config": {**rpc_request,
-                                                   **converted_data},
-                                        "request": regular_request}
-                        request_dict["converter"] = request_dict["config"].get("uplink_converter")
-
-                        response = self.__send_request(request_dict, Queue(1), with_queue=False)
-
-                        self.__log.debug('Response from RPC request: %s', response)
-                        if (content['data'].get('id') is not None) and (response is not None):
-                            self.__gateway.send_rpc_reply(device=content["device"],
-                                                          req_id=content["data"]["id"],
-                                                          content={'result': response[2]} if response and len(
-                                                              response) >= 3 else {
-                                                              'result': response[0] if response else response})
+            return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
         except Exception as e:
             self.__log.exception(e)
+            return self.__rpc_error_response(rpc_request, f'Error processing RPC request {rpc_request}: {e}')
+
+    def __rpc_error_response(self, rpc_request, error_msg) -> RPCResponse:
+        self.__log.error(error_msg)
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+        response.set_error_msg(error_msg)
+        return response
+
+    def _process_rpc_to_connector(self, rpc_request) -> RPCResponse:
+        # check if RPC type is connector RPC (can be only 'get' or 'set')
+        if rpc_request.method_name in ('get', 'set'):
+            return self._process_reserved_rpc(rpc_request)
+
+        return self._process_rpc_to_device(rpc_request)
+
+    def _process_rpc_to_device(self, rpc_request) -> RPCResponse:
+        rpc_config = self.__find_rpc_config(rpc_request)
+        if rpc_config is None:
+            return self.__rpc_error_response(
+                rpc_request, f'Neither of configured device rpc methods match with {rpc_request.method_name}')
+
+        converted_data = rpc_config["downlink_converter"].convert(config=rpc_config,
+                                                                  data=self.__build_converter_data(rpc_request))
+
+        request_dict = {"config": {**rpc_config,
+                                   **converted_data},
+                        "request": regular_request}
+        request_dict["converter"] = request_dict["config"].get("uplink_converter")
+
+        return self.__send_rpc_request(rpc_request, request_dict)
+
+    def __find_rpc_config(self, rpc_request):
+        for rpc_config in self.__rpc_requests:
+            if (fullmatch(rpc_config["deviceNameFilter"], rpc_request.device_name)
+                    and fullmatch(rpc_config["methodFilter"], rpc_request.method_name)):
+                return rpc_config
+        return None
+
+    def _process_reserved_rpc(self, rpc_request) -> RPCResponse:
+        params = self.__parse_reserved_rpc_params(rpc_request.params)
+        params['valueExpression'] = params.pop('value', None)
+
+        downlink_converter = self._default_downlink_converter(params, self.__log)
+        converted_data = downlink_converter.convert(config=params, data=self.__build_converter_data(rpc_request))
+
+        request_dict = {'config': {**params, **converted_data}, 'request': regular_request,
+                        'converter': self._default_uplink_converter}
+
+        return self.__send_rpc_request(rpc_request, request_dict)
+
+    @staticmethod
+    def __parse_reserved_rpc_params(raw_params):
+        params = {}
+        for param in raw_params.split(';'):
+            try:
+                (key, value) = param.split('=', 1)
+            except ValueError:
+                continue
+
+            if key and value:
+                params[key] = value
+
+        return params
+
+    @staticmethod
+    def __build_converter_data(rpc_request):
+        return {'device': rpc_request.device_name,
+                'data': {'id': rpc_request.id, 'method': rpc_request.method_name, 'params': rpc_request.params}}
+
+    def __send_rpc_request(self, rpc_request, request_dict) -> RPCResponse:
+        response = self.__send_request(request_dict, Queue(1), with_queue=False)
+        self.__log.debug('Response from RPC request: %s', response)
+
+        if response is None:
+            return self.__rpc_error_response(rpc_request, f'Cannot form request for RPC {rpc_request}')
+
+        rpc_response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+        rpc_response.set_message(response[0])
+        return rpc_response
 
     def __event_provider(self, event_type):
         try:
