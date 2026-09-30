@@ -1737,16 +1737,16 @@ class TBGatewayService:
                                                self.__rpc_scheduled_methods_functions[rpc_request.method_name]])
             log.info("Gateway %s scheduled in %i seconds", rpc_request.method_name, seconds_to_restart / 1000)
 
-            response.set_message('Success')
+            response.set_gateway_rpc_msg('Success')
         elif method_function is None:
             log.error("RPC method %s - Not found", rpc_request.method_name)
             response.set_error_msg('Method not found')
         elif isinstance(rpc_request.params, list):
-            response.set_message(method_function(*rpc_request.params))
+            response.set_gateway_rpc_msg(method_function(*rpc_request.params))
         elif rpc_request.params == '{}' or rpc_request.params is None:
-            response.set_message(method_function())
+            response.set_gateway_rpc_msg(method_function())
         else:
-            response.set_message(method_function(rpc_request.params))
+            response.set_gateway_rpc_msg(method_function(rpc_request.params))
 
         return response
 

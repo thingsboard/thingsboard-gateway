@@ -26,6 +26,9 @@ class RPCResponse:
     def set_error_msg(self, err_msg):
         self._message = {'error': err_msg}
 
+    def set_gateway_rpc_msg(self, msg):
+        self._message = msg
+
     @property
     def message(self):
         return self._message

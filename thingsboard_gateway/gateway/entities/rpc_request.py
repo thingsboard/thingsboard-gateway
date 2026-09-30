@@ -43,6 +43,9 @@ def create_rpc_request_from_dict(content, gateway_or_connector_req_id=None):
         raise ValueError(f"Unknown RPC type for content: {content}")
 
 
+RESERVED_RPC_NAMES = ('getTermInfo', 'sendCommand', 'getCommandStatus', 'terminateCommand')
+
+
 class RPCType(Enum):
     CONNECTOR = 'CONNECTOR'
     DEVICE = 'DEVICE'
@@ -85,6 +88,9 @@ class RPCRequestBase:
     @staticmethod
     def _is_gateway_rpc(content):
         try:
+            if content[DATA_PARAMETER][RPC_METHOD_PARAMETER] in RESERVED_RPC_NAMES:
+                return True
+
             (module, _) = content[DATA_PARAMETER][RPC_METHOD_PARAMETER].split('_')
             if module == 'gateway':
                 return True
