@@ -15,7 +15,7 @@ cachetools
 tb-paho-mqtt-client>=2.1.2
 tb-mqtt-client==1.13.14
 service-identity
-pyjwt==2.13.0
+pyjwt==2.15.0
 tb-rest-client
 pyopenssl
 opcua
