@@ -386,6 +386,11 @@ class RemoteConfigurator:
             file.writelines(dumps(self._get_general_config_in_local_format(), indent='  '))
 
     def _handle_storage_configuration_update(self, config):
+        # ThingsBoard resends the storage configuration on every reconnect; re-create only on a real change.
+        if all(key == 'ts' or self.storage_configuration.get(key) == value for key, value in config.items()):
+            self.__log.debug('Storage configuration did not change, skipping update')
+            return
+
         self.__log.debug('Processing storage configuration update...')
 
         old_event_storage_config = self._gateway._event_storage.get_configuration()
