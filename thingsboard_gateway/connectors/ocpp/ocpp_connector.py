@@ -16,17 +16,21 @@ import asyncio
 import base64
 import re
 import ssl
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from dataclasses import asdict, is_dataclass
 from queue import Queue
 from threading import Thread
 from random import choice
 from string import ascii_lowercase
-from time import sleep, monotonic
+from time import sleep
 
 from simplejson import dumps, loads
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.rpc_request import RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -46,6 +50,7 @@ except ImportError:
     TBUtility.install_package("websockets")
     import websockets
 
+from ocpp.exceptions import OCPPError
 from ocpp.v21 import call
 from thingsboard_gateway.connectors.ocpp.charge_point import ChargePoint
 
@@ -277,38 +282,32 @@ class OcppConnector(Connector, Thread):
 
             sleep(.001)
 
-    @staticmethod
-    async def _send_request(cp, request):
-        return await cp.call(request)
-
-    @staticmethod
-    def __wait_task_with_timeout(task, timeout, poll_interval=0.2):
-        start_time = monotonic()
-        while not task.done():
-            sleep(poll_interval)
-            if monotonic() - start_time >= timeout:
-                task.cancel()
-                return False, None
-
-        return True, task.result()
+    def __run_coroutine(self, coroutine, timeout):
+        future = asyncio.run_coroutine_threadsafe(coroutine, self.__loop)
+        try:
+            return future.result(timeout)
+        except FutureTimeoutError:
+            future.cancel()
+            raise
 
     def __call_and_wait(self, charge_point, request, timeout=RPC_DEFAULT_TIMEOUT):
-        task = self.__loop.create_task(self._send_request(charge_point, request))
-        task_completed, result = self.__wait_task_with_timeout(task, timeout)
-
-        if not task_completed:
+        try:
+            return self.__run_coroutine(charge_point.call(request), timeout)
+        except FutureTimeoutError:
             self._log.warning('Timeout (%ss) waiting for %s response from Charge Point %s',
                               timeout, request.__class__.__name__, charge_point.name)
 
-        return result
+    def _get_charge_point_by_name(self, name):
+        for charge_point in self._connected_charge_points:
+            if charge_point.name == name:
+                return charge_point
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         self._log.debug('Got attribute update: %s', content)
 
-        try:
-            charge_point = tuple(filter(lambda cp: cp.name == content['device'], self._connected_charge_points))[0]
-        except IndexError:
+        charge_point = self._get_charge_point_by_name(content['device'])
+        if charge_point is None:
             self._log.error('Charge Point with name %s not found!', content['device'])
             return
 
@@ -326,75 +325,129 @@ class OcppConnector(Connector, Thread):
             self._log.exception(e)
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
-    def server_side_rpc_handler(self, content):
-        self._log.debug('Got RPC: %s', content)
+    def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
+        self._log.debug('Got RPC: %s', rpc_request)
 
         try:
-            charge_point = tuple(filter(lambda cp: cp.name == content['device'], self._connected_charge_points))[0]
-        except IndexError:
-            self._log.error('Charge Point with name %s not found!', content['device'])
-            return
+            if rpc_request.rpc_type == RPCType.CONNECTOR:
+                return self.__rpc_error_response(rpc_request, 'Connector RPC is not supported by OCPP connector')
 
-        # check if RPC method is reserved get/set
-        try:
-            self.__check_and_process_reserved_rpc(charge_point, content)
+            charge_point = self._get_charge_point_by_name(rpc_request.device_name)
+            if charge_point is None:
+                return self.__rpc_error_response(rpc_request,
+                                                 f'Charge Point {rpc_request.device_name} is not connected')
+
+            if rpc_request.rpc_type == RPCType.DEVICE:
+                return self._process_rpc_to_device(rpc_request, charge_point)
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                return self._process_reserved_rpc(rpc_request, charge_point)
+
+            return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
         except Exception as e:
             self._log.exception(e)
+            return self.__rpc_error_response(rpc_request, f'Error processing RPC request {rpc_request}: {e}')
 
-        try:
-            for rpc in charge_point.config.get('serverSideRpc', []):
-                if rpc['methodRPC'] == content['data']['method']:
-                    self.__process_rpc(charge_point, content, rpc)
-        except Exception as e:
-            self._log.exception(e)
+    def __rpc_error_response(self, rpc_request, error_msg):
+        self._log.error(error_msg)
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+        response.set_error_msg(error_msg)
+        return response
 
-    def __process_rpc(self, charge_point, content, rpc):
-        if not rpc.get('valueExpression'):
-            return
+    def _process_rpc_to_device(self, rpc_request, charge_point):
+        rpc_config = next((rpc for rpc in charge_point.config.get('serverSideRpc', [])
+                           if rpc.get('methodRPC') == rpc_request.method_name), None)
+        if rpc_config is None:
+            return self.__rpc_error_response(
+                rpc_request, f'Neither of configured device rpc methods match with {rpc_request.method_name}')
 
-        data_to_send_tags = TBUtility.get_values(rpc.get('valueExpression'), content['data'],
-                                                 'params',
-                                                 get_tag=True)
-        data_to_send_values = TBUtility.get_values(rpc.get('valueExpression'), content['data'],
-                                                   'params',
-                                                   expression_instead_none=True)
+        value_expression = rpc_config.get('valueExpression')
+        if not value_expression:
+            return self.__rpc_error_response(
+                rpc_request, f"'valueExpression' is not configured for RPC '{rpc_request.method_name}'")
 
-        data_to_send = rpc.get('valueExpression')
+        body = {'id': rpc_request.id, 'method': rpc_request.method_name, 'params': rpc_request.params}
+        data_to_send_tags = TBUtility.get_values(value_expression, body, 'params', get_tag=True)
+        data_to_send_values = TBUtility.get_values(value_expression, body, 'params', expression_instead_none=True)
+
+        data_to_send = value_expression
         for (tag, value) in zip(data_to_send_tags, data_to_send_values):
             data_to_send = data_to_send.replace('${' + tag + '}', dumps(value))
 
-        request = self.__build_ocpp_request(rpc, data_to_send)
+        request, error_msg = self.__build_ocpp_request(rpc_config, data_to_send)
         if request is None:
-            return
+            return self.__rpc_error_response(rpc_request, error_msg)
 
-        timeout = rpc.get('timeout', RPC_DEFAULT_TIMEOUT)
-        result = self.__call_and_wait(charge_point, request, timeout)
+        return self._call(charge_point, request, rpc_config.get('timeout', RPC_DEFAULT_TIMEOUT), rpc_request)
 
-        if rpc.get('withResponse', True):
-            self._gateway.send_rpc_reply(content["device"], content["data"]["id"], {'result': str(result)})
+    def _process_reserved_rpc(self, rpc_request, charge_point):
+        method = rpc_request.method_name.lower()
+        params = self.__parse_rpc_params(rpc_request.params)
+        if not params.get('component') or not params.get('variable'):
+            return self.__rpc_error_response(
+                rpc_request, f"Reserved RPC '{method}' requires 'component' and 'variable' params "
+                             f"(e.g. 'component=OCPPCommCtrlr;variable=HeartbeatInterval;value=30')")
+
+        component, variable = self.__build_component_variable(params)
+        if method == 'set':
+            if params.get('value') is None:
+                return self.__rpc_error_response(rpc_request, "Reserved RPC 'set' requires 'value' param")
+
+            request = call.SetVariables(set_variable_data=[{
+                'attribute_value': params['value'],
+                'component': component,
+                'variable': variable,
+            }])
+        else:
+            request = call.GetVariables(get_variable_data=[{
+                'component': component,
+                'variable': variable,
+            }])
+
+        return self._call(charge_point, request, params.get('timeout', RPC_DEFAULT_TIMEOUT), rpc_request)
+
+    def _call(self, charge_point, request, timeout, rpc_request) -> RPCResponse:
+        timeout = min(float(timeout), float(rpc_request.timeout))
+        action = request.__class__.__name__
+
+        try:
+            result = self.__run_coroutine(charge_point.call(request, suppress=False), timeout)
+        except FutureTimeoutError:
+            return self.__rpc_error_response(
+                rpc_request, f'Timeout ({timeout}s) waiting for {action} response from Charge Point '
+                             f'{charge_point.name} (previous call to the Charge Point may still be in progress)')
+        except OCPPError as e:
+            return self.__rpc_error_response(
+                rpc_request, f'Charge Point {charge_point.name} returned an error on {action}: {e}')
+
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+        response.set_message(asdict(result) if is_dataclass(result) else result)
+        return response
 
     def __build_ocpp_request(self, rpc, data_to_send):
         action = rpc.get('action')
         if not action:
-            return call.DataTransfer('1', data=data_to_send)
-
-        call_cls = getattr(call, action, None)
-        if call_cls is None:
-            self._log.error("Unknown OCPP action '%s' configured for RPC '%s'", action, rpc.get('methodRPC'))
-            return None
+            return call.DataTransfer('1', data=data_to_send), None
 
         try:
             payload = loads(data_to_send)
         except ValueError as e:
-            self._log.error("Invalid JSON payload for RPC '%s' action '%s': %s", rpc.get('methodRPC'), action, e)
-            return None
+            return None, f"Invalid JSON payload for RPC '{rpc.get('methodRPC')}' action '{action}': {e}"
+
+        if not isinstance(payload, dict):
+            return None, f"Payload for RPC '{rpc.get('methodRPC')}' action '{action}' must be a JSON object"
+
+        return self.__create_ocpp_call(action, payload)
+
+    @staticmethod
+    def __create_ocpp_call(action, payload):
+        call_cls = getattr(call, action, None)
+        if not (isinstance(call_cls, type) and is_dataclass(call_cls)):
+            return None, f"Unknown OCPP action '{action}'"
 
         try:
-            return call_cls(**payload)
+            return call_cls(**payload), None
         except TypeError as e:
-            self._log.error("Invalid payload fields for OCPP action '%s' (RPC '%s'): %s", action,
-                            rpc.get('methodRPC'), e)
-            return None
+            return None, f"Invalid payload fields for OCPP action '{action}': {e}"
 
     @staticmethod
     def __parse_rpc_params(raw_params):
@@ -404,7 +457,7 @@ class OcppConnector(Connector, Thread):
         params = {}
         for param in raw_params.split(';'):
             try:
-                (key, value) = param.split('=')
+                (key, value) = param.split('=', 1)
             except ValueError:
                 continue
 
@@ -426,43 +479,6 @@ class OcppConnector(Connector, Thread):
             variable['instance'] = params['variableInstance']
 
         return component, variable
-
-    def __send_set_variables(self, charge_point, content, params):
-        component, variable = self.__build_component_variable(params)
-        request = call.SetVariables(set_variable_data=[{
-            'attribute_value': params.get('value'),
-            'component': component,
-            'variable': variable,
-        }])
-        timeout = float(params.get('timeout', RPC_DEFAULT_TIMEOUT))
-        result = self.__call_and_wait(charge_point, request, timeout)
-        self._gateway.send_rpc_reply(content['device'], content['data']['id'], {'result': str(result)})
-
-    def __send_get_variables(self, charge_point, content, params):
-        component, variable = self.__build_component_variable(params)
-        request = call.GetVariables(get_variable_data=[{
-            'component': component,
-            'variable': variable,
-        }])
-        timeout = float(params.get('timeout', RPC_DEFAULT_TIMEOUT))
-        result = self.__call_and_wait(charge_point, request, timeout)
-        self._gateway.send_rpc_reply(content['device'], content['data']['id'], {'result': str(result)})
-
-    def __check_and_process_reserved_rpc(self, charge_point, content):
-        method = content['data']['method']
-        if method not in ('get', 'set'):
-            return
-
-        params = self.__parse_rpc_params(content['data'].get('params'))
-        if not params.get('component') or not params.get('variable'):
-            self._log.warning("Reserved RPC '%s' requires 'component' and 'variable' params "
-                              "(e.g. 'component=OCPPCommCtrlr;variable=HeartbeatInterval;value=30')", method)
-            return
-
-        if method == 'set':
-            self.__send_set_variables(charge_point, content, params)
-        else:
-            self.__send_get_variables(charge_point, content, params)
 
     def get_config(self):
         return {'CS': self._central_system_config, 'CP': self._charge_points_config}
