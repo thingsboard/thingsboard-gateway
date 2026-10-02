@@ -136,7 +136,7 @@ class DatabaseConnector:
             return None
         tries = 4
         current_try = 0
-        while current_try < tries:
+        while current_try < tries and not self.database_stopped_event.is_set() and not self.__closed:
             try:
                 while (
                     not self.database_stopped_event.is_set()
@@ -178,10 +178,12 @@ class DatabaseConnector:
             return None
         tries = 4
         current_try = 0
-        while current_try < tries:
+        while current_try < tries and not self.database_stopped_event.is_set() and not self.__closed:
             try:
                 while (
-                    not self.database_stopped_event.is_set() and self.connection is None
+                    not self.database_stopped_event.is_set()
+                    and self.connection is None
+                    and not self.__closed
                 ):
                     self.__log.debug("Connection is None. Waiting for connection...")
                     sleep(0.1)
