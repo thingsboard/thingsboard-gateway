@@ -71,7 +71,7 @@ class JsonRESTDownlinkConverter(RESTConverter):
                 result["data"] = dumps(literal_eval(result["data"]))
                 return result
 
-            except (JSONDecodeError, SyntaxError) as e:
+            except (JSONDecodeError, SyntaxError, ValueError) as e:
                 self._log.debug(
                     "The given object can not be converted to python dict using literal eval and dumps - %s", str(e))
                 return result

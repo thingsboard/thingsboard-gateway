@@ -28,6 +28,12 @@ from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
 from requests.exceptions import RequestException, JSONDecodeError
 
 from thingsboard_gateway.connectors.rest.backward_compatibility_adapter import BackwardCompatibilityAdapter
+from thingsboard_gateway.connectors.rest.constants import (
+    RESERVED_GET_RPC_SCHEMA,
+    RESERVED_SET_RPC_SCHEMA,
+    RESERVED_GET_RPC_PATTERN,
+    RESERVED_SET_RPC_PATTERN
+)
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.rpc_request import RPCType
 from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
@@ -290,10 +296,9 @@ class RESTConnector(Connector, Thread):
                 return self._process_reserved_rpc(rpc_request)
             elif rpc_request.rpc_type == RPCType.CONNECTOR:
                 return self._process_rpc_to_connector(rpc_request)
-
-            return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
+            else:
+                return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
         except Exception as e:
-            self.__log.exception(e)
             return self.__rpc_error_response(rpc_request, f'Error processing RPC request {rpc_request}: {e}')
 
     def __rpc_error_response(self, rpc_request, error_msg) -> RPCResponse:
@@ -303,11 +308,23 @@ class RESTConnector(Connector, Thread):
         return response
 
     def _process_rpc_to_connector(self, rpc_request) -> RPCResponse:
-        # check if RPC type is connector RPC (can be only 'get' or 'set')
-        if rpc_request.method_name in ('get', 'set'):
-            return self._process_reserved_rpc(rpc_request)
+        return self._process_rpc(rpc_request, rpc_request.params)
 
-        return self._process_rpc_to_device(rpc_request)
+    def _process_reserved_rpc(self, rpc_request) -> RPCResponse:
+        if not rpc_request.params:
+            return self.__rpc_error_response(
+                rpc_request, f"No 'params' found in reserved RPC request '{rpc_request.method_name}'")
+
+        is_set = rpc_request.method_name.lower() == 'set'
+        pattern = RESERVED_SET_RPC_PATTERN if is_set else RESERVED_GET_RPC_PATTERN
+        match = fullmatch(pattern, rpc_request.params)
+        if match is None:
+            expected_schema = RESERVED_SET_RPC_SCHEMA if is_set else RESERVED_GET_RPC_SCHEMA
+            return self.__rpc_error_response(
+                rpc_request, f"The requested RPC does not match with the schema: {expected_schema}")
+
+        rpc_config = self.__build_reserved_rpc_config(match.groupdict())
+        return self._process_rpc(rpc_request, rpc_config)
 
     def _process_rpc_to_device(self, rpc_request) -> RPCResponse:
         rpc_config = self.__find_rpc_config(rpc_request)
@@ -315,13 +332,17 @@ class RESTConnector(Connector, Thread):
             return self.__rpc_error_response(
                 rpc_request, f'Neither of configured device rpc methods match with {rpc_request.method_name}')
 
-        converted_data = rpc_config["downlink_converter"].convert(config=rpc_config,
-                                                                  data=self.__build_converter_data(rpc_request))
+        return self._process_rpc(rpc_request, rpc_config, rpc_config['downlink_converter'])
 
-        request_dict = {"config": {**rpc_config,
-                                   **converted_data},
-                        "request": regular_request}
-        request_dict["converter"] = request_dict["config"].get("uplink_converter")
+    def _process_rpc(self, rpc_request, rpc_config, downlink_converter=None) -> RPCResponse:
+        missing_params = [key for key in ('requestUrlExpression', 'valueExpression') if rpc_config.get(key) is None]
+        if missing_params:
+            return self.__rpc_error_response(
+                rpc_request, f"RPC '{rpc_request.method_name}' requires {', '.join(missing_params)} param(s)")
+
+        downlink_converter = downlink_converter or self._default_downlink_converter(rpc_config, self.__log)
+        converted_data = downlink_converter.convert(config=rpc_config, data=self.__build_converter_data(rpc_request))
+        request_dict = {'config': {**rpc_config, **converted_data}, 'request': regular_request}
 
         return self.__send_rpc_request(rpc_request, request_dict)
 
@@ -332,35 +353,15 @@ class RESTConnector(Connector, Thread):
                 return rpc_config
         return None
 
-    def _process_reserved_rpc(self, rpc_request) -> RPCResponse:
-        params = self.__parse_reserved_rpc_params(rpc_request.params)
-        params['valueExpression'] = params.pop('value', None)
-
-        downlink_converter = self._default_downlink_converter(params, self.__log)
-        converted_data = downlink_converter.convert(config=params, data=self.__build_converter_data(rpc_request))
-
-        request_dict = {'config': {**params, **converted_data}, 'request': regular_request,
-                        'converter': self._default_uplink_converter}
-
-        return self.__send_rpc_request(rpc_request, request_dict)
-
     @staticmethod
-    def __parse_reserved_rpc_params(raw_params):
-        params = {}
-        for param in raw_params.split(';'):
-            try:
-                (key, value) = param.split('=', 1)
-            except ValueError:
-                continue
-
-            if key and value:
-                params[key] = value
-
-        return params
+    def __build_reserved_rpc_config(groups):
+        rpc_config = {key: value for key, value in groups.items() if value is not None}
+        rpc_config['valueExpression'] = rpc_config.pop('value', '')
+        return rpc_config
 
     @staticmethod
     def __build_converter_data(rpc_request):
-        return {'device': rpc_request.device_name,
+        return {'device': rpc_request.device_name or '',
                 'data': {'id': rpc_request.id, 'method': rpc_request.method_name, 'params': rpc_request.params}}
 
     def __send_rpc_request(self, rpc_request, request_dict) -> RPCResponse:
@@ -370,8 +371,14 @@ class RESTConnector(Connector, Thread):
         if response is None:
             return self.__rpc_error_response(rpc_request, f'Cannot form request for RPC {rpc_request}')
 
+        result = response[0]
+        if isinstance(result, dict) and 'error' in result:
+            code = f" (code: {result['code']})" if 'code' in result else ''
+            return self.__rpc_error_response(rpc_request, f"{result['error']}{code}")
+
+        result = result.decode('utf-8') if isinstance(result, bytes) else result
         rpc_response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
-        rpc_response.set_message(response[0])
+        rpc_response.set_message(result)
         return rpc_response
 
     def __event_provider(self, event_type):
@@ -445,7 +452,7 @@ class RESTConnector(Connector, Thread):
             configuration = request_dict["config"]
 
             base_params = {
-                "method": configuration.get("HTTPMethod", "GET"),
+                "method": configuration.get("HTTPMethod", configuration.get("httpMethod", "GET")),
                 "url": url,
                 "timeout": request_timeout,
                 "allow_redirects": configuration.get("allowRedirects", False),
