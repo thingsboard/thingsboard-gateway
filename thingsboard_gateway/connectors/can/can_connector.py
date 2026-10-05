@@ -160,10 +160,9 @@ class CanConnector(Connector, Thread):
                     rpc_request, f"Reserved RPC '{rpc_request.method_name}' is not supported by CAN connector")
             elif rpc_request.rpc_type == RPCType.CONNECTOR:
                 return self.__rpc_error_response(rpc_request, "Connector RPC is not supported by CAN connector")
-
-            return self.__rpc_error_response(rpc_request, f"Invalid RPC type request: {rpc_request}")
+            else:
+                return self.__rpc_error_response(rpc_request, f"Invalid RPC type request: {rpc_request}")
         except Exception as e:
-            self._log.exception(e)
             return self.__rpc_error_response(rpc_request, f"Error processing RPC request {rpc_request}: {e}")
 
     def __rpc_error_response(self, rpc_request, error_msg) -> RPCResponse:
