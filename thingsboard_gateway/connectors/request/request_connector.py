@@ -21,7 +21,15 @@ from time import sleep, time
 from os import environ
 
 from simplejson import loads
+from thingsboard_gateway.connectors.request.constants import (
+    RESERVED_GET_RPC_SCHEMA,
+    RESERVED_SET_RPC_SCHEMA,
+    RESERVED_GET_RPC_PATTERN,
+    RESERVED_SET_RPC_PATTERN
+)
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.rpc_request import RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.connectors.request.entities.rpc_execution_result import RpcExecutionResult
@@ -39,7 +47,6 @@ from requests.exceptions import RequestException, JSONDecodeError
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
-from thingsboard_gateway.connectors.request.entities.rpc_request import RequestRpcRequest, RequestRpcType
 from thingsboard_gateway.connectors.request.json_request_downlink_converter import JsonRequestDownlinkConverter
 
 
@@ -137,122 +144,81 @@ class RequestConnector(Connector, Thread):
         except Exception as e:
             self._log.exception(e)
 
-    def server_side_rpc_handler(self, content):
-        self._log.info('Received server side rpc request: %r', content)
-        try:
-            rpc_request = RequestRpcRequest(content=content)
-            content = rpc_request.content
-
-            if rpc_request.rpc_type == RequestRpcType.RESERVED:
-                self.__process_reserved_rpc(content)
-
-            elif rpc_request.rpc_type == RequestRpcType.CONNECTOR:
-                response = self.__process_connector_rpc_request(content)
-                return response
-
-            elif rpc_request.rpc_type == RequestRpcType.DEVICE:
-                self.__process_device_rpc(content=content)
-
-        except Exception as e:
-            self._log.error('Failed to process server side rpc request: %s', e)
-            return {'error': '%r' % e, 'success': False}
-
-    def __process_device_rpc(self, content):
-        for rpc_request in self.__rpc_requests:
-            try:
-                if fullmatch(rpc_request["deviceNameFilter"], content["device"]) and fullmatch(
-                        rpc_request["methodFilter"], content["data"]["method"]):
-                    result = self.__prepare_and_execute_rpc(rpc_request, content)
-                    self.__send_rpc_reply_from_execution_result(execution_result=result, content=content)
-                    return
-
-            except Exception as e:
-                self._log.error("Error processing device RPC: %s", e)
-
-        self.__gateway.send_rpc_reply(
-            device=content["device"],
-            req_id=content["data"]["id"],
-            success_sent=False,
-            content={"result": {"error": "No matching RPC request configuration found for this RPC. Please check your"}}
-        )
-
-    def __process_reserved_rpc(self, content):
-        rpc_method_name = content["data"]["method"]
+    def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
+        self._log.debug('Received RPC request: %s', rpc_request)
 
         try:
-            params = self.__parse_reserved_rpc_params(rpc_method_name, content["data"].get("params"))
-            rpc_request = self.__format_rpc_reqeust(params)
-            rpc_request["converter"] = JsonRequestDownlinkConverter(
-                rpc_request, self._converter_log
-            )
-        except ValueError as e:
-            self.__gateway.send_rpc_reply(
-                device=content["device"],
-                req_id=content["data"]["id"],
-                content={"result": {"error": f"Please check your RPC params. {e}"}}
-            )
-            return
+            if rpc_request.rpc_type == RPCType.DEVICE:
+                return self._process_rpc_to_device(rpc_request)
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                return self._process_reserved_rpc(rpc_request)
+            elif rpc_request.rpc_type == RPCType.CONNECTOR:
+                return self._process_rpc_to_connector(rpc_request)
+            else:
+                return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
         except Exception as e:
-            self._log.error("Reserved RPC preparation failed: %s", e)
-            self.__gateway.send_rpc_reply(
-                device=content["device"],
-                req_id=content["data"]["id"]
-            )
-            return
+            return self.__rpc_error_response(rpc_request, f'Error processing RPC request {rpc_request}: {e}')
 
-        result = self.__prepare_and_execute_rpc(rpc_request, content)
-        self.__send_rpc_reply_from_execution_result(execution_result=result, content=content)
+    def __rpc_error_response(self, rpc_request, error_msg) -> RPCResponse:
+        self._log.error(error_msg)
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+        response.set_error_msg(error_msg)
+        return response
 
-    def __process_connector_rpc_request(self, content: dict):
-        results = []
-        connector_rpc_params = content["data"].get("params")
+    def _process_rpc_to_connector(self, rpc_request) -> RPCResponse:
+        rpc_config = self.__build_rpc_config(rpc_request.params)
+        return self._process_rpc(rpc_request, rpc_config)
 
-        try:
-            rpc_request = self.__format_rpc_reqeust(params=connector_rpc_params)
-            rpc_request["converter"] = JsonRequestDownlinkConverter(
-                rpc_request, self._converter_log
-            )
-        except ValueError as e:
-            return [{"error": f"Please check your RPC params. {e}"}]
-        except Exception as e:
-            self._log.error("Connector RPC preparation failed: %s", e)
-            return [{"error": f"Please check your RPC params formatting. {e}"}]
+    def _process_reserved_rpc(self, rpc_request) -> RPCResponse:
+        if not rpc_request.params:
+            return self.__rpc_error_response(
+                rpc_request, f"No 'params' found in reserved RPC request '{rpc_request.method_name}'")
 
-        result = self.__prepare_and_execute_rpc(rpc_request, content)
-        results.append(self.__result_to_dict(result))
-        return results
+        is_set = rpc_request.method_name.lower() == 'set'
+        pattern = RESERVED_SET_RPC_PATTERN if is_set else RESERVED_GET_RPC_PATTERN
+        match = fullmatch(pattern, rpc_request.params)
+        if match is None:
+            expected_schema = RESERVED_SET_RPC_SCHEMA if is_set else RESERVED_GET_RPC_SCHEMA
+            return self.__rpc_error_response(
+                rpc_request, f"The requested RPC does not match with the schema: {expected_schema}")
+
+        rpc_config = self.__build_rpc_config(self.__build_reserved_rpc_params(match.groupdict()))
+        return self._process_rpc(rpc_request, rpc_config)
+
+    def _process_rpc_to_device(self, rpc_request) -> RPCResponse:
+        rpc_config = self.__find_rpc_config(rpc_request)
+        if rpc_config is None:
+            return self.__rpc_error_response(
+                rpc_request, f'Neither of configured device rpc methods match with {rpc_request.method_name}')
+
+        return self._process_rpc(rpc_request, rpc_config)
+
+    def _process_rpc(self, rpc_request, rpc_config) -> RPCResponse:
+        downlink_converter = rpc_config.get('converter') or JsonRequestDownlinkConverter(rpc_config,
+                                                                                         self._converter_log)
+        converted_data = downlink_converter.convert(rpc_config, self.__build_converter_data(rpc_request))
+        if converted_data is None:
+            return self.__rpc_error_response(rpc_request, f'Failed to convert RPC request {rpc_request}')
+
+        result = self.__execute_rpc(rpc_config, converted_data)
+        if not result.success:
+            return self.__rpc_error_response(rpc_request, result.error)
+
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+        response.set_message(result.response_body)
+        return response
+
+    def __find_rpc_config(self, rpc_request):
+        for rpc_config in self.__rpc_requests:
+            if (fullmatch(rpc_config["deviceNameFilter"], rpc_request.device_name)
+                    and fullmatch(rpc_config["methodFilter"], rpc_request.method_name)):
+                return rpc_config
+        return None
 
     @staticmethod
-    def __result_to_dict(result: RpcExecutionResult) -> dict:
-        if result.success:
-            return {
-                "success": True,
-                "result": result.response_body,
-                "status": result.status_code,
-            }
-        return {
-            "success": False,
-            "error": result.error,
-            "status": result.status_code,
-        }
-
-    def __prepare_and_execute_rpc(self, rpc_request: dict, content: dict) -> RpcExecutionResult:
-        try:
-            converted_data = rpc_request["converter"].convert(rpc_request, content)
-
-        except Exception as e:
-            self._log.error("Error converting RPC request: %s", e)
-            return RpcExecutionResult(success=False, error=f"RPC request conversion error: {e}")
-
-        return self.__execute_rpc(rpc_request, converted_data)
-
-    def __send_rpc_reply_from_execution_result(self, execution_result: RpcExecutionResult, content: dict):
-        if execution_result.success:
-            self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
-                                          content={"result": {"value": execution_result.response_body}})
-        else:
-            self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
-                                          content={"result": {"error": execution_result.error}})
+    def __build_converter_data(rpc_request):
+        return {'device': rpc_request.device_name or '',
+                'data': {'id': rpc_request.id, 'method': rpc_request.method_name, 'params': rpc_request.params}}
 
     def __execute_rpc(self, rpc_request: dict, converted_data: dict) -> RpcExecutionResult:
         response_queue = Queue(1)
@@ -276,13 +242,17 @@ class RequestConnector(Connector, Thread):
 
         if send_request_thread.is_alive() and response_queue.empty():
             del response_queue
-            return RpcExecutionResult(success=False, error=f"Rpc timeout")
+            return RpcExecutionResult(success=False, error="Rpc timeout")
 
         if response_queue.empty():
             del response_queue
-            return RpcExecutionResult(success=False, error=f"No response received from RPC execution")
+            return RpcExecutionResult(success=False, error="No response received from RPC execution")
 
         response = response_queue.get_nowait()
+        if not response.ok:
+            return RpcExecutionResult(success=False, error=f"{response.reason} (code: {response.status_code})",
+                                      status_code=response.status_code)
+
         response_expression = rpc_request.get('responseValueExpression')
         try:
             response_body = response.json()
@@ -316,57 +286,29 @@ class RequestConnector(Connector, Thread):
         return RpcExecutionResult(success=True, response_body=response_body, status_code=response.status_code)
 
     @staticmethod
-    def __parse_reserved_rpc_params(rpc_method_name, params):
-        result_params = {}
-        for param in params.split(';'):
-            try:
-                (key, value) = param.split('=')
-                new_key = key.strip() if isinstance(key, str) else key
-                if key and value:
-                    result_params[new_key] = value
-            except ValueError:
-                continue
+    def __build_reserved_rpc_params(groups):
+        params = {key: value for key, value in groups.items() if value is not None}
+        params['requestValueExpression'] = params.pop('value', '')
+        return params
 
-        if rpc_method_name == 'set':
-            result_params['requestValueExpression'] = result_params.pop('value', None)
+    @staticmethod
+    def __build_rpc_config(params):
+        headers = params.get("httpHeaders", {"Content-Type": "application/json"})
+        rpc_config = {
+            "requestUrlExpression": params.get("requestUrlExpression"),
+            "responseTimeout": params.get("responseTimeout", 1),
+            "httpMethod": params.get("httpMethod", "GET"),
+            "requestValueExpression": params.get("requestValueExpression", "${params}"),
+            "responseValueExpression": params.get("responseValueExpression"),
+            "timeout": params.get("timeout", 0.5),
+            "tries": params.get("tries", 3),
+            "httpHeaders": loads(headers) if isinstance(headers, str) else headers
+        }
 
-        return result_params
+        if not rpc_config["requestUrlExpression"]:
+            raise ValueError("requestUrlExpression parameter is required. Please check your RPC params.")
 
-    def __format_rpc_reqeust(self, params):
-        received_params = {}
-        for key, value in params.items():
-            new_key = key.strip() if isinstance(key, str) else key
-            received_params[new_key] = value
-
-        params = received_params
-
-        try:
-            formated_request_value = {
-                "requestUrlExpression": params.get("requestUrlExpression"),
-                "responseTimeout": params.get("responseTimeout", 1),
-                "httpMethod": params.get("httpMethod", "GET"),
-                "requestValueExpression": params.get("requestValueExpression", "${params}"),
-                "responseValueExpression": params.get("responseValueExpression"),
-                "timeout": params.get("timeout", 0.5),
-                "tries": params.get("tries", 3),
-                "httpHeaders": (
-                    loads(params.get("httpHeaders", '{"Content-Type": "application/json"}'))
-                    if isinstance(params.get("httpHeaders", '{"Content-Type": "application/json"}'), str)
-                    else params.get("httpHeaders", {"Content-Type": "application/json"})
-                )
-            }
-        except Exception:
-            raise
-
-        if not formated_request_value.get("requestUrlExpression"):
-            self._log.error(
-                "requestUrlExpression parameter is required for reserved RPCs. Please check your RPC params."
-            )
-            raise ValueError(
-                "requestUrlExpression parameter is required for reserved RPCs. Please check your RPC params."
-            )
-
-        return formated_request_value
+        return rpc_config
 
     def __fill_requests(self):
         self._log.debug(self.__config["mapping"])
