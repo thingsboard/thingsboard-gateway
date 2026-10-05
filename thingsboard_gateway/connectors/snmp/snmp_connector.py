@@ -15,13 +15,19 @@
 import asyncio
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from random import choice
-from re import search
+from re import fullmatch, search
 from socket import gethostbyname
 from string import ascii_lowercase
 from threading import Thread
 from time import time
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.connectors.snmp.constants import (
+    RESERVED_GET_RPC_SCHEMA,
+    RESERVED_SET_RPC_SCHEMA,
+    RESERVED_GET_RPC_PATTERN,
+    RESERVED_SET_RPC_PATTERN
+)
 from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.rpc_request import RPCType
@@ -57,8 +63,6 @@ SNMP_CREDENTIALS_BY_VERSION = {
 
 
 class SNMPConnector(Connector, Thread):
-    RESERVED_RPC_SCHEMA = "oid=<oid>;[value=<value>;][type=<type>;][timeout=<seconds>;]"
-
     def __init__(self, gateway, config, connector_type):
         super().__init__()
         self.daemon = True
@@ -335,10 +339,9 @@ class SNMPConnector(Connector, Thread):
                 return self._process_rpc_to_device(rpc_request, device)
             elif rpc_request.rpc_type == RPCType.RESERVED:
                 return self._process_reserved_rpc(rpc_request, device)
-
-            return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
+            else:
+                return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
         except Exception as e:
-            self._log.exception(e)
             return self.__rpc_error_response(rpc_request, f'Error processing RPC request {rpc_request}: {e}')
 
     def __rpc_error_response(self, rpc_request, error_msg) -> RPCResponse:
@@ -357,39 +360,22 @@ class SNMPConnector(Connector, Thread):
         return self._process_rpc(rpc_request, device, rpc_config, value=rpc_request.params)
 
     def _process_reserved_rpc(self, rpc_request, device) -> RPCResponse:
-        params = self.__parse_reserved_rpc_params(rpc_request.params)
-        method = rpc_request.method_name.lower()
-        params.setdefault('method', method)
-
-        if not params.get('oid'):
+        if not rpc_request.params:
             return self.__rpc_error_response(
-                rpc_request, f"Reserved RPC '{method}' requires 'oid' param, "
-                             f"expected format: {self.RESERVED_RPC_SCHEMA}")
+                rpc_request, f"No 'params' found in reserved RPC request '{rpc_request.method_name}'")
 
-        value = params.get('value') if method == 'set' else None
-        if method == 'set' and value is None:
+        is_set = rpc_request.method_name.lower() == 'set'
+        pattern = RESERVED_SET_RPC_PATTERN if is_set else RESERVED_GET_RPC_PATTERN
+        match = fullmatch(pattern, rpc_request.params)
+        if match is None:
+            expected_schema = RESERVED_SET_RPC_SCHEMA if is_set else RESERVED_GET_RPC_SCHEMA
             return self.__rpc_error_response(
-                rpc_request, f"Reserved RPC 'set' requires 'value' param, "
-                             f"expected format: {self.RESERVED_RPC_SCHEMA}")
+                rpc_request, f"The requested RPC does not match with the schema: {expected_schema}")
 
-        return self._process_rpc(rpc_request, device, params, value=value)
-
-    @staticmethod
-    def __parse_reserved_rpc_params(raw_params):
-        if not isinstance(raw_params, str):
-            return {}
-
-        params = {}
-        for param in raw_params.split(';'):
-            try:
-                (key, value) = param.split('=', 1)
-            except ValueError:
-                continue
-
-            if key and value:
-                params[key] = value
-
-        return params
+        rpc_config = {key: value for key, value in match.groupdict().items() if value is not None}
+        rpc_config['method'] = 'set' if is_set else 'get'
+        value = rpc_config.pop('value', None)
+        return self._process_rpc(rpc_request, device, rpc_config, value=value)
 
     def _process_rpc(self, rpc_request, device, rpc_config, value) -> RPCResponse:
         try:
