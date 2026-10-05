@@ -18,6 +18,7 @@ from hashlib import sha1
 from os import getenv, path
 from pathlib import Path
 from random import choice
+from re import fullmatch
 from string import ascii_lowercase
 from threading import RLock, Thread
 from time import sleep
@@ -42,6 +43,7 @@ except ImportError:
     TBUtility.install_package("pyodbc")
     import pyodbc
 
+from thingsboard_gateway.connectors.odbc.constants import RESERVED_RPC_SCHEMA, RESERVED_RPC_PATTERN
 from thingsboard_gateway.connectors.odbc.odbc_uplink_converter import OdbcUplinkConverter
 
 from thingsboard_gateway.connectors.connector import Connector
@@ -55,7 +57,6 @@ class OdbcConnector(Connector, Thread):
     DEFAULT_ENABLE_UNKNOWN_RPC = False
     DEFAULT_OVERRIDE_RPC_PARAMS = False
     DEFAULT_PROCESS_RPC_RESULT = False
-    RESERVED_RPC_SCHEMA = "procedure_name=<name>|query=<query>;[value=<arg1>,<arg2>;][with_result=true|false;]"
 
     def __init__(self, gateway, config, connector_type):
         super().__init__()
@@ -142,19 +143,18 @@ class OdbcConnector(Connector, Thread):
                 return self._process_rpc_to_device(rpc_request)
             elif rpc_request.rpc_type == RPCType.RESERVED:
                 return self._process_reserved_rpc(rpc_request)
-
-            return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
+            else:
+                return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
         except Exception as e:
-            self._log.exception(e)
             return self.__rpc_error_response(rpc_request, f'Error processing RPC request {rpc_request}: {e}')
 
-    def __rpc_error_response(self, rpc_request, error_msg):
+    def __rpc_error_response(self, rpc_request, error_msg) -> RPCResponse:
         self._log.error("[%s] %s", self.get_name(), error_msg)
         response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
         response.set_error_msg(error_msg)
         return response
 
-    def _process_rpc_to_device(self, rpc_request):
+    def _process_rpc_to_device(self, rpc_request) -> RPCResponse:
         rpc_config, error_msg = self.__resolve_device_rpc_config(rpc_request)
         if rpc_config is None:
             return self.__rpc_error_response(rpc_request, error_msg)
@@ -185,23 +185,22 @@ class OdbcConnector(Connector, Thread):
             return None, f"Params of RPC '{rpc_request.method_name}' must be an object to override the RPC config"
         return {**method_config, **request_params}, None
 
-    def _process_reserved_rpc(self, rpc_request):
-        params = self.__get_reserved_rpc_params(rpc_request.params)
-        if not params:
+    def _process_reserved_rpc(self, rpc_request) -> RPCResponse:
+        if not rpc_request.params:
             return self.__rpc_error_response(
-                rpc_request, f"Reserved RPC '{rpc_request.method_name}' params are empty, "
-                             f"expected format: {self.RESERVED_RPC_SCHEMA}")
+                rpc_request, f"No 'params' found in reserved RPC request '{rpc_request.method_name}'")
 
-        if not params.get('query') and not params.get('procedure_name'):
+        match = fullmatch(RESERVED_RPC_PATTERN, rpc_request.params)
+        if match is None:
             return self.__rpc_error_response(
-                rpc_request, f"Reserved RPC '{rpc_request.method_name}' requires 'query' or 'procedure_name', "
-                             f"expected format: {self.RESERVED_RPC_SCHEMA}")
+                rpc_request, f"The requested RPC does not match with the schema: {RESERVED_RPC_SCHEMA}")
 
+        params = match.groupdict()
         return self._execute(rpc_request,
-                             procedure_name=params.get('procedure_name', ''),
-                             query=params.get('query', ''),
-                             sql_params=params.get('value', []),
-                             with_result=params.get('with_result', False))
+                             procedure_name=params['procedure_name'] or '',
+                             query=params['query'] or '',
+                             sql_params=params['value'].split(',') if params['value'] else [],
+                             with_result=(params['with_result'] or '').lower() == 'true')
 
     def _execute(self, rpc_request, procedure_name, query, sql_params, with_result) -> RPCResponse:
         self._log.debug("[%s] Processing '%s' RPC request (id=%s) for '%s' device: procedure=%s, params=%s, query=%s",
@@ -248,28 +247,6 @@ class OdbcConnector(Connector, Thread):
             except UnicodeDecodeError:
                 return bytes(value).hex()
         return value
-
-    @staticmethod
-    def __get_reserved_rpc_params(rpc_params):
-        if not isinstance(rpc_params, str):
-            return {}
-
-        params = {}
-        for param in rpc_params.split(';'):
-            try:
-                (key, value) = param.split('=', 1)
-            except ValueError:
-                continue
-
-            if key and value:
-                if key == 'with_result':
-                    params[key] = value.lower() == 'true'
-                elif key == 'value':
-                    params[key] = value.split(',')
-                else:
-                    params[key] = value
-
-        return params
 
     def __process_rpc(self, procedure_name, query, sql_params):
         if self.__rpc_cursor is None:
