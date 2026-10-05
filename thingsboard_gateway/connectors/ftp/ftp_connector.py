@@ -25,6 +25,12 @@ from time import perf_counter as timer, sleep
 import simplejson
 
 from thingsboard_gateway.connectors.ftp.backward_compatibility_adapter import FTPBackwardCompatibilityAdapter
+from thingsboard_gateway.connectors.ftp.constants import (
+    RESERVED_GET_RPC_SCHEMA,
+    RESERVED_SET_RPC_SCHEMA,
+    RESERVED_GET_RPC_PATTERN,
+    RESERVED_SET_RPC_PATTERN
+)
 from thingsboard_gateway.connectors.ftp.file import File
 from thingsboard_gateway.connectors.ftp.ftp_uplink_converter import FTPUplinkConverter
 from thingsboard_gateway.connectors.ftp.path import Path
@@ -41,8 +47,6 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class FTPConnector(Connector, Thread):
-    RESERVED_RPC_SCHEMA = "filePath=<path>;[value=<value>;]"
-
     def __init__(self, gateway, config, connector_type):
         super().__init__()
         self.statistics = {'MessagesReceived': 0,
@@ -438,10 +442,9 @@ class FTPConnector(Connector, Thread):
                 return self._process_reserved_rpc(rpc_request)
             elif rpc_request.rpc_type == RPCType.CONNECTOR:
                 return self._process_rpc_to_connector(rpc_request)
-
-            return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
+            else:
+                return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
         except Exception as e:
-            self.__log.exception(e)
             return self.__rpc_error_response(rpc_request, f'Error processing RPC request {rpc_request}: {e}')
 
     def __rpc_error_response(self, rpc_request, error_msg) -> RPCResponse:
@@ -486,42 +489,22 @@ class FTPConnector(Connector, Thread):
         return None
 
     def _process_reserved_rpc(self, rpc_request) -> RPCResponse:
-        params = self.__parse_reserved_rpc_params(rpc_request.params)
-        method = rpc_request.method_name.lower()
-
-        file_path = params.get('filePath')
-        if not file_path:
+        if not rpc_request.params:
             return self.__rpc_error_response(
-                rpc_request, f"Reserved RPC '{method}' requires 'filePath' param, "
-                             f"expected format: {self.RESERVED_RPC_SCHEMA}")
+                rpc_request, f"No 'params' found in reserved RPC request '{rpc_request.method_name}'")
 
-        if method == 'get':
-            return self._read_file(rpc_request, file_path)
-
-        value = params.get('value')
-        if value is None:
+        is_set = rpc_request.method_name.lower() == 'set'
+        pattern = RESERVED_SET_RPC_PATTERN if is_set else RESERVED_GET_RPC_PATTERN
+        match = fullmatch(pattern, rpc_request.params)
+        if match is None:
+            expected_schema = RESERVED_SET_RPC_SCHEMA if is_set else RESERVED_GET_RPC_SCHEMA
             return self.__rpc_error_response(
-                rpc_request, f"Reserved RPC 'set' requires 'value' param, "
-                             f"expected format: {self.RESERVED_RPC_SCHEMA}")
+                rpc_request, f"The requested RPC does not match with the schema: {expected_schema}")
 
-        return self._write_file(rpc_request, file_path, value)
+        if is_set:
+            return self._write_file(rpc_request, match.group('filePath'), match.group('value'))
 
-    @staticmethod
-    def __parse_reserved_rpc_params(raw_params):
-        if not isinstance(raw_params, str):
-            return {}
-
-        params = {}
-        for param in raw_params.split(';'):
-            try:
-                (key, value) = param.split('=', 1)
-            except ValueError:
-                continue
-
-            if key and value:
-                params[key] = value
-
-        return params
+        return self._read_file(rpc_request, match.group('filePath'))
 
     def _process_rpc(self, rpc_request, value_expression) -> RPCResponse:
         if not isinstance(value_expression, str):
@@ -529,9 +512,12 @@ class FTPConnector(Connector, Thread):
                 rpc_request, f"RPC '{rpc_request.method_name}' value must be a string, "
                              f"got {type(value_expression).__name__}")
 
-        if rpc_request.method_name != 'write':
-            return self._read_file(rpc_request, value_expression)
+        if rpc_request.method_name == 'write':
+            return self.__process_write_rpc(rpc_request, value_expression)
 
+        return self._read_file(rpc_request, value_expression)
+
+    def __process_write_rpc(self, rpc_request, value_expression) -> RPCResponse:
         write_expression = re.sub("'", '', value_expression).split(';', 1)
         if len(write_expression) != 2:
             return self.__rpc_error_response(
