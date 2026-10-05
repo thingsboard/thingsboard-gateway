@@ -27,6 +27,12 @@ from time import sleep
 from simplejson import dumps, loads
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.connectors.ocpp.constants import (
+    RESERVED_GET_RPC_SCHEMA,
+    RESERVED_SET_RPC_SCHEMA,
+    RESERVED_GET_RPC_PATTERN,
+    RESERVED_SET_RPC_PATTERN
+)
 from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.rpc_request import RPCType
@@ -341,10 +347,9 @@ class OcppConnector(Connector, Thread):
                 return self._process_rpc_to_device(rpc_request, charge_point)
             elif rpc_request.rpc_type == RPCType.RESERVED:
                 return self._process_reserved_rpc(rpc_request, charge_point)
-
-            return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
+            else:
+                return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
         except Exception as e:
-            self._log.exception(e)
             return self.__rpc_error_response(rpc_request, f'Error processing RPC request {rpc_request}: {e}')
 
     def __rpc_error_response(self, rpc_request, error_msg):
@@ -380,18 +385,21 @@ class OcppConnector(Connector, Thread):
         return self._call(charge_point, request, rpc_config.get('timeout', RPC_DEFAULT_TIMEOUT), rpc_request)
 
     def _process_reserved_rpc(self, rpc_request, charge_point):
-        method = rpc_request.method_name.lower()
-        params = self.__parse_rpc_params(rpc_request.params)
-        if not params.get('component') or not params.get('variable'):
+        if not rpc_request.params:
             return self.__rpc_error_response(
-                rpc_request, f"Reserved RPC '{method}' requires 'component' and 'variable' params "
-                             f"(e.g. 'component=OCPPCommCtrlr;variable=HeartbeatInterval;value=30')")
+                rpc_request, f"No 'params' found in reserved RPC request '{rpc_request.method_name}'")
 
+        is_set = rpc_request.method_name.lower() == 'set'
+        pattern = RESERVED_SET_RPC_PATTERN if is_set else RESERVED_GET_RPC_PATTERN
+        match = re.fullmatch(pattern, rpc_request.params)
+        if match is None:
+            expected_schema = RESERVED_SET_RPC_SCHEMA if is_set else RESERVED_GET_RPC_SCHEMA
+            return self.__rpc_error_response(
+                rpc_request, f"The requested RPC does not match with the schema: {expected_schema}")
+
+        params = match.groupdict()
         component, variable = self.__build_component_variable(params)
-        if method == 'set':
-            if params.get('value') is None:
-                return self.__rpc_error_response(rpc_request, "Reserved RPC 'set' requires 'value' param")
-
+        if is_set:
             request = call.SetVariables(set_variable_data=[{
                 'attribute_value': params['value'],
                 'component': component,
@@ -403,7 +411,7 @@ class OcppConnector(Connector, Thread):
                 'variable': variable,
             }])
 
-        return self._call(charge_point, request, params.get('timeout', RPC_DEFAULT_TIMEOUT), rpc_request)
+        return self._call(charge_point, request, params.get('timeout') or RPC_DEFAULT_TIMEOUT, rpc_request)
 
     def _call(self, charge_point, request, timeout, rpc_request) -> RPCResponse:
         timeout = min(float(timeout), float(rpc_request.timeout))
@@ -448,23 +456,6 @@ class OcppConnector(Connector, Thread):
             return call_cls(**payload), None
         except TypeError as e:
             return None, f"Invalid payload fields for OCPP action '{action}': {e}"
-
-    @staticmethod
-    def __parse_rpc_params(raw_params):
-        if not isinstance(raw_params, str):
-            return {}
-
-        params = {}
-        for param in raw_params.split(';'):
-            try:
-                (key, value) = param.split('=', 1)
-            except ValueError:
-                continue
-
-            if key and value:
-                params[key] = value
-
-        return params
 
     @staticmethod
     def __build_component_variable(params):
