@@ -328,17 +328,12 @@ class SNMPConnector(Connector, Thread):
         self._log.debug('Received RPC request: %s', rpc_request)
 
         try:
-            if rpc_request.rpc_type == RPCType.CONNECTOR:
-                return self.__rpc_error_response(rpc_request, 'Connector RPC is not supported by SNMP connector')
-
-            device = self.__find_device_by_name(rpc_request.device_name)
-            if device is None:
-                return self.__rpc_error_response(rpc_request, f'Device {rpc_request.device_name} not found')
-
             if rpc_request.rpc_type == RPCType.DEVICE:
-                return self._process_rpc_to_device(rpc_request, device)
+                return self._process_rpc_to_device(rpc_request)
             elif rpc_request.rpc_type == RPCType.RESERVED:
-                return self._process_reserved_rpc(rpc_request, device)
+                return self._process_reserved_rpc(rpc_request)
+            elif rpc_request.rpc_type == RPCType.CONNECTOR:
+                return self.__rpc_error_response(rpc_request, 'Connector RPC is not supported by SNMP connector')
             else:
                 return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
         except Exception as e:
@@ -350,7 +345,11 @@ class SNMPConnector(Connector, Thread):
         response.set_error_msg(error_msg)
         return response
 
-    def _process_rpc_to_device(self, rpc_request, device) -> RPCResponse:
+    def _process_rpc_to_device(self, rpc_request) -> RPCResponse:
+        device = self.__find_device_by_name(rpc_request.device_name)
+        if device is None:
+            return self.__rpc_error_response(rpc_request, f'Device {rpc_request.device_name} not found')
+
         rpc_config = next((rpc_config for rpc_config in device.get("serverSideRpcRequests", [])
                            if search(rpc_request.method_name, rpc_config['requestFilter'])), None)
         if rpc_config is None:
@@ -359,7 +358,11 @@ class SNMPConnector(Connector, Thread):
 
         return self._process_rpc(rpc_request, device, rpc_config, value=rpc_request.params)
 
-    def _process_reserved_rpc(self, rpc_request, device) -> RPCResponse:
+    def _process_reserved_rpc(self, rpc_request) -> RPCResponse:
+        device = self.__find_device_by_name(rpc_request.device_name)
+        if device is None:
+            return self.__rpc_error_response(rpc_request, f'Device {rpc_request.device_name} not found')
+
         if not rpc_request.params:
             return self.__rpc_error_response(
                 rpc_request, f"No 'params' found in reserved RPC request '{rpc_request.method_name}'")
