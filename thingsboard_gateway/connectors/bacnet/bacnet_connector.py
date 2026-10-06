@@ -28,7 +28,10 @@ from thingsboard_gateway.connectors.bacnet.constants import (
     RESERVED_GET_RPC_SCHEMA,
     RESERVED_SET_RPC_SCHEMA,
     SUPPORTED_OBJECTS_TYPES,
-    ALLOWED_APDU
+    ALLOWED_APDU,
+    GET_RPC_PATTERN,
+    SET_RPC_PATTERN,
+    DEFAULT_RPC_TIMEOUT
 )
 from ast import literal_eval
 
@@ -36,11 +39,13 @@ from thingsboard_gateway.connectors.bacnet.ede_parser import EDEParser
 from thingsboard_gateway.connectors.bacnet.entities.routers import Routers
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, \
-    STATISTIC_MESSAGE_SENT_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT, RPC_DEFAULT_TIMEOUT
+    STATISTIC_MESSAGE_SENT_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
+from thingsboard_gateway.gateway.entities.rpc_request import RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 
 try:
     from bacpypes3.apdu import ErrorRejectAbortNack
@@ -51,7 +56,14 @@ except ImportError:
 
 from bacpypes3.pdu import Address, IPv4Address
 from bacpypes3.primitivedata import Null, Real
-from bacpypes3.basetypes import DailySchedule, TimeValue, DeviceObjectPropertyReference, ObjectPropertyReference, PropertyIdentifier, ObjectIdentifier
+from bacpypes3.basetypes import (
+    DailySchedule,
+    TimeValue,
+    DeviceObjectPropertyReference,
+    ObjectPropertyReference,
+    PropertyIdentifier,
+    ObjectIdentifier
+)
 from thingsboard_gateway.connectors.bacnet.device import Device, Devices
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 from thingsboard_gateway.connectors.bacnet.application import Application
@@ -739,7 +751,8 @@ class AsyncBACnetConnector(Thread, Connector):
     def on_attributes_update(self, content):
         try:
             self.__log.debug('Received Attribute Update request: %r', content)
-            device = self.__get_device_by_name(payload=content)
+            device_name = content.get('device')
+            device = self.__get_device_by_name(device_name)
             if device is None:
                 self.__log.error('Device %s not found', content['device'])
                 return
@@ -800,11 +813,7 @@ class AsyncBACnetConnector(Thread, Connector):
                 self.__log.debug("Error", exc_info=e)
                 continue
 
-    def __get_device_by_name(self, payload: dict) -> Device | None:
-        device_name = payload.get('device')
-        if not device_name:
-            self.__log.error('The attribute update request does not contain a device name %s', payload)
-
+    def __get_device_by_name(self, device_name: str) -> Device | None:
         try:
             task = self.loop.create_task(self.__devices.get_device_by_name(device_name))
             task_completed, device = self.__wait_task_with_timeout(task=task,
@@ -835,57 +844,73 @@ class AsyncBACnetConnector(Thread, Connector):
         result['response'] = await self.__write_property(address, object_id, property_id, value, priority=priority)
         return result
 
-    def server_side_rpc_handler(self, content):
-        self.__log.debug('Received RPC request: %r', content)
+    def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
+        self.__log.debug('Received RPC request: %s', rpc_request)
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
 
-        device = self.__get_device_by_name(payload=content)
+        try:
+            device = self.__get_device_by_name(rpc_request.device_name)
+            if not device:
+                err_msg = f'Failed to found device {rpc_request.device_name}'
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
 
-        if not device:
-            self.__log.error('Failed to found device %s', content.get('device'))
-            self.__gateway.send_rpc_reply(device=content.get('device'),
-                                          req_id=content['data'].get('id'),
-                                          content={"result": {'error': "Device not found"}})
-            return
+            if rpc_request.rpc_type == RPCType.CONNECTOR:
+                err_msg = 'Not implemented'
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                return self._process_reserved_rpc(rpc_request, device)
+            elif rpc_request.rpc_type == RPCType.DEVICE:
+                return self._process_rpc_to_device(rpc_request, device)
+            else:
+                err_msg = f"Invalid RPC type request: {rpc_request}"
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
+        except Exception as e:
+            err_msg = f'Error processing RPC request {rpc_request.method_name}: {e}'
+            self.__log.error(err_msg)
+            response.set_error_msg(err_msg)
+            return response
 
-        rpc_method_name = content.get('data', {}).get('method')
-        if rpc_method_name is None:
-            self.__log.error('Method name not found in RPC request: %r', content)
-            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
-                                          req_id=content['data'].get('id'),
-                                          content={"result": {'error': "No valid rpc method found"}})
-            return
+    def _process_rpc_to_device(self, rpc_request, device):
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
 
-        if rpc_method_name not in ('get', 'set'):
-            filtered_rpc_section_from_config = [rpc_config for rpc_config in device.server_side_rpc if
-                                                rpc_config['method'] == rpc_method_name]
-            if not filtered_rpc_section_from_config:
-                self.__log.error("Neither of configured device rpc methods match with %s", rpc_method_name)
-                self.__gateway.send_rpc_reply(
-                    device=device.device_info.device_name,
-                    req_id=content.get('data', {}).get('id'),
-                    content={
-                        "result": {"error": f"Neither of configured device rpc methods match with {rpc_method_name}"}}
-                )
-                return
+        rpc_config = self._find_rpc_config_by_method_name(device.server_side_rpc, rpc_request.method_name)
+        if rpc_config is None:
+            err_msg = f'Neither of configured device rpc methods match with {rpc_request.method_name}'
+            self.__log.error(err_msg)
+            response.set_error_msg(err_msg)
+            return response
 
-            for rpc_config in filtered_rpc_section_from_config:
+        err = self.__validate_device_rpc(method_rpc_config_section=rpc_config)
+        if err:
+            self.__log.error(err["error"])
+            response.set_error_msg(err['error'])
+            return response
 
-                err = self.__validate_device_rpc(method_rpc_config_section=rpc_config)
-                if err:
-                    self.__log.error(err["error"])
-                    self.__gateway.send_rpc_reply(
-                        device=device.device_info.device_name,
-                        req_id=content.get('data', {}).get('id'),
-                        content={"result": err}
-                    )
-                    return
+        result, ok = self.__process_rpc(rpc_config,
+                                        device,
+                                        rpc_request.params,
+                                        timeout=rpc_config.get('requestTimeout', DEFAULT_RPC_TIMEOUT))
+        if not ok:
+            response.set_error_msg(result)
+        else:
+            response.set_message(result)
 
-                self.__process_rpc(rpc_method_name, rpc_config, content, device)
-                self.__log.debug("Processed  device RPC request %s for device %s", rpc_method_name,
-                                 device.device_info.device_name)
-            return
-        result = self.__check_and_process_reserved_rpc(rpc_method_name, device, content)
-        return result
+        self.__log.debug("Processed  device RPC request %s for device %s", rpc_request.device_name,
+                         device.device_info.device_name)
+        return response
+
+    def _find_rpc_config_by_method_name(self, rpc_config_list, method_name):
+        filtered_rpc_configs = tuple(filter(lambda rpc_config: rpc_config['method'] == method_name, rpc_config_list))
+        if len(filtered_rpc_configs) == 0:
+            return None
+
+        return filtered_rpc_configs[0]
 
     @staticmethod
     def __validate_device_rpc(method_rpc_config_section: dict) -> dict | None:
@@ -908,54 +933,35 @@ class AsyncBACnetConnector(Thread, Connector):
                 )
             }
 
-    def __process_rpc(self, rpc_method_name, rpc_config, content, device):
-        try:
-            object_id = Device.get_object_id(rpc_config)
-            value = content.get('data', {}).get('params')
+    def __process_rpc(self, rpc_config, device, value, timeout=DEFAULT_RPC_TIMEOUT):
+        object_id = Device.get_object_id(rpc_config)
 
-            kwargs = {'priority': rpc_config.get('priority'), 'value': value,
-                      'request_type': rpc_config.get('requestType')}
-            task = self.__create_task(self.__process_rpc_request,
-                                      (Address(device.details.address),
-                                       object_id,
-                                       rpc_config['propertyId']),
-                                      kwargs)
-            task_completed, result = self.__wait_task_with_timeout(task=task,
-                                                                   timeout=content.get("timeout", RPC_DEFAULT_TIMEOUT),
-                                                                   poll_interval=0.2)
-            if not task_completed:
-                self.__log.error(
-                    "Failed to process rpc request for %s, timeout has been reached",
-                    device.name,
-                )
-                result = {"error": f"Timeout rpc has been reached for {device.name}"}
-
-            elif task_completed:
-                if result.get("response", {}).get("value", {}):
-                    self.__log.info('Processed RPC request with result: %s', result)
-                else:
-                    self.__log.error(
-                        "An error occurred during RPC request: %s",
-                        result.get('response', {}).get('error', '')
-                    )
-
-            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
-                                          req_id=content['data'].get('id'),
-                                          content={'result': str(result.get('response'))})
-            return result
-
-        except ValueError as e:
-            self.__log.error('Value error processing RPC request %s: %s', rpc_method_name, e)
-            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
-                                          req_id=content['data'].get('id'),
-                                          content={"result": {'error': f'Could not find correct mapping for {str(e)}'}})
-
-        except Exception as e:
+        kwargs = {'priority': rpc_config.get('priority'), 'value': value,
+                  'request_type': rpc_config.get('requestType')}
+        task = self.__create_task(self.__process_rpc_request,
+                                  (Address(device.details.address),
+                                   object_id,
+                                   rpc_config['propertyId']),
+                                  kwargs)
+        task_completed, result = self.__wait_task_with_timeout(task=task,
+                                                               timeout=timeout,
+                                                               poll_interval=0.2)
+        if not task_completed:
             self.__log.error(
-                'Error processing RPC request %s: %s', rpc_method_name, e)
-            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
-                                          req_id=content['data'].get('id'),
-                                          content={"result": {'error': str(e)}}, )
+                "Failed to process rpc request for %s, timeout has been reached",
+                device.name,
+            )
+            result = f"Timeout rpc has been reached for {device.name}"
+            return result, False
+
+        if result.get("response", {}).get("value") is None:
+            err = result.get('response', {}).get('error', '')
+            err_msg = f'An error occurred during RPC request: {err}'
+            self.__log.error(err_msg)
+            return err_msg, False
+
+        self.__log.info('Processed RPC request with result: %s', result)
+        return result.get("response", {}).get("value", {}), True
 
     async def __process_rpc_request(self, address, object_id, property_id, priority=None, value=None,
                                     request_type=None):
@@ -965,54 +971,49 @@ class AsyncBACnetConnector(Thread, Connector):
             response = await self.__write_property(address, object_id, property_id, value, priority=priority)
         return {"response": response}
 
-    def __check_and_process_reserved_rpc(self, rpc_method_name, device, content):
-        params_section = content['data'].get('params', {})
-        if not params_section:
-            self.__log.error('No params section found in RPC request: %r', content)
-            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
-                                          req_id=content['data'].get('id'),
-                                          content={"result": {"error": 'No params section found in RPC request'}})
-            return
+    def _process_reserved_rpc(self, rpc_request, device):
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
 
-        get_pattern = compile(r'objectType=[A-Za-z]+;objectId=\d+;propertyId=[A-Za-z]+;')
+        if not rpc_request.params:
+            err_msg = f'No params section found in RPC request: {rpc_request}'
+            self.__log.error(err_msg)
+            response.set_error_msg(err_msg)
+            return response
 
-        set_pattern = compile(r'objectType=[A-Za-z]+;objectId=\d+;propertyId=[A-Za-z]+;(priority=\d+;)?value=.+;')
-        pattern = get_pattern if rpc_method_name == 'get' else set_pattern
-        expected_schema = RESERVED_GET_RPC_SCHEMA if rpc_method_name == 'get' else RESERVED_SET_RPC_SCHEMA
-        if not pattern.match(params_section):
-            self.__log.error(f"The requested RPC does not match with the schema: {expected_schema}")
-            content = {"result": {"error": f"The requested RPC does not match with the schema: {expected_schema}"}}
-            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
-                                          req_id=content['data'].get('id'),
-                                          content=content)
-            return
-        params = {}
-        for param in params_section.split(';'):
-            try:
-                (key, value) = param.split('=')
-            except ValueError:
-                continue
+        get_pattern = compile(GET_RPC_PATTERN)
+        set_pattern = compile(SET_RPC_PATTERN)
 
-            if key and value:
-                params[key] = value
+        pattern = get_pattern if rpc_request.method_name == 'get' else set_pattern
+        expected_schema = RESERVED_GET_RPC_SCHEMA if rpc_request.method_name == 'get' else RESERVED_SET_RPC_SCHEMA
+        match = pattern.match(rpc_request.params)
+        if not match:
+            err_msg = f"The requested RPC does not match with the schema: {expected_schema}"
+            self.__log.error(err_msg)
+            response.set_error_msg(err_msg)
+            return response
 
-        if params['objectType'] not in SUPPORTED_OBJECTS_TYPES.values():
-            error_msg = f"The objectType must be from '{list(SUPPORTED_OBJECTS_TYPES.values())}, but got'{params['objectType']}"  # noqa: E501
-            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
-                                          req_id=content['data'].get('id'),
-                                          content={"result": {"error": error_msg}})
-            return
+        config = match.groupdict()
+        if config['objectType'] not in SUPPORTED_OBJECTS_TYPES.values():
+            err_msg = f"The objectType must be from '{list(SUPPORTED_OBJECTS_TYPES.values())}, but got'{config['objectType']}"  # noqa: E501
+            self.__log.error(err_msg)
+            response.set_error_msg(err_msg)
+            return response
 
-        if rpc_method_name == 'get':
-            params['requestType'] = 'readProperty'
-            content['data'].pop('params')
-        elif rpc_method_name == 'set':
-            params['requestType'] = 'writeProperty'
-            content['data'].pop('params')
-            content['data']['params'] = params.get('value')
+        value = None
+        if rpc_request.method_name == 'get':
+            config['requestType'] = 'readProperty'
+        elif rpc_request.method_name == 'set':
+            config['requestType'] = 'writeProperty'
+            value = config['value']
+            config.pop('value')
 
-        result = self.__process_rpc(rpc_method_name, params, content, device)
-        return result
+        result, ok = self.__process_rpc(config, device, value)
+        if not ok:
+            response.set_error_msg(result)
+        else:
+            response.set_message(result)
+
+        return response
 
     def get_id(self):
         return self.__id
