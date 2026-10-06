@@ -51,12 +51,23 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
                                                                   self.__config.device_name)
 
         received_data_ts = int(time() * 1000)
+        # Pre-index data by (object_id, normalized_object_type) for O(1) lookup per config item.
+        # Each value in data is (object_identifier_tuple, property_identifier, array_index, value).
+        data_index = {}
+        for value in data:
+            obj_id_num = value[0][-1]
+            obj_type_normalized = TBUtility.kebab_case_to_camel_case(str(value[0][0]))
+            key = (obj_id_num, obj_type_normalized)
+            if key not in data_index:
+                data_index[key] = []
+            data_index[key].append(value)
+
         for item_config in config:
             try:
-                values_group = self.__find_values(data,
-                                                  item_config['objectId'],
-                                                  item_config['objectType'],
-                                                  item_config['propertyId'])
+                values_group = self.__find_values_indexed(data_index,
+                                                         item_config['objectId'],
+                                                         item_config['objectType'],
+                                                         item_config['propertyId'])
 
                 converted_values = self.__convert_data(values_group)
                 if len(converted_values) > 0:
@@ -101,10 +112,19 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
             try:
                 object_id, value_prop_id, _, value = value_obj
                 if isinstance(value, Exception) or isinstance(value, ErrorType):
+                    error_class = getattr(value, 'errorClass', None)
+                    error_code = getattr(value, 'errorCode', None)
                     self.__log.error("Error converting object with objectId: \"%s\", and propertyId: \"%s\". Error: %s",
                                      object_id,
                                      value_prop_id,
                                      value)
+                    if isinstance(value, ErrorType):
+                        self.__log.error("BACnet error details for objectId: \"%s\", propertyId: \"%s\". "
+                                         "errorClass: %s, errorCode: %s",
+                                         object_id,
+                                         value_prop_id,
+                                         error_class,
+                                         error_code)
                     continue
 
                 if isinstance(value, DateTime):
@@ -151,6 +171,42 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
             return ReportStrategyConfig(report_strategy)
         except ValueError as e:
             self.__log.trace("Report strategy config is not specified for device %s: %s", device_name, e)
+
+    def __find_values_indexed(self, data_index, object_id, object_type, property_id):
+        """
+        O(1) lookup version using pre-built index dict keyed by (object_id, normalized_type).
+        """
+        required_object_type = TBUtility.kebab_case_to_camel_case(object_type)
+        key = (object_id, required_object_type)
+        candidates = data_index.get(key, [])
+
+        if not candidates:
+            return []
+
+        # Normalize property_id filter once
+        if isinstance(property_id, set):
+            normalized_props = {TBUtility.kebab_case_to_camel_case(p) for p in property_id}
+        elif isinstance(property_id, str):
+            normalized_props = {TBUtility.kebab_case_to_camel_case(property_id)}
+        else:
+            normalized_props = {TBUtility.kebab_case_to_camel_case(str(p)) for p in property_id}
+
+        result = []
+        seen = set()
+
+        for value in candidates:
+            prop_normalized = TBUtility.kebab_case_to_camel_case(str(value[1]))
+            if prop_normalized not in normalized_props:
+                continue
+
+            dedup_key = (value[0][-1], required_object_type, prop_normalized)
+            if dedup_key in seen:
+                continue
+
+            seen.add(dedup_key)
+            result.append(value)
+
+        return result
 
     def __find_values(self, data, object_id, object_type, property_id):
         required_object_type = TBUtility.kebab_case_to_camel_case(object_type)
