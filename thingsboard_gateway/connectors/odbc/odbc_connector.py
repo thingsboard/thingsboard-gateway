@@ -132,104 +132,80 @@ class OdbcConnector(Connector, Thread):
     def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
         self._log.debug("[%s] Received RPC request: %s", self.get_name(), rpc_request)
 
-        try:
-            if rpc_request.rpc_type == RPCType.CONNECTOR:
-                return self.__rpc_error_response(rpc_request, 'Connector RPC is not supported by ODBC connector')
-
-            if not self.is_connected():
-                return self.__rpc_error_response(rpc_request, 'Cannot process RPC request: not connected to database')
-
-            if rpc_request.rpc_type == RPCType.DEVICE:
-                return self._process_rpc_to_device(rpc_request)
-            elif rpc_request.rpc_type == RPCType.RESERVED:
-                return self._process_reserved_rpc(rpc_request)
-            else:
-                return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
-        except Exception as e:
-            return self.__rpc_error_response(rpc_request, f'Error processing RPC request {rpc_request}: {e}')
-
-    def __rpc_error_response(self, rpc_request, error_msg) -> RPCResponse:
-        self._log.error("[%s] %s", self.get_name(), error_msg)
         response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
-        response.set_error_msg(error_msg)
+        try:
+            if rpc_request.rpc_type == RPCType.DEVICE:
+                rpc_config = self.__get_device_rpc_config(rpc_request.method_name, rpc_request.params)
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                rpc_config = self.__get_reserved_rpc_config(rpc_request.params)
+            elif rpc_request.rpc_type == RPCType.CONNECTOR:
+                raise ValueError('Connector RPC is not supported by ODBC connector')
+            else:
+                raise ValueError(f'Invalid RPC type request: {rpc_request}')
+
+            response.set_message(self.__execute_rpc(**rpc_config))
+        except Exception as e:
+            self._log.error("[%s] Failed to process RPC request %s: %s", self.get_name(), rpc_request, e)
+            response.set_error_msg(f"Failed to process '{rpc_request.method_name}' RPC request: {e}")
+
         return response
 
-    def _process_rpc_to_device(self, rpc_request) -> RPCResponse:
-        rpc_config, error_msg = self.__resolve_device_rpc_config(rpc_request)
-        if rpc_config is None:
-            return self.__rpc_error_response(rpc_request, error_msg)
-
-        return self._execute(rpc_request,
-                             procedure_name=rpc_request.method_name,
-                             query=rpc_config.get("query", ""),
-                             # The params attribute is obsolete but leave for backward configuration compatibility
-                             sql_params=rpc_config.get("args") or rpc_config.get("params", []),
-                             with_result=rpc_config.get("result", self.DEFAULT_PROCESS_RPC_RESULT))
-
-    def __resolve_device_rpc_config(self, rpc_request):
+    def __get_device_rpc_config(self, method_name, params):
         rpc_settings = self.__config["serverSideRpc"]
-        method_config = rpc_settings["methods"].get(rpc_request.method_name)
-        request_params = rpc_request.params
+        method_config = rpc_settings["methods"].get(method_name)
 
         if method_config is None:
             if not rpc_settings["enableUnknownRpc"]:
-                return None, f"Unknown RPC method '{rpc_request.method_name}'"
-            if not isinstance(request_params, dict):
-                return None, (f"Unknown RPC '{rpc_request.method_name}' requires params as an object "
-                              f"with 'query' and optional 'args', 'result'")
-            return request_params, None
+                raise ValueError("Unknown RPC method")
+            if not isinstance(params, dict):
+                raise ValueError("Unknown RPC requires params as an object with 'query' and optional 'args', 'result'")
+            rpc_config = params
+        elif rpc_settings["overrideRpcConfig"] and params:
+            if not isinstance(params, dict):
+                raise ValueError("Params must be an object to override the RPC config")
+            rpc_config = {**method_config, **params}
+        else:
+            rpc_config = method_config
 
-        if not rpc_settings["overrideRpcConfig"] or not request_params:
-            return method_config, None
-        if not isinstance(request_params, dict):
-            return None, f"Params of RPC '{rpc_request.method_name}' must be an object to override the RPC config"
-        return {**method_config, **request_params}, None
+        return {'procedure_name': method_name,
+                'query': rpc_config.get("query", ""),
+                # The params attribute is obsolete but leave for backward configuration compatibility
+                'sql_params': rpc_config.get("args") or rpc_config.get("params", []),
+                'with_result': rpc_config.get("result", self.DEFAULT_PROCESS_RPC_RESULT)}
 
-    def _process_reserved_rpc(self, rpc_request) -> RPCResponse:
-        if not rpc_request.params:
-            return self.__rpc_error_response(
-                rpc_request, f"No 'params' found in reserved RPC request '{rpc_request.method_name}'")
+    @staticmethod
+    def __get_reserved_rpc_config(params):
+        if not params:
+            raise ValueError("No 'params' found in reserved RPC request")
 
-        match = fullmatch(RESERVED_RPC_PATTERN, rpc_request.params)
+        match = fullmatch(RESERVED_RPC_PATTERN, params)
         if match is None:
-            return self.__rpc_error_response(
-                rpc_request, f"The requested RPC does not match with the schema: {RESERVED_RPC_SCHEMA}")
+            raise ValueError(f"The requested RPC does not match with the schema: {RESERVED_RPC_SCHEMA}")
 
-        params = match.groupdict()
-        return self._execute(rpc_request,
-                             procedure_name=params['procedure_name'] or '',
-                             query=params['query'] or '',
-                             sql_params=params['value'].split(',') if params['value'] else [],
-                             with_result=(params['with_result'] or '').lower() == 'true')
+        groups = match.groupdict()
+        return {'procedure_name': groups['procedure_name'] or '',
+                'query': groups['query'] or '',
+                'sql_params': groups['value'].split(',') if groups['value'] else [],
+                'with_result': (groups['with_result'] or '').lower() == 'true'}
 
-    def _execute(self, rpc_request, procedure_name, query, sql_params, with_result) -> RPCResponse:
-        self._log.debug("[%s] Processing '%s' RPC request (id=%s) for '%s' device: procedure=%s, params=%s, query=%s",
-                        self.get_name(), rpc_request.method_name, rpc_request.id, rpc_request.device_name,
-                        procedure_name, sql_params, query)
+    def __execute_rpc(self, procedure_name, query, sql_params, with_result):
+        if not self.is_connected():
+            raise ValueError('Not connected to database')
 
-        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
-        try:
-            with self.__db_lock:
-                self.__process_rpc(procedure_name, query, sql_params)
+        self._log.debug("[%s] Executing RPC: procedure=%s, params=%s, query=%s",
+                        self.get_name(), procedure_name, sql_params, query)
 
-                if not with_result:
-                    response.set_message({'success': True})
-                elif self.__rpc_cursor.description is None:
-                    return self.__rpc_error_response(
-                        rpc_request, f"RPC '{rpc_request.method_name}' query returned no result set")
-                else:
-                    row = self.__rpc_cursor.fetchone()
-                    response.set_message(self.__to_json_safe(self.row_to_dict(row)) if row is not None else None)
-        except pyodbc.Warning as w:
-            return self.__rpc_error_response(
-                rpc_request, f"Warning while processing '{rpc_request.method_name}' RPC request: {w}")
-        except pyodbc.Error as e:
-            return self.__rpc_error_response(
-                rpc_request, f"Failed to process '{rpc_request.method_name}' RPC request: {e}")
+        with self.__db_lock:
+            self.__process_rpc(procedure_name, query, sql_params)
 
-        self._log.debug("[%s] Processed '%s' RPC request (id=%s) for '%s' device",
-                        self.get_name(), rpc_request.method_name, rpc_request.id, rpc_request.device_name)
-        return response
+            if not with_result:
+                return {'success': True}
+
+            if self.__rpc_cursor.description is None:
+                raise ValueError("Query returned no result set")
+
+            row = self.__rpc_cursor.fetchone()
+            return self.__to_json_safe(self.row_to_dict(row)) if row is not None else None
 
     @classmethod
     def __to_json_safe(cls, value):
