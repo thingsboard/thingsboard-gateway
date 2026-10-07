@@ -96,18 +96,26 @@ class Application(NormalApplication, ForeignApplication):
 
                 if apdu.pduSource is None:
                     self.__log.warning("Received APDU without source address: %s", apdu)
-                    return
+                    continue
 
                 pdu_source = apdu.pduSource
                 if pdu_source not in self._requests:
-                    return
+                    self.__log.debug("Received APDU from %s with no pending requests, ignoring: %s", pdu_source, apdu)
+                    continue
 
                 requests = self._requests[pdu_source]
                 for indx, (request, future) in enumerate(requests):
                     if request.apduInvokeID == apdu.apduInvokeID:
                         break
                 else:
-                    return
+                    self.__log.debug("Received APDU with unknown invoke id %s from %s, ignoring: %s",
+                                     apdu.apduInvokeID, pdu_source, apdu)
+                    continue
+
+                if future.done():
+                    self.__log.debug("Request %s to %s already finished (cancelled or answered), ignoring: %s",
+                                     apdu.apduInvokeID, pdu_source, apdu)
+                    continue
 
                 if isinstance(apdu, (SimpleAckPDU, ComplexAckPDU)):
                     future.set_result(apdu)
