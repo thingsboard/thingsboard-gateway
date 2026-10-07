@@ -188,6 +188,11 @@ class TBUtility:
         return text
 
     @staticmethod
+    def replace_params_tags_from_rpc_request(text, rpc_request):
+        data = {'data': rpc_request.params}
+        return TBUtility.replace_params_tags(text, data)
+
+    @staticmethod
     def get_dict_key_by_value(dictionary: dict, value):
         try:
             return next(key for key, val in dictionary.items() if val == value)
