@@ -100,7 +100,7 @@ class RPCRequestBase:
     @staticmethod
     def _is_connector_rpc(content):
         try:
-            (connector_type, _) = content[DATA_PARAMETER][RPC_METHOD_PARAMETER].split('_')
+            (connector_type, *_) = content[DATA_PARAMETER][RPC_METHOD_PARAMETER].split('_')
             if connector_type in DEFAULT_CONNECTORS.keys():
                 return True
         except (IndexError, ValueError):
@@ -135,7 +135,7 @@ class ConnectorRPCRequest(RPCRequestBase):
         super().__init__(content)
         self.id = req_id
         self.rpc_type = RPCType.CONNECTOR
-        (connector_type, rpc_method_name) = content[DATA_PARAMETER][RPC_METHOD_PARAMETER].split('_')
+        (connector_type, rpc_method_name) = content[DATA_PARAMETER][RPC_METHOD_PARAMETER].split('_', 1)
         self.connector_type = connector_type
         self.method_name = rpc_method_name
         self.value = content[DATA_PARAMETER][RPC_PARAMS_PARAMETER].get('value')
