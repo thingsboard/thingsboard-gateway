@@ -19,7 +19,9 @@ from threading import Thread, Event
 from time import sleep, monotonic
 from typing import Tuple, Any
 
-from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_SENT_PARAMETER, RPC_DEFAULT_TIMEOUT
+from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_SENT_PARAMETER
+from thingsboard_gateway.gateway.entities.rpc_request import RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -276,47 +278,59 @@ class KNXConnector(Connector, Thread):
             return result
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
-    def server_side_rpc_handler(self, content):
-        self.__log.debug('Received RPC request: %s', content)
+    def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
+        self.__log.debug('Received RPC request: %s', rpc_request)
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
 
-        rpc_method_name = content.get('data', {}).get('method')
-        if rpc_method_name is None:
-            self.__log.error('Method name not found in RPC request: %r', content)
-            return
+        try:
+            if rpc_request.rpc_type == RPCType.DEVICE:
+                return self.__process_rpc_to_device(rpc_request)
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                return self.__process_reserved_rpc(rpc_request)
+            elif rpc_request.rpc_type == RPCType.CONNECTOR:
+                err_msg = 'Connector RPC is not supported by KNX connector'
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
+            else:
+                err_msg = f'Invalid RPC type request: {rpc_request}'
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
+        except Exception as e:
+            err_msg = f'Error processing RPC request {rpc_request}: {e}'
+            self.__log.error(err_msg)
+            response.set_error_msg(err_msg)
+            return response
 
-        # check if RPC method is reserved get/set
-        is_processed_reserved_rpc = self.__check_and_process_reserved_rpc(rpc_method_name, content)
-        if is_processed_reserved_rpc:
-            return
+    def __process_reserved_rpc(self, rpc_request) -> RPCResponse:
+        params = {}
 
-        rpc_config = self.__find_rpc_config_by_device_and_name(rpc_method_name, content)
+        for param in (rpc_request.params or '').split(';'):
+            try:
+                (key, value) = param.split('=')
+            except ValueError:
+                self.__log.trace('Invalid parameter: %s', param)
+                continue
+
+            if key and value:
+                params[key] = value
+
+        rpc_request.params = params.pop('value', None)
+
+        return self.__process_rpc(params, rpc_request)
+
+    def __process_rpc_to_device(self, rpc_request) -> RPCResponse:
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+
+        rpc_config = self.__find_rpc_config_by_device_and_name(rpc_request.method_name, rpc_request.device_name)
         if not rpc_config:
-            self.__log.error('No RPC config found')
-            return
+            err_msg = f"No RPC config found for method '{rpc_request.method_name}'"
+            self.__log.error(err_msg)
+            response.set_error_msg(err_msg)
+            return response
 
-        self.__process_rpc(content, rpc_config)
-
-    def __check_and_process_reserved_rpc(self, rpc_method_name, content):
-        if rpc_method_name in ('get', 'set'):
-            params = {}
-
-            for param in content['data']['params'].split(';'):
-                try:
-                    (key, value) = param.split('=')
-                except ValueError:
-                    self.__log.trace('Invalid parameter: %s', param)
-                    continue
-
-                if key and value:
-                    params[key] = value
-
-            content['data'].pop('params', None)
-
-            if params.get('value'):
-                content['data']['params'] = params['value']
-
-            self.__process_rpc(content, params)
-            return True
+        return self.__process_rpc(rpc_config, rpc_request)
 
     @staticmethod
     def __wait_task_with_timeout(task: asyncio.Task, timeout: float, poll_interval: float = 0.2) -> Tuple[bool, Any]:
@@ -329,71 +343,52 @@ class KNXConnector(Connector, Thread):
                 return False, None
         return True, task.result()
 
-    def __process_rpc(self, content, rpc_config):
+    def __process_rpc(self, rpc_config, rpc_request) -> RPCResponse:
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+
         try:
-            value = content.get('data', {}).get('params')
-            task = self.__create_task(self.__process_rpc_request, (rpc_config,), {
-                'value': value})
+            task = self.__create_task(self.__process_rpc_request, (rpc_config,), {'value': rpc_request.params})
             task_completed, result = self.__wait_task_with_timeout(task=task,
-                                                                   timeout=content.get("timeout", RPC_DEFAULT_TIMEOUT),
+                                                                   timeout=rpc_request.timeout,
                                                                    poll_interval=0.2)
             if not task_completed:
-                self.__log.error('RPC request timed out')
-                result = {"error": f"Timeout rpc has been reached for {content['device']}"}
+                err_msg = f'Failed to process rpc request for {rpc_request.device_name}, timeout has been reached'
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
 
             self.__log.info('Processed RPC request with result: %r', result)
-            self.__gateway.send_rpc_reply(content['device'],
-                                          req_id=content['data'].get('id'),
-                                          content={'result': str(result.get('response'))})
+            response.set_message(result)
+            return response
         except Exception as e:
-            self.__log.error('Error processing RPC request: %s', e)
-            self.__gateway.send_rpc_reply(device=content['device'],
-                                          req_id=content['data'].get('id'),
-                                          content={'result': str(e)},
-                                          success_sent=False)
+            err_msg = f'Error processing RPC request: {e}'
+            self.__log.error(err_msg)
+            response.set_error_msg(err_msg)
+            return response
 
     async def __process_rpc_request(self, config, value=None):
-        if self.__client.connection_manager.connected:
-            group_address = config['groupAddress']
-            data_type = config.get('dataType')
+        if not self.__client.connection_manager.connected:
+            raise ConnectionError('KNX bus is not connected')
 
-            if value is not None or config['requestType'] == 'write':
+        group_address = config['groupAddress']
+        data_type = config.get('dataType')
 
-                response = self.__process_group_value_write(group_address, value, data_type)
-            else:
-                response = await self.__read_group_value(group_address, data_type)
-            return {"response": response}
-        else:
-            self.__log.error('KNX bus is not connected')
-            return {"response": {"error": "KNX bus is not connected"}}
+        if value is not None or config['requestType'] == 'write':
+            return self.__process_group_value_write(group_address, value, data_type)
+
+        return await self.__read_group_value(group_address, data_type)
 
     def __process_group_value_write(self, group_address, value, data_type):
-        try:
-            group_value_write(self.__client, group_address, value, data_type)
-            return {"value": str(value)}
-
-        except Exception as e:
-            result = {}
-            self.__log.error('Error processing group value write: %s', str(e))
-            self.__log.debug('Error: %r', str(e), exc_info=True)
-            result['error'] = str(e)
-            return result
+        group_value_write(self.__client, group_address, value, data_type)
+        return str(value)
 
     async def __read_group_value(self, group_address, data_type):
-        try:
-            result = await read_group_value(self.__client, group_address, data_type)
-            return {"value": str(result)}
+        result = await read_group_value(self.__client, group_address, data_type)
+        return str(result)
 
-        except Exception as e:
-            result = {}
-            self.__log.error('Error processing group value read: %s', str(e))
-            self.__log.debug('Error: %r', str(e), exc_info=True)
-            result['error'] = str(e)
-            return result
-
-    def __find_rpc_config_by_device_and_name(self, rpc_method_name, content):
+    def __find_rpc_config_by_device_and_name(self, rpc_method_name, device_name):
         device_name_match_filter = tuple(filter(lambda rpc_config:
-                                                fullmatch(rpc_config['deviceNameFilter'], content['device']),
+                                                fullmatch(rpc_config['deviceNameFilter'], device_name),
                                                 self.__config.get('serverSideRpc', [])))
 
         rpc_method_name_filter = tuple(filter(lambda rpc_config: rpc_config['method'] == rpc_method_name,
