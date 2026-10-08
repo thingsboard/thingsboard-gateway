@@ -30,14 +30,12 @@ class BacnetOnAttributeUpdatesTestCase(BacnetBaseTestCase):
         await super().asyncTearDown()
 
     async def test_retrieve_device_by_name_success(self):
-        payload = {"device": self.DEVICE_NAME, "data": {"binaryValue2": True}}
-
         fake_task = MagicMock()
         fake_task.done.return_value = True
         fake_task.result.return_value = self.device  # success
 
         with patch.object(self.connector.loop, "create_task", return_value=fake_task) as ct_mock:
-            device = self.connector._AsyncBACnetConnector__get_device_by_name(payload=payload)
+            device = self.connector._AsyncBACnetConnector__get_device_by_name(self.DEVICE_NAME)
 
         ct_mock.assert_called_once()
         self.assertIsInstance(device, Device)
@@ -45,33 +43,29 @@ class BacnetOnAttributeUpdatesTestCase(BacnetBaseTestCase):
         self.assertEqual(device.name, self.DEVICE_NAME)
 
     async def test_get_device_by_name_missing_device_key(self):
-        payload = {"data": {"binaryValue2": True}}
+        # Simulates on_attributes_update() calling __get_device_by_name with the device
+        # name extracted from content.get('device') when the 'device' key is absent (None).
         fake_task = MagicMock()
         fake_task.done.return_value = True
         fake_task.result.return_value = None
 
-        with patch.object(self.connector.loop, "create_task", return_value=fake_task), \
-                self.assertLogs("Bacnet test", level="ERROR") as logcap:
-            device = self.connector._AsyncBACnetConnector__get_device_by_name(payload=payload)
+        with patch.object(self.connector.loop, "create_task", return_value=fake_task):
+            device = self.connector._AsyncBACnetConnector__get_device_by_name(None)
 
         self.assertIsNone(device)
-        self.assertTrue(any("does not contain a device name" in m for m in logcap.output))
 
     async def test_retrieve_device_on_non_existent_device(self):
-        payload = {"device": "non-existent-device", "data": {"binaryValue2": True}}
-
         fake_task = MagicMock()
         fake_task.done.return_value = True
         fake_task.result.return_value = None
 
         with patch.object(self.connector.loop, "create_task", return_value=fake_task) as ct_mock:
-            device = self.connector._AsyncBACnetConnector__get_device_by_name(payload=payload)
+            device = self.connector._AsyncBACnetConnector__get_device_by_name("non-existent-device")
 
         ct_mock.assert_called_once()
         self.assertIsNone(device)
 
     async def test_get_device_by_name_timeout(self):
-        payload = {"device": self.DEVICE_NAME, "data": {"binaryValue2": True}}
         fake_task = MagicMock()
         fake_task.done.return_value = False
 
@@ -79,7 +73,7 @@ class BacnetOnAttributeUpdatesTestCase(BacnetBaseTestCase):
                 patch.object(self.connector, "_AsyncBACnetConnector__wait_task_with_timeout",
                              return_value=(False, None)) as waiter_mock, \
                 self.assertLogs("Bacnet test", level="DEBUG") as logcap:
-            device = self.connector._AsyncBACnetConnector__get_device_by_name(payload=payload)
+            device = self.connector._AsyncBACnetConnector__get_device_by_name(self.DEVICE_NAME)
 
         ct_mock.assert_called_once()
         waiter_mock.assert_called_once()
