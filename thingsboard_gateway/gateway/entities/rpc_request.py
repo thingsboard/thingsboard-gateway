@@ -14,7 +14,7 @@
 
 from enum import Enum
 
-from tb_mqtt_client.tb_device_mqtt import DEFAULT_TIMEOUT
+from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.constants import (
     DATA_PARAMETER,
     DEFAULT_CONNECTORS,
@@ -56,7 +56,7 @@ class RPCType(Enum):
 class RPCRequestBase:
     def __init__(self, content):
         self.id = content[DATA_PARAMETER].get(RPC_ID_PARAMETER)
-        self.timeout = content.get('timeout', DEFAULT_TIMEOUT)
+        self.timeout = content.get('timeout', RPC_DEFAULT_TIMEOUT)
         self.params = content[DATA_PARAMETER].get(RPC_PARAMS_PARAMETER)
 
     @staticmethod
