@@ -26,6 +26,7 @@ from tests.base_test import BaseTest
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
+from thingsboard_gateway.gateway.entities.rpc_request import create_rpc_request_from_dict
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.tb_utility.tb_handler import TBRemoteLoggerHandler
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
@@ -390,11 +391,12 @@ class CanConnectorRpcTests(CanConnectorTestsBase):
         self._create_connector("rpc.json")
         config = self.config["devices"][0]["serverSideRpc"][0]
 
-        self.connector.server_side_rpc_handler({"device": self.config["devices"][0]["name"],
-                                                "data": {
-                                                    "id": 1,
-                                                    "method": config["method"]
-                                                }})
+        self.connector.server_side_rpc_handler(create_rpc_request_from_dict({
+            "device": self.config["devices"][0]["name"],
+            "data": {
+                "id": 1,
+                "method": config["method"]
+            }}))
 
         actual_message = self.bus.recv(1)
         self.assertTrue(actual_message.equals(Message(arbitration_id=config["nodeId"],
@@ -411,14 +413,15 @@ class CanConnectorRpcTests(CanConnectorTestsBase):
 
         self.assertNotEqual(hex_data, config["dataInHex"])
 
-        self.connector.server_side_rpc_handler({"device": self.config["devices"][1]["name"],
-                                                "data": {
-                                                    "id": 1,
-                                                    "method": config["method"],
-                                                    "params": {
-                                                        "dataInHex": hex_data
-                                                    }
-                                                }})
+        self.connector.server_side_rpc_handler(create_rpc_request_from_dict({
+            "device": self.config["devices"][1]["name"],
+            "data": {
+                "id": 1,
+                "method": config["method"],
+                "params": {
+                    "dataInHex": hex_data
+                }
+            }}))
 
         actual_message = self.bus.recv(1)
         self.assertTrue(actual_message.equals(Message(arbitration_id=config["nodeId"],
@@ -434,15 +437,16 @@ class CanConnectorRpcTests(CanConnectorTestsBase):
 
         max_allowed_speed = randint(100, 200)
         user_speed = randint(150, 250)
-        self.connector.server_side_rpc_handler({"device": self.config["devices"][0]["name"],
-                                                "data": {
-                                                    "id": 1,
-                                                    "method": config["method"],
-                                                    "params": {
-                                                        "userSpeed": user_speed,
-                                                        "maxAllowedSpeed": max_allowed_speed
-                                                    }
-                                                }})
+        self.connector.server_side_rpc_handler(create_rpc_request_from_dict({
+            "device": self.config["devices"][0]["name"],
+            "data": {
+                "id": 1,
+                "method": config["method"],
+                "params": {
+                    "userSpeed": user_speed,
+                    "maxAllowedSpeed": max_allowed_speed
+                }
+            }}))
 
         can_data = int(user_speed if max_allowed_speed > user_speed else max_allowed_speed) \
             .to_bytes(config["dataLength"], "little")
@@ -457,11 +461,12 @@ class CanConnectorRpcTests(CanConnectorTestsBase):
     def test_deny_unknown_rpc(self):
         self._create_connector("rpc.json")
 
-        self.connector.server_side_rpc_handler({"device": self.config["devices"][0]["name"],
-                                                "data": {
-                                                    "id": 1,
-                                                    "method": ''.join(choice(ascii_lowercase) for _ in range(8))
-                                                }})
+        self.connector.server_side_rpc_handler(create_rpc_request_from_dict({
+            "device": self.config["devices"][0]["name"],
+            "data": {
+                "id": 1,
+                "method": ''.join(choice(ascii_lowercase) for _ in range(8))
+            }}))
 
         self.assertIsNone(self.bus.recv(5))
 
@@ -480,24 +485,25 @@ class CanConnectorRpcTests(CanConnectorTestsBase):
         can_data.extend(integer_value.to_bytes(data_length, "big", signed=(integer_value < 0)))
         can_data.extend(bytearray.fromhex(data_after))
 
-        self.connector.server_side_rpc_handler({"device": self.config["devices"][2]["name"],
-                                                "data": {
-                                                    "id": 1,
-                                                    "method": ''.join(choice(ascii_lowercase) for _ in range(8)),
-                                                    "params": {
-                                                        "value": integer_value,
-                                                        "nodeId": node_id,
-                                                        "isExtendedId": (node_id > max_not_extended_node_id),
-                                                        "isFd": (len(can_data) > 8),
-                                                        "dataLength": data_length,
-                                                        # Actually value may be either signed or unsigned,
-                                                        # connector should process this case correctly
-                                                        "dataSigned": False,
-                                                        "dataBefore": data_before,
-                                                        "dataAfter": data_after,
-                                                        "response": True
-                                                    }
-                                                }})
+        response = self.connector.server_side_rpc_handler(create_rpc_request_from_dict({
+            "device": self.config["devices"][2]["name"],
+            "data": {
+                "id": 1,
+                "method": ''.join(choice(ascii_lowercase) for _ in range(8)),
+                "params": {
+                    "value": integer_value,
+                    "nodeId": node_id,
+                    "isExtendedId": (node_id > max_not_extended_node_id),
+                    "isFd": (len(can_data) > 8),
+                    "dataLength": data_length,
+                    # Actually value may be either signed or unsigned,
+                    # connector should process this case correctly
+                    "dataSigned": False,
+                    "dataBefore": data_before,
+                    "dataAfter": data_after,
+                    "response": True
+                }
+            }}))
 
         actual_message = self.bus.recv(1)
         self.assertTrue(actual_message.equals(Message(arbitration_id=node_id,
@@ -507,23 +513,28 @@ class CanConnectorRpcTests(CanConnectorTestsBase):
                                                       timestamp=actual_message.timestamp,
                                                       channel=actual_message.channel)))
 
-        self.gateway.send_rpc_reply.assert_called_once_with(self.config["devices"][2]["name"],
-                                                            1,
-                                                            {"success": True})
+        self.assertEqual(response.device_name, self.config["devices"][2]["name"])
+        self.assertEqual(response.id, 1)
+        self.assertEqual(response.message, {"result": {"success": True}})
 
     def test_rpc_response_failed(self):
         self._create_connector("rpc.json")
         config = self.config["devices"][3]["serverSideRpc"][0]
 
-        self.connector.server_side_rpc_handler({"device": self.config["devices"][3]["name"],
-                                                "data": {
-                                                    "id": 1,
-                                                    "method": config["method"]
-                                                }})
+        response = self.connector.server_side_rpc_handler(create_rpc_request_from_dict({
+            "device": self.config["devices"][3]["name"],
+            "data": {
+                "id": 1,
+                "method": config["method"]
+            }}))
         sleep(1)
-        self.gateway.send_rpc_reply.assert_called_once_with(self.config["devices"][3]["name"],
-                                                            1,
-                                                            {"success": False})
+        device_name = self.config["devices"][3]["name"]
+        self.assertEqual(response.device_name, device_name)
+        self.assertEqual(response.id, 1)
+        self.assertEqual(
+            response.message,
+            {"error": f"Failed to convert '{config['method']}' RPC data for '{device_name}' device"}
+        )
 
 
 if __name__ == '__main__':
