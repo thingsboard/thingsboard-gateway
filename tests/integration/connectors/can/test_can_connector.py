@@ -533,7 +533,7 @@ class CanConnectorRpcTests(CanConnectorTestsBase):
         self.assertEqual(response.id, 1)
         self.assertEqual(
             response.message,
-            {"error": f"Failed to convert '{config['method']}' RPC data for '{device_name}' device"}
+            {"error": f"Failed to process '{config['method']}' RPC request: Failed to convert RPC data to CAN payload"}
         )
 
 
