@@ -12,17 +12,19 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from json import dumps
 import asyncio
 from queue import Queue
 from random import choice
+from re import fullmatch
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep, time, monotonic
-from typing import Tuple, Any
 
-from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.rpc_request import RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
@@ -35,6 +37,12 @@ except ImportError:
     TBUtility.install_package("bleak")
     from bleak import BleakScanner
 
+from thingsboard_gateway.connectors.ble.constants import (
+    RESERVED_GET_RPC_SCHEMA,
+    RESERVED_SET_RPC_SCHEMA,
+    RESERVED_GET_RPC_PATTERN,
+    RESERVED_SET_RPC_PATTERN
+)
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.ble.device import Device
 
@@ -258,9 +266,6 @@ class BLEConnector(Connector, Thread):
             self.__log.debug('Received attributes update %s', content)
 
             device = self.__find_device_by_name(content['device'])
-            if device is None:
-                self.__log.error('Device not found')
-                return
 
             for attribute_update_config in device.config['attributeUpdates']:
                 for attribute_update in content['data']:
@@ -272,122 +277,96 @@ class BLEConnector(Connector, Thread):
             self.__log.error('Error while processing attributes update %s', e)
 
     def __find_device_by_name(self, name):
-        device_filter = tuple(filter(lambda i: i.getName() == name, self.__devices))
+        device = next((device for device in self.__devices_from_config if device.name == name), None)
+        if device is None:
+            raise ValueError(f"Device '{name}' not found")
 
-        if len(device_filter):
-            return device_filter[0]
+        return device
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
-    def server_side_rpc_handler(self, content):
+    def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
+        self.__log.debug('Received RPC request: %s', rpc_request)
+
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
         try:
-            self.__log.debug('Received RPC request %s', content)
-
-            device = self.__find_device_by_name(content['device'])
-            if device is None:
-                self.__log.error('Device not found')
-                return
-
-            rpc_method_name = content["data"]["method"]
-
-            if self.__check_and_process_reserved_rpc(device, rpc_method_name, content):
-                return
-
-            rpc_config_filter = tuple(filter(
-                lambda config: config['methodRPC'] == rpc_method_name, device.config['serverSideRpc']))
-            if len(rpc_config_filter):
-                task = self.__create_task(self.__process_rpc_request, (device, rpc_config_filter[0], content), {})
-                task_completed, result = self.__wait_task_with_timeout(task=task, timeout=content.get('timeout',
-                                                                                                      RPC_DEFAULT_TIMEOUT),
-                                                                       poll_interval=0.2)
-                if not task_completed:
-                    self.__log.error('RPC request timeout')
-                    self.__gateway.send_rpc_reply(content['device'],
-                                                  req_id=content['data']['id'],
-                                                  content={'error': 'RPC request timeout', "success": False})
+            if rpc_request.rpc_type == RPCType.DEVICE:
+                device = self.__find_device_by_name(rpc_request.device_name)
+                rpc_config = self.__get_device_rpc_config(device, rpc_request.method_name, rpc_request.params)
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                device = self.__find_device_by_name(rpc_request.device_name)
+                rpc_config = self.__get_reserved_rpc_config(rpc_request.method_name, rpc_request.params)
+            elif rpc_request.rpc_type == RPCType.CONNECTOR:
+                raise ValueError('Connector RPC is not supported by BLE connector')
             else:
-                self.__log.error('RPC method not found')
+                raise ValueError(f'Invalid RPC type request: {rpc_request}')
+
+            coroutine = self.__process_rpc_request(device, **rpc_config)
+            response.set_message(self.__run_coroutine(coroutine, rpc_request.timeout))
         except Exception as e:
-            self.__log.error('Error while processing RPC request %s', e)
-            self.__gateway.send_rpc_reply(content['device'],
-                                          req_id=content['data']['id'],
-                                          content={'error': e.__repr__(), "success": False})
+            self.__log.error('Failed to process RPC request %s: %s', rpc_request, e)
+            response.set_error_msg(f"Failed to process '{rpc_request.method_name}' RPC request: {e}")
 
-    def __check_and_process_reserved_rpc(self, device, rpc_method_name, content):
-        if rpc_method_name in ('get', 'set'):
-            self.__log.debug('Processing reserved RPC method: %s', rpc_method_name)
-
-            params = {}
-            for param in content['data']['params'].split(';'):
-                try:
-                    (key, value) = param.split('=')
-                except ValueError:
-                    continue
-
-                if key and value:
-                    params[key] = value
-
-            if rpc_method_name == 'get':
-                params['methodProcessing'] = 'READ'
-
-            if rpc_method_name == 'set':
-                params['methodProcessing'] = 'WRITE'
-                content['data']['params'] = params['value']
-
-            params['withResponse'] = True
-
-            task = self.__create_task(self.__process_rpc_request, (device, params, content), {})
-            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=content.get('timeout',
-                                                                                                  RPC_DEFAULT_TIMEOUT),
-                                                                   poll_interval=0.2)
-            if not task_completed:
-                self.__log.error('RPC request timeout')
-                self.__gateway.send_rpc_reply(content['device'],
-                                              req_id=content['data']['id'],
-                                              content={'error': 'RPC request timeout', "success": False})
-
-            return True
-
-        return False
+        return response
 
     @staticmethod
-    def __wait_task_with_timeout(task: asyncio.Task, timeout: float, poll_interval: float = 0.2) -> Tuple[bool, Any]:
-        start_time = monotonic()
-        while not task.done():
-            sleep(poll_interval)
-            current_time = monotonic()
-            if current_time - start_time >= timeout:
-                task.cancel()
-                return False, None
-        return True, task.result()
+    def __get_device_rpc_config(device, method_name, params):
+        rpc_config = next((config for config in device.config['serverSideRpc']
+                           if config['methodRPC'] == method_name), None)
+        if rpc_config is None:
+            raise ValueError(f"No configuration for '{method_name}' RPC request")
 
-    def __create_task(self, func, args, kwargs):
-        task = self.__loop.create_task(func(*args, **kwargs))
-        return task
+        return {'method_processing': rpc_config['methodProcessing'],
+                'characteristic_uuid': rpc_config.get('characteristicUUID'),
+                'value': params}
 
-    async def __process_rpc_request(self, device, rpc_config, content):
+    @staticmethod
+    def __get_reserved_rpc_config(method_name, params):
+        if not params:
+            raise ValueError("No 'params' found in reserved RPC request")
+
+        is_set = method_name.lower() == 'set'
+        match = fullmatch(RESERVED_SET_RPC_PATTERN if is_set else RESERVED_GET_RPC_PATTERN, params)
+        if match is None:
+            expected_schema = RESERVED_SET_RPC_SCHEMA if is_set else RESERVED_GET_RPC_SCHEMA
+            raise ValueError(f"The requested RPC does not match with the schema: {expected_schema}")
+
+        return {'method_processing': 'WRITE' if is_set else 'READ',
+                'characteristic_uuid': match.group('characteristicUUID'),
+                'value': match.group('value') if is_set else None}
+
+    def __run_coroutine(self, coroutine, timeout):
+        future = asyncio.run_coroutine_threadsafe(coroutine, self.__loop)
         try:
-            rpc_method = rpc_config['methodProcessing']
-            return_result = rpc_config['withResponse']
-            result = None
+            return future.result(timeout)
+        except FutureTimeoutError:
+            future.cancel()
+            raise TimeoutError(f'RPC request timeout ({timeout}s)')
 
-            if rpc_method.upper() == 'READ':
-                byte_result = await device.read_char(rpc_config['characteristicUUID'])
-                result = byte_result.decode('utf-8') if byte_result else None
+    @staticmethod
+    async def __process_rpc_request(device, method_processing, characteristic_uuid, value):
+        if device.client is None or not device.client.is_connected:
+            raise ConnectionError(f"Device '{device.name}' is not connected")
 
-            elif rpc_method.upper() == 'WRITE':
-                result = await device.write_char(rpc_config['characteristicUUID'],
-                                                 bytes(str(content['data']['params']), 'utf-8'))
-            elif rpc_method.upper() == 'SCAN':
-                result = await device.scan_self(return_result)
+        method_processing = method_processing.upper()
 
-            if return_result:
-                self.__gateway.send_rpc_reply(content['device'], content['data']['id'], str(result))
+        if method_processing == 'READ':
+            data = await device.read_char(characteristic_uuid)
+            if data is None:
+                raise ValueError(f"Failed to read characteristic {characteristic_uuid}")
 
-        except Exception as e:
-            self.__log.error('Error while processing RPC request %s', e)
-            self.__gateway.send_rpc_reply(content['device'],
-                                          req_id=content['data']['id'],
-                                          content={'error': str(e), "success": False})
+            return bytes(data).decode('utf-8')
+
+        if method_processing == 'WRITE':
+            result = await device.write_char(characteristic_uuid, bytes(str(value), 'utf-8'))
+            if isinstance(result, Exception):
+                raise result
+
+            return result
+
+        if method_processing == 'SCAN':
+            return await device.scan_self(True)
+
+        raise ValueError(f"Unsupported methodProcessing '{method_processing}'")
 
     def get_config(self):
         return self.__config
