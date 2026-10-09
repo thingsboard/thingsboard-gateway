@@ -12,19 +12,24 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from datetime import date, datetime, time as dt_time
 from time import time
 from hashlib import sha1
 from os import getenv, path
 from pathlib import Path
 from random import choice
+from re import fullmatch
 from string import ascii_lowercase
-from threading import Thread
+from threading import RLock, Thread
 from time import sleep
+from uuid import UUID
 
 from simplejson import dumps, load
 
 from thingsboard_gateway.gateway.constants import TELEMETRY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.rpc_request import RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -38,6 +43,7 @@ except ImportError:
     TBUtility.install_package("pyodbc")
     import pyodbc
 
+from thingsboard_gateway.connectors.odbc.constants import RESERVED_RPC_SCHEMA, RESERVED_RPC_PATTERN
 from thingsboard_gateway.connectors.odbc.odbc_uplink_converter import OdbcUplinkConverter
 
 from thingsboard_gateway.connectors.connector import Connector
@@ -77,6 +83,7 @@ class OdbcConnector(Connector, Thread):
         self.__connection = None
         self.__cursor = None
         self.__rpc_cursor = None
+        self.__db_lock = RLock()
         self.__iterator = None
         self.__iterator_file_name = ""
 
@@ -122,137 +129,100 @@ class OdbcConnector(Connector, Thread):
         pass
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
-    def server_side_rpc_handler(self, content):
-        done = False
+    def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
+        self._log.debug("[%s] Received RPC request: %s", self.get_name(), rpc_request)
+
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
         try:
-            if not self.is_connected():
-                self._log.warning("[%s] Cannot process RPC request: not connected to database", self.get_name())
-                raise Exception("no connection")
-
-            if self.__is_reserved_rpc(content):
-                self.__process_reverved_rpc(content)
-                return
-
-            is_rpc_unknown = False
-            rpc_config = self.__config["serverSideRpc"]["methods"].get(content["data"]["method"])
-            if rpc_config is None:
-                if not self.__config["serverSideRpc"]["enableUnknownRpc"]:
-                    self._log.warning("[%s] Ignore unknown RPC request '%s' (id=%s)",
-                                      self.get_name(), content["data"]["method"], content["data"]["id"])
-                    raise Exception("unknown RPC request")
-                else:
-                    is_rpc_unknown = True
-                    rpc_config = content["data"].get("params", {})
-                    sql_params = rpc_config.get("args", [])
-                    query = rpc_config.get("query", "")
+            if rpc_request.rpc_type == RPCType.DEVICE:
+                rpc_config = self.__get_device_rpc_config(rpc_request.method_name, rpc_request.params)
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                rpc_config = self.__get_reserved_rpc_config(rpc_request.params)
+            elif rpc_request.rpc_type == RPCType.CONNECTOR:
+                raise ValueError('Connector RPC is not supported by ODBC connector')
             else:
-                if self.__config["serverSideRpc"]["overrideRpcConfig"]:
-                    rpc_config = {**rpc_config, **content["data"].get("params", {})}
+                raise ValueError(f'Invalid RPC type request: {rpc_request}')
 
-                # The params attribute is obsolete but leave for backward configuration compatibility
-                sql_params = rpc_config.get("args") or rpc_config.get("params", [])
-                query = rpc_config.get("query", "")
-
-            self._log.debug("[%s] Processing %s '%s' RPC request (id=%s) for '%s' device: params=%s, query=%s",
-                            self.get_name(), "unknown" if is_rpc_unknown else "", content["data"]["method"],
-                            content["data"]["id"], content["device"], sql_params, query)
-
-            self.__process_rpc(content["data"]["method"], query, sql_params)
-
-            done = True
-            self._log.debug("[%s] Processed '%s' RPC request (id=%s) for '%s' device",
-                            self.get_name(), content["data"]["method"], content["data"]["id"], content["device"])
-        except pyodbc.Warning as w:
-            self._log.warning("[%s] Warning while processing '%s' RPC request (id=%s) for '%s' device: %s",
-                              self.get_name(), content["data"]["method"], content["data"]["id"], content["device"],
-                              str(w))
+            response.set_message(self.__execute_rpc(**rpc_config))
         except Exception as e:
-            self._log.error("[%s] Failed to process '%s' RPC request (id=%s) for '%s' device: %s",
-                            self.get_name(), content["data"]["method"], content["data"]["id"], content["device"],
-                            str(e))
-        finally:
-            if done and rpc_config.get("result", self.DEFAULT_PROCESS_RPC_RESULT):
-                response = self.row_to_dict(self.__rpc_cursor.fetchone())
-                self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], response)
-            else:
-                self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], {"success": done})
+            self._log.error("[%s] Failed to process RPC request %s: %s", self.get_name(), rpc_request, e)
+            response.set_error_msg(f"Failed to process '{rpc_request.method_name}' RPC request: {e}")
 
-    def __is_reserved_rpc(self, rpc):
-        rpc_method_name = rpc.get('data', {}).get('method')
+        return response
 
-        if rpc_method_name == 'set' or rpc_method_name == 'get':
-            return True
+    def __get_device_rpc_config(self, method_name, params):
+        rpc_settings = self.__config["serverSideRpc"]
+        method_config = rpc_settings["methods"].get(method_name)
 
-        return False
-
-    def __process_reverved_rpc(self, rpc):
-        params = self.__get_reserved_rpc_params(rpc)
-        if not params:
-            self.__log.error('RPC params are empty, expected format: set value={value};')
-            self.__gateway.send_rpc_reply(device=rpc['device'],
-                                          req_id=rpc['data']['id'],
-                                          content={
-                                              rpc['data']['method']:
-                                                  'RPC params are empty, expected format: set value={value};'
-                                          })
-            return
-
-        sql_params = params.get('value', [])
-        query = params.get('query', '')
-        procedure_name = params.get('procedure_name', '')
-        with_result = params.get('with_result', False)
-
-        try:
-            self.__process_rpc(procedure_name, query, sql_params)
-        except pyodbc.Warning as w:
-            self._log.warning("[%s] Warning while processing '%s' RPC request (id=%s) for '%s' device: %s",
-                              self.get_name(), rpc["data"]["method"], rpc["data"]["id"], rpc["device"],
-                              str(w))
-        except Exception as e:
-            self._log.error("[%s] Failed to process '%s' RPC request (id=%s) for '%s' device: %s",
-                            self.get_name(), rpc["data"]["method"], rpc["data"]["id"], rpc["device"],
-                            str(e))
-            self.__gateway.send_rpc_reply(device=rpc['device'],
-                                          req_id=rpc['data']['id'],
-                                          content={rpc['data']['method']: 'Error during executing reserved RPC %s' % e})
-            return
-
-        if with_result:
-            response = self.row_to_dict(self.__rpc_cursor.fetchone())
-            self.__gateway.send_rpc_reply(device=rpc["device"],
-                                          req_id=rpc["data"]["id"],
-                                          content={'result': response})
+        if method_config is None:
+            if not rpc_settings["enableUnknownRpc"]:
+                raise ValueError("Unknown RPC method")
+            if not isinstance(params, dict):
+                raise ValueError("Unknown RPC requires params as an object with 'query' and optional 'args', 'result'")
+            rpc_config = params
+        elif rpc_settings["overrideRpcConfig"] and params:
+            if not isinstance(params, dict):
+                raise ValueError("Params must be an object to override the RPC config")
+            rpc_config = {**method_config, **params}
         else:
-            self.__gateway.send_rpc_reply(device=rpc["device"],
-                                          req_id=rpc["data"]["id"],
-                                          content={'result': {"success": True}})
+            rpc_config = method_config
 
-    def __get_reserved_rpc_params(self, rpc):
-        params = {}
+        return {'procedure_name': method_name,
+                'query': rpc_config.get("query", ""),
+                # The params attribute is obsolete but leave for backward configuration compatibility
+                'sql_params': rpc_config.get("args") or rpc_config.get("params", []),
+                'with_result': rpc_config.get("result", self.DEFAULT_PROCESS_RPC_RESULT)}
 
-        rpc_params = rpc.get('data', {}).get('params')
-        if rpc_params is None:
-            return {}
+    @staticmethod
+    def __get_reserved_rpc_config(params):
+        if not params:
+            raise ValueError("No 'params' found in reserved RPC request")
 
-        try:
-            for param in rpc_params.split(';'):
-                try:
-                    (key, value) = param.split('=')
-                except ValueError:
-                    continue
+        match = fullmatch(RESERVED_RPC_PATTERN, params)
+        if match is None:
+            raise ValueError(f"The requested RPC does not match with the schema: {RESERVED_RPC_SCHEMA}")
 
-                if key and value:
-                    if key == 'with_result':
-                        params[key] = value.lower() == 'true'
-                    elif key == 'value':
-                        params[key] = value.split(',')
-                    else:
-                        params[key] = value
-        except Exception as e:
-            self.__log.error('Error during parsing RPC params: %s', e)
-            return {}
+        groups = match.groupdict()
+        return {'procedure_name': groups['procedure_name'] or '',
+                'query': groups['query'] or '',
+                'sql_params': groups['value'].split(',') if groups['value'] else [],
+                'with_result': (groups['with_result'] or '').lower() == 'true'}
 
-        return params
+    def __execute_rpc(self, procedure_name, query, sql_params, with_result):
+        if not self.is_connected():
+            raise ValueError('Not connected to database')
+
+        self._log.debug("[%s] Executing RPC: procedure=%s, params=%s, query=%s",
+                        self.get_name(), procedure_name, sql_params, query)
+
+        with self.__db_lock:
+            self.__process_rpc(procedure_name, query, sql_params)
+
+            if not with_result:
+                return {'success': True}
+
+            if self.__rpc_cursor.description is None:
+                raise ValueError("Query returned no result set")
+
+            row = self.__rpc_cursor.fetchone()
+            return self.__to_json_safe(self.row_to_dict(row)) if row is not None else None
+
+    @classmethod
+    def __to_json_safe(cls, value):
+        if isinstance(value, dict):
+            return {key: cls.__to_json_safe(item) for (key, item) in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [cls.__to_json_safe(item) for item in value]
+        if isinstance(value, (datetime, date, dt_time)):
+            return value.isoformat()
+        if isinstance(value, UUID):
+            return str(value)
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            try:
+                return bytes(value).decode('utf-8')
+            except UnicodeDecodeError:
+                return bytes(value).hex()
+        return value
 
     def __process_rpc(self, procedure_name, query, sql_params):
         if self.__rpc_cursor is None:
@@ -307,36 +277,38 @@ class OdbcConnector(Connector, Thread):
         self._log.info("[%s] Stopped", self.get_name())
 
     def __close(self):
-        if self.is_connected():
-            try:
-                self.__cursor.close()
-                if self.__rpc_cursor is not None:
-                    self.__rpc_cursor.close()
-                self.__connection.close()
-            finally:
-                self._log.info("[%s] Connection to database closed", self.get_name())
-                self.__connection = None
-                self.__cursor = None
-                self.__rpc_cursor = None
+        with self.__db_lock:
+            if self.is_connected():
+                try:
+                    self.__cursor.close()
+                    if self.__rpc_cursor is not None:
+                        self.__rpc_cursor.close()
+                    self.__connection.close()
+                finally:
+                    self._log.info("[%s] Connection to database closed", self.get_name())
+                    self.__connection = None
+                    self.__cursor = None
+                    self.__rpc_cursor = None
 
     def __poll(self):
-        rows = self.__cursor.execute(self.__config["polling"]["query"], self.__iterator["value"])
+        with self.__db_lock:
+            rows = self.__cursor.execute(self.__config["polling"]["query"], self.__iterator["value"])
 
-        if not self.__column_names:
-            for column in self.__cursor.description:
-                self.__column_names.append(column[0])
-            self._log.info("[%s] Fetch column names: %s", self.get_name(), self.__column_names)
+            if not self.__column_names:
+                for column in self.__cursor.description:
+                    self.__column_names.append(column[0])
+                self._log.info("[%s] Fetch column names: %s", self.get_name(), self.__column_names)
 
-        # For some reason pyodbc.Cursor.rowcount may be 0 (sqlite) so use our own row counter
-        row_count = 0
-        for row in rows:
-            self._log.debug("[%s] Fetch row: %s", self.get_name(), row)
-            StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
-            StatisticsService.count_connector_bytes(self.name, row,
-                                                    stat_parameter_name='connectorBytesReceived')
+            # For some reason pyodbc.Cursor.rowcount may be 0 (sqlite) so use our own row counter
+            row_count = 0
+            for row in rows:
+                self._log.debug("[%s] Fetch row: %s", self.get_name(), row)
+                StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+                StatisticsService.count_connector_bytes(self.name, row,
+                                                        stat_parameter_name='connectorBytesReceived')
 
-            self.__process_row(row)
-            row_count += 1
+                self.__process_row(row)
+                row_count += 1
 
         self.__iterator["total"] += row_count
         self._log.info("[%s] Polling iteration finished. Processed rows: current %d, total %d",
@@ -478,8 +450,9 @@ class OdbcConnector(Connector, Thread):
                            self.get_name(), self.__iterator["name"], self.__iterator["value"])
         elif "query" in self.__config["polling"]["iterator"]:
             try:
-                self.__iterator["value"] = \
-                    self.__cursor.execute(self.__config["polling"]["iterator"]["query"]).fetchone()[0]
+                with self.__db_lock:
+                    self.__iterator["value"] = \
+                        self.__cursor.execute(self.__config["polling"]["iterator"]["query"]).fetchone()[0]
                 self._log.info("[%s] Init iterator from database: column=%s, start_value=%s",
                                self.get_name(), self.__iterator["name"], self.__iterator["value"])
             except pyodbc.Warning as w:

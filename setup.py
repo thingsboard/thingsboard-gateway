@@ -48,7 +48,6 @@ setup(
               'thingsboard_gateway.connectors.modbus', 'thingsboard_gateway.connectors.modbus.entities',
               'thingsboard_gateway.extensions.modbus',
               'thingsboard_gateway.connectors.opcua', 'thingsboard_gateway.extensions.opcua',
-              'thingsboard_gateway.connectors.opcua.entities',
               'thingsboard_gateway.connectors.request', 'thingsboard_gateway.extensions.request',
               'thingsboard_gateway.connectors.request.entities',
               'thingsboard_gateway.connectors.ocpp', 'thingsboard_gateway.extensions.ocpp',

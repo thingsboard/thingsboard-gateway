@@ -19,7 +19,6 @@ from asyncua.common.subscription import Subscription
 
 from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
-from thingsboard_gateway.connectors.opcua.entities.rpc_request import OpcUaRpcRequest
 
 
 class Device:
@@ -169,22 +168,26 @@ class Device:
         self.subscription_watchlog_task = None
 
     @staticmethod
-    def is_valid_rpc_method_name(rpc_device_section: dict, rpc_request: OpcUaRpcRequest) -> bool:
+    def is_valid_rpc_method_name(rpc_device_section: dict, rpc_request) -> bool:
         for rpc in rpc_device_section:
-            if rpc.get('method') == rpc_request.rpc_method:
+            if rpc.get('method') == rpc_request.method_name:
                 return True
         return False
 
     @staticmethod
-    def get_device_rpc_arguments(rpc_device_section: dict, rpc_request: OpcUaRpcRequest) -> list | None | dict:
+    def get_device_rpc_arguments(rpc_device_section: dict, rpc_request) -> list | None | dict:
         arguments = []
         found_method_rpc_section = next(
-            filter(lambda rpc: rpc.get('method') == rpc_request.rpc_method, rpc_device_section))
+            filter(lambda rpc: rpc.get('method') == rpc_request.method_name, rpc_device_section))
         arguments_from_config = found_method_rpc_section.get('arguments', [])
         empty_arguments_condition = not arguments_from_config
 
         if empty_arguments_condition:
-            return rpc_request.arguments
+            if rpc_request.arguments is None:
+                return []
+            if isinstance(rpc_request.arguments, list):
+                return rpc_request.arguments
+            return [rpc_request.arguments]
 
         if arguments_from_config:
 

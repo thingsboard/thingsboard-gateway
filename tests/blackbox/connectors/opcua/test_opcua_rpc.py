@@ -66,7 +66,7 @@ class OpcuaReadRpc(BaseOpcuaTest):
                                                                })
         for telemetry_key in telemetry_keys:
             self.assertEqual(result, {'result': {'value': expected_values[telemetry_key]}},
-                             f'Value is not equal for the relative path and the following telemetry key: {telemetry_key}')
+                             f'Value is not equal for the relative path and the following telemetry key: {telemetry_key}')  # noqa
 
     def test_foreign_node_reading_rpc(self):
         (config, _) = self.change_connector_configuration(
@@ -126,7 +126,7 @@ class OpcuaReadRpc(BaseOpcuaTest):
                                                                    "timeout": 5000
                                                                })
         self.assertEqual(result, {'result': {'result': 56}},
-                         f'Value is not equal for the multiply method')
+                         'Value is not equal for the multiply method')
 
 
 class OpcuaWriteRPC(BaseOpcuaTest):
@@ -202,7 +202,7 @@ class OpcuaWriteRPC(BaseOpcuaTest):
                                                                })
         for telemetry_key in telemetry_keys:
             self.assertEqual(result, {'result': {'value': expected_values[telemetry_key]}},
-                             f'Value is not equal for the relative path and the following telemetry key: {telemetry_key}')
+                             f'Value is not equal for the relative path and the following telemetry key: {telemetry_key}')  # noqa
 
     def test_identifier_writing_rpc(self):
         (config, _) = self.change_connector_configuration(
@@ -225,5 +225,4 @@ class OpcuaWriteRPC(BaseOpcuaTest):
                                                                })
         for telemetry_key in telemetry_keys:
             self.assertEqual(result, {'result': {'value': expected_values[telemetry_key]}},
-                             f'Value is not equal for the relative path and the following telemetry key: {telemetry_key}')
-
+                             f'Value is not equal for the relative path and the following telemetry key: {telemetry_key}')  # noqa

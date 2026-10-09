@@ -27,6 +27,7 @@ from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter impor
 from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.connectors.modbus.modbus_connector import AsyncModbusConnector
+from thingsboard_gateway.gateway.entities.rpc_request import create_rpc_request_from_dict
 
 
 class ModbusConnectorTestsBase(BaseTest):
@@ -236,7 +237,7 @@ class ModbusConnectorRpcTest(ModbusConnectorTestsBase):
                     'params': rpc['params']
                 }
             }
-            self.connector.server_side_rpc_handler(test_rpc)
+            self.connector.server_side_rpc_handler(create_rpc_request_from_dict(test_rpc))
             sleep(1)
 
             last_value = self.client.read_input_registers(address=rpc['address'], count=rpc['objectsCount'], slave=2).registers
@@ -253,7 +254,7 @@ class ModbusConnectorRpcTest(ModbusConnectorTestsBase):
                 'params': '1234'
             }
         }
-        self.connector.server_side_rpc_handler(rpc)
+        self.connector.server_side_rpc_handler(create_rpc_request_from_dict(rpc))
         sleep(1)
 
         last_value = self.client.read_input_registers(address=0, count=2, slave=2).registers

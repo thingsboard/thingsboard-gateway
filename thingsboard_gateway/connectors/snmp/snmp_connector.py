@@ -13,15 +13,25 @@
 #     limitations under the License.
 
 import asyncio
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from random import choice
-from re import search
+from re import fullmatch, search
 from socket import gethostbyname
 from string import ascii_lowercase
 from threading import Thread
-from time import sleep, time
+from time import time
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.connectors.snmp.constants import (
+    RESERVED_GET_RPC_SCHEMA,
+    RESERVED_SET_RPC_SCHEMA,
+    RESERVED_GET_RPC_PATTERN,
+    RESERVED_SET_RPC_PATTERN
+)
+from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.rpc_request import RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -108,7 +118,7 @@ class SNMPConnector(Connector, Thread):
             if self.__stopped:
                 break
             else:
-                sleep(.2)
+                await asyncio.sleep(.2)
 
     def close(self):
         self.__stopped = True
@@ -286,10 +296,10 @@ class SNMPConnector(Connector, Thread):
                         converted_value = device["downlink_converter"].convert(
                             attribute_request_config, {"params": value, "attribute": value})
                         downlink_config = {**attribute_request_config, result_key: converted_value}
-                        result = asyncio.run_coroutine_threadsafe(
+                        result = self.__run_coroutine(
                             self.__process_methods(attribute_request_config["method"], common_parameters,
                                                    downlink_config),
-                            loop=self.__loop).result(timeout=int(attribute_request_config.get("timeout", 5)))
+                            int(attribute_request_config.get("timeout", 5)))
                         self._log.debug(
                             "Received attribute update request for device \"%s\" "
                             "with attribute \"%s\" and value \"%s\"",
@@ -306,64 +316,97 @@ class SNMPConnector(Connector, Thread):
         if len(device_filter):
             return device_filter[0]
 
-    def server_side_rpc_handler(self, content):
+    def __run_coroutine(self, coroutine, timeout):
+        future = asyncio.run_coroutine_threadsafe(coroutine, self.__loop)
         try:
-            device = self.__find_device_by_name(content["device"])
+            return future.result(timeout)
+        except FutureTimeoutError:
+            future.cancel()
+            raise
 
-            if device is None:
-                self._log.error("Device \"%s\" not found", content["device"])
-                return
+    def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
+        self._log.debug('Received RPC request: %s', rpc_request)
 
-            rpc_method_name = content["data"]["method"]
-
-            if self.__check_and_process_reserved_rpc(device, rpc_method_name, content):
-                return
-
-            rpc_config = tuple(filter(lambda rpc_config: search(
-                rpc_method_name, rpc_config['requestFilter']), device["serverSideRpcRequests"]))
-            if len(rpc_config):
-                self.__process_rpc_request(device, rpc_config[0], content)
+        try:
+            if rpc_request.rpc_type == RPCType.DEVICE:
+                return self._process_rpc_to_device(rpc_request)
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                return self._process_reserved_rpc(rpc_request)
+            elif rpc_request.rpc_type == RPCType.CONNECTOR:
+                return self.__rpc_error_response(rpc_request, 'Connector RPC is not supported by SNMP connector')
             else:
-                self._log.error("RPC method \"%s\" not found", rpc_method_name)
+                return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
         except Exception as e:
-            self._log.exception(e)
-            self.__gateway.send_rpc_reply(device=content["device"],
-                                          req_id=content["data"]["id"],
-                                          content={'error': e.__repr__(), "success": False})
+            return self.__rpc_error_response(rpc_request, f'Error processing RPC request {rpc_request}: {e}')
 
-    def __check_and_process_reserved_rpc(self, device, rpc_method_name, content):
-        if rpc_method_name in ('get', 'set'):
-            self._log.debug('Processing reserved RPC method: %s', rpc_method_name)
+    def __rpc_error_response(self, rpc_request, error_msg) -> RPCResponse:
+        self._log.error(error_msg)
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+        response.set_error_msg(error_msg)
+        return response
 
-            params = {}
-            for param in content['data']['params'].split(';'):
-                try:
-                    (key, value) = param.split('=')
-                except ValueError:
-                    continue
+    def _process_rpc_to_device(self, rpc_request) -> RPCResponse:
+        device = self.__find_device_by_name(rpc_request.device_name)
+        if device is None:
+            return self.__rpc_error_response(rpc_request, f'Device {rpc_request.device_name} not found')
 
-                if key and value:
-                    params[key] = value
+        rpc_config = next((rpc_config for rpc_config in device.get("serverSideRpcRequests", [])
+                           if search(rpc_request.method_name, rpc_config['requestFilter'])), None)
+        if rpc_config is None:
+            return self.__rpc_error_response(
+                rpc_request, f'Neither of configured device rpc methods match with {rpc_request.method_name}')
 
-            if rpc_method_name == 'set':
-                content['data']['params'] = params['value']
+        return self._process_rpc(rpc_request, device, rpc_config, value=rpc_request.params)
 
-            self.__process_rpc_request(device, params, content)
-            return True
+    def _process_reserved_rpc(self, rpc_request) -> RPCResponse:
+        device = self.__find_device_by_name(rpc_request.device_name)
+        if device is None:
+            return self.__rpc_error_response(rpc_request, f'Device {rpc_request.device_name} not found')
 
-        return False
+        if not rpc_request.params:
+            return self.__rpc_error_response(
+                rpc_request, f"No 'params' found in reserved RPC request '{rpc_request.method_name}'")
 
-    def __process_rpc_request(self, device, rpc_config, content):
-        common_parameters = self.__get_common_parameters(device)
-        params = content["data"]["params"]
+        is_set = rpc_request.method_name.lower() == 'set'
+        pattern = RESERVED_SET_RPC_PATTERN if is_set else RESERVED_GET_RPC_PATTERN
+        match = fullmatch(pattern, rpc_request.params)
+        if match is None:
+            expected_schema = RESERVED_SET_RPC_SCHEMA if is_set else RESERVED_GET_RPC_SCHEMA
+            return self.__rpc_error_response(
+                rpc_request, f"The requested RPC does not match with the schema: {expected_schema}")
+
+        rpc_config = {key: value for key, value in match.groupdict().items() if value is not None}
+        rpc_config['method'] = 'set' if is_set else 'get'
+        value = rpc_config.pop('value', None)
+        return self._process_rpc(rpc_request, device, rpc_config, value=value)
+
+    def _process_rpc(self, rpc_request, device, rpc_config, value) -> RPCResponse:
+        try:
+            converted_value = device["downlink_converter"].convert(rpc_config, {"params": value})
+        except ValueError as e:
+            return self.__rpc_error_response(rpc_request, f"Failed to convert RPC value: {e}")
+
         result_key = "mappings" if "mappings" in rpc_config else "value"
-        converted_value = device["downlink_converter"].convert(rpc_config, {"params": params})
         downlink_config = {**rpc_config, result_key: converted_value}
-        result = asyncio.run_coroutine_threadsafe(self.__process_methods(rpc_config["method"],
-                                                                         common_parameters,
-                                                                         downlink_config),
-                                                  loop=self.__loop).result(timeout=int(rpc_config.get("timeout", 5)))
+        common_parameters = self.__get_common_parameters(device)
+        timeout = min(float(rpc_config.get("timeout", RPC_DEFAULT_TIMEOUT)), float(rpc_request.timeout))
+
+        try:
+            result = self.__run_coroutine(self.__process_methods(rpc_config["method"],
+                                                                 common_parameters,
+                                                                 downlink_config),
+                                          timeout)
+        except FutureTimeoutError:
+            return self.__rpc_error_response(
+                rpc_request, f'Timeout ({timeout}s) waiting for RPC {rpc_request.method_name} response '
+                             f'from device {device["deviceName"]}')
+        except SNMPTimeoutException:
+            return self.__rpc_error_response(
+                rpc_request, f'Timeout exception on connection to device {device["deviceName"]}')
+
         result = result.decode("utf-8") if isinstance(result, bytes) else str(result)
         self._log.trace('RPC result: %s', result)
-        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
-                                      content={"result": result})
+
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+        response.set_message(result)
+        return response

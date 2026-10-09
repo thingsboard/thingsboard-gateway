@@ -25,6 +25,7 @@ from simplejson import load
 
 from thingsboard_gateway.connectors.opcua.device import Device
 from thingsboard_gateway.connectors.opcua.opcua_connector import OpcUaConnector
+from thingsboard_gateway.gateway.entities.rpc_request import create_rpc_request_from_dict
 
 
 class OpcUABaseTest(IsolatedAsyncioTestCase):
@@ -37,8 +38,7 @@ class OpcUABaseTest(IsolatedAsyncioTestCase):
         self.connector._OpcUaConnector__log = logging.getLogger('Opc test')
         self.connector._OpcUaConnector__loop = get_event_loop()
         self.connector._OpcUaConnector__device_nodes = []
-        if not hasattr(self.connector, "_OpcUaConnector__gateway"):
-            self.connector._OpcUaConnector__gateway = MagicMock()
+        self.connector._OpcUaConnector__gateway = MagicMock()
 
     async def asyncTearDown(self):
         log = logging.getLogger('Opc test')
@@ -91,23 +91,29 @@ class OpcUABaseTest(IsolatedAsyncioTestCase):
         f.set_result(value)
         return f
 
-    def make_connector_payload(self, rpc_id: str, method: str, args: list, inner_method: str | None = None):
-        return {
-            'id': rpc_id,
-            'method': method,
-            'params': {
-                'arguments': [{'type': 'integer', 'value': v} for v in args],
-                'connectorId': '8bd78640-1888-4a6c-b43e-98003cda158a',
-                'method': inner_method if inner_method is not None else method.replace('opcua_', '')
+    def make_connector_rpc_request(self, rpc_id, method_name, args, connector_type='opcua', device_name=None):
+        content = {
+            'data': {
+                'method': f'{connector_type}_{method_name}',
+                'params': {
+                    'arguments': [{'type': 'integer', 'value': v} for v in args],
+                }
             }
         }
+        if device_name is not None:
+            content['data']['params']['deviceName'] = device_name
+        return create_rpc_request_from_dict(content, gateway_or_connector_req_id=rpc_id)
 
-    def make_reserved_payload(self, rpc_id: int, kind: str, params: str, device: str | None = None):
-        return {
-            'data': {'id': rpc_id, 'method': kind, 'params': params},
+    def make_device_rpc_request(self, rpc_id, method, params, device=None):
+        content = {
+            'data': {'id': rpc_id, 'method': method, 'params': params},
             'device': device or self.DEVICE_NAME,
             'id': rpc_id
         }
+        return create_rpc_request_from_dict(content)
+
+    def make_reserved_rpc_request(self, rpc_id, kind, params, device=None):
+        return self.make_device_rpc_request(rpc_id, kind, params, device=device)
 
     @contextmanager
     def patch_task_and_sleep(self, done_future: Future, patch_sleep: bool = True):
@@ -123,22 +129,17 @@ class OpcUABaseTest(IsolatedAsyncioTestCase):
     def call_connector_with_result(self, rpc_request, result, *, patch_sleep=True):
         done_future = self.make_done_future(result)
         with self.patch_task_and_sleep(done_future, patch_sleep=patch_sleep) as create_task_mock:
-            results = self.connector._OpcUaConnector__process_connector_rpc_request(rpc_request=rpc_request)
-        return done_future, create_task_mock, results
+            response = self.connector._OpcUaConnector__process_connector_rpc_request(rpc_request=rpc_request)
+        return done_future, create_task_mock, response
 
     def call_device_with_result(self, rpc_request, result, *, patch_sleep=True):
         done_future = self.make_done_future(result)
         with self.patch_task_and_sleep(done_future, patch_sleep=patch_sleep) as create_task_mock:
-            results = self.connector._OpcUaConnector__process_device_rpc_request(rpc_request=rpc_request)
-        return done_future, create_task_mock, results
+            response = self.connector._OpcUaConnector__process_device_rpc_request(rpc_request=rpc_request)
+        return done_future, create_task_mock, response
 
     def call_reserved_with_result(self, rpc_request, result, *, patch_sleep=True):
         done_future = self.make_done_future(result)
         with self.patch_task_and_sleep(done_future, patch_sleep=patch_sleep) as create_task_mock:
-            results = self.connector._OpcUaConnector__process_reserved_rpc_request(rpc_request=rpc_request)
-        return done_future, create_task_mock, results
-
-    def assert_gateway_reply(self, rpc_request, result):
-        self.connector._OpcUaConnector__gateway.send_rpc_reply.assert_called_once_with(
-            rpc_request.device_name, rpc_request.id, {"result": result}
-        )
+            response = self.connector._OpcUaConnector__process_reserved_rpc_request(rpc_request=rpc_request)
+        return done_future, create_task_mock, response
