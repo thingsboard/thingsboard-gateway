@@ -270,9 +270,9 @@ class BLEConnector(Connector, Thread):
             for attribute_update_config in device.config['attributeUpdates']:
                 for attribute_update in content['data']:
                     if attribute_update_config['attributeOnThingsBoard'] == attribute_update:
-                        device.write_char(attribute_update_config['characteristicUUID'],
-                                          bytes(str(content['data'][attribute_update]),
-                                                'utf-8'))
+                        coroutine = device.write_char(attribute_update_config['characteristicUUID'],
+                                                      bytes(str(content['data'][attribute_update]), 'utf-8'))
+                        self.__run_coroutine(coroutine, device.timeout)
         except Exception as e:
             self.__log.error('Error while processing attributes update %s', e)
 
