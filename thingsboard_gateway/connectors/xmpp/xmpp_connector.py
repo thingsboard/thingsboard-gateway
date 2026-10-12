@@ -27,6 +27,8 @@ from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics,
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.entities.rpc_request import RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
@@ -263,77 +265,83 @@ class XMPPConnector(Connector, Thread):
             self.__log.error('Key not found %s during processing attribute update', e)
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
-    def server_side_rpc_handler(self, content):
-        self.__log.debug('Got RPC: %s', content)
+    def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
+        self.__log.debug('Received RPC: %s', rpc_request)
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
 
         try:
-            if self.__is_reserved_rpc(content):
-                self.__process_reserved_rpc(content)
-                return
-
-            device_jid = self._available_device.get(content['device'])
+            device_jid = self._available_device.get(rpc_request.device_name)
             if not device_jid:
-                self.__log.error('Device not found')
+                err_msg = f'{rpc_request.device_name} device not found'
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
 
-            rpcs = self._devices[device_jid].server_side_rpc
-            for rpc_conf in rpcs:
-                if rpc_conf['methodRPC'] == content['data']['method']:
-                    data_to_send_tags = TBUtility.get_values(rpc_conf.get('valueExpression'), content['data'],
-                                                             'params',
-                                                             get_tag=True)
-                    data_to_send_values = TBUtility.get_values(rpc_conf.get('valueExpression'), content['data'],
-                                                               'params',
-                                                               expression_instead_none=True)
-
-                    data_to_send = rpc_conf.get('valueExpression')
-                    for (tag, value) in zip(data_to_send_tags, data_to_send_values):
-                        data_to_send = data_to_send.replace('${' + tag + '}', dumps(value))
-
-                    self._send_message(device_jid, data_to_send)
-
-                    if rpc_conf.get('withResponse', True):
-                        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
-                                                      success_sent=True)
-
-                        return
-        except KeyError as e:
-            self.__log.error('Key not found %s during processing rpc', e)
-
-    def __is_reserved_rpc(self, rpc) -> bool:
-        rpc_method_name = rpc.get('data', {}).get('method')
-
-        if rpc_method_name == 'set':
-            return True
-
-        return False
-
-    def __process_reserved_rpc(self, rpc):
-        params = self.__get_reserved_rpc_params(rpc)
-        if not params:
-            self.__log.error('RPC params are empty, expected format: set value={value};')
-            self.__gateway.send_rpc_reply(device=rpc['device'],
-                                          req_id=rpc['data']['id'],
-                                          content={
-                                              rpc['data']['method']:
-                                                  'RPC params are empty, expected format: set value={value};'
-                                          })
-            return
-
-        device_jid = self._available_device.get(rpc['device'])
-        if not device_jid:
-            self.__log.error('Device not found')
-            return
-
-        try:
-            self._send_message(device_jid, dumps(params))
-            self.__gateway.send_rpc_reply(device=rpc['device'],
-                                          req_id=rpc['data']['id'],
-                                          content={'result': {"success": True}})
+            if rpc_request.rpc_type == RPCType.CONNECTOR:
+                err_msg = 'Not implemented'
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                return self._process_reserved_rpc(rpc_request, device_jid)
+            elif rpc_request.rpc_type == RPCType.DEVICE:
+                return self._process_rpc_to_device(rpc_request, device_jid)
+            else:
+                err_msg = f"Invalid RPC type request: {rpc_request}"
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
         except Exception as e:
-            self.__log.error('Error during sending reserved RPC %s', e)
-            self.__gateway.send_rpc_reply(device=rpc['device'],
-                                          req_id=rpc['data']['id'],
-                                          content={rpc['data']['method']: 'Error during sending reserved RPC %s' % e})
+            error_msg = f"Failed to process RPC with error: {e}"
+            self.__log.error(error_msg)
+            response.set_error_msg(error_msg)
+            return response
+
+    def _process_rpc_to_device(self, rpc_request, device_jid):
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+
+        rpcs = self._devices[device_jid].server_side_rpc
+        rpc_config = self._find_rpc_config_by_method_name(rpc_request.method_name, rpcs)
+        if rpc_config is None:
+            err_msg = f'Config for {rpc_request.method_name} not found'
+            self.__log.error(err_msg)
+            response.set_error_msg(err_msg)
+            return response
+
+        data_to_send_tags = TBUtility.get_values(rpc_config.get('valueExpression'), rpc_request.params, get_tag=True)
+        data_to_send_values = TBUtility.get_values(rpc_config.get('valueExpression'),
+                                                   rpc_request.params,
+                                                   expression_instead_none=True)
+
+        data_to_send = rpc_config.get('valueExpression')
+        for (tag, value) in zip(data_to_send_tags, data_to_send_values):
+            data_to_send = data_to_send.replace('${' + tag + '}', dumps(value))
+
+        self._send_message(device_jid, data_to_send)
+
+        response.set_message('success')
+        return response
+
+    def _find_rpc_config_by_method_name(self, method_name, rpc_config_list):
+        rpc_configs = tuple(filter(lambda config: config['methodRPC'] == method_name, rpc_config_list))
+        if len(rpc_configs) == 0:
+            return None
+
+        return rpc_configs[0]
+
+    def _process_reserved_rpc(self, rpc_request, device_jid):
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+
+        params = self.__get_reserved_rpc_params(rpc_request.params)
+        if len(params) == 0:
+            err_msg = 'RPC params are empty, expected format: set value=<value>;'
+            self.__log.error(err_msg)
+            response.set_error_msg(err_msg)
+            return response
+
+        self._send_message(device_jid, dumps(params))
+        response.set_message('success')
+        return response
 
     def __get_reserved_rpc_params(self, rpc):
         params = {}
