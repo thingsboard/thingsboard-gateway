@@ -91,7 +91,7 @@ class RPCRequestBase:
             if content[DATA_PARAMETER][RPC_METHOD_PARAMETER] in RESERVED_RPC_NAMES:
                 return True
 
-            (module, _) = content[DATA_PARAMETER][RPC_METHOD_PARAMETER].split('_')
+            (module, *_) = content[DATA_PARAMETER][RPC_METHOD_PARAMETER].split('_')
             if module == 'gateway':
                 return True
         except (IndexError, ValueError):
