@@ -28,7 +28,8 @@ from cachetools import TTLCache
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
-    DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
+    DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT, \
+    RPC_CONNECTOR_ARGUMENTS_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -68,7 +69,8 @@ from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, Secur
 from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
     BadInvalidState, BadSessionClosed, BadAttributeIdInvalid, BadCommunicationError, BadOutOfService, BadNoMatch, \
     BadUnexpectedError, UaStatusCodeErrors, BadWaitingForInitialData, BadSessionIdInvalid, BadSubscriptionIdInvalid
-from thingsboard_gateway.connectors.opcua.entities.rpc_request import OpcUaRpcRequest, OpcUaRpcType
+from thingsboard_gateway.gateway.entities.rpc_request import RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.connectors.opcua.device import Device
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 
@@ -1398,33 +1400,41 @@ class OpcUaConnector(Connector, Thread):
             self.__log.debug("Unexpected error during write: %s", exc_info=exc)
             return False
 
-    def server_side_rpc_handler(self, content: Dict):
-        self.__log.info('Received server side rpc request: %r', content)
+    def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
+        self.__log.info('Received server side rpc request: %s', rpc_request)
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
 
         try:
-            response = None
-            rpc_request = OpcUaRpcRequest(content=content)
-            if rpc_request.rpc_type == OpcUaRpcType.CONNECTOR:
-                response = self.__process_connector_rpc_request(rpc_request=rpc_request)
-            elif rpc_request.rpc_type == OpcUaRpcType.DEVICE:
-                response = self.__process_device_rpc_request(rpc_request=rpc_request)
-
-            elif rpc_request.rpc_type == OpcUaRpcType.RESERVED:
-                response = self.__process_reserved_rpc_request(rpc_request=rpc_request)
-            return response
+            if rpc_request.rpc_type == RPCType.CONNECTOR:
+                return self.__process_connector_rpc_request(rpc_request=rpc_request)
+            elif rpc_request.rpc_type == RPCType.DEVICE:
+                return self.__process_device_rpc_request(rpc_request=rpc_request)
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                return self.__process_reserved_rpc_request(rpc_request=rpc_request)
+            else:
+                err_msg = f"Invalid RPC type request: {rpc_request}"
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
 
         except Exception as e:
-            self.__log.error('Failed to process server side rpc request: %s', e)
-            return {'error': '%r' % e, 'success': False}
+            err_msg = f'Failed to process server side rpc request: {e}'
+            self.__log.error(err_msg)
+            response.set_error_msg(err_msg)
+            return response
 
-    def __process_connector_rpc_request(self, rpc_request: OpcUaRpcRequest):
-        self.__log.debug("Received RPC to connector: %r", rpc_request)
+    def __process_connector_rpc_request(self, rpc_request) -> RPCResponse:
+        self.__log.debug("Received RPC to connector: %s", rpc_request)
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+
+        arguments = [argument["value"] for argument in
+                     (rpc_request.params or {}).get(RPC_CONNECTOR_ARGUMENTS_PARAMETER, [])]
+
         results = []
         for device in self.__device_nodes:
-            rpc_request.device = device.name
             try:
                 task = self.__loop.create_task(
-                    self.__call_method(device.path, rpc_request.rpc_method, rpc_request.arguments))
+                    self.__call_method(device.path, rpc_request.method_name, arguments))
                 task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout,
                                                                        poll_interval=0.2)
                 if not task_completed:
@@ -1436,12 +1446,13 @@ class OpcUaConnector(Connector, Thread):
                     continue
                 result['device_name'] = device.name
                 results.append(result)
-                self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
+                self.__log.debug("RPC with method %s execution result is: %s", rpc_request.method_name, result)
             except Exception as e:
                 self.__log.exception(e)
-                self.__gateway.send_rpc_reply(rpc_request.device, rpc_request.id,
-                                              {"result": {"error": str(e)}})
-        return results
+                results.append({"error": str(e), "device_name": device.name})
+
+        response.set_message(results)
+        return response
 
     @staticmethod
     def __wait_task_with_timeout(task: asyncio.Task, timeout: float, poll_interval: float = 0.2) -> Tuple[bool, Any]:
@@ -1454,78 +1465,74 @@ class OpcUaConnector(Connector, Thread):
                 return False, None
         return True, task.result()
 
-    def __process_device_rpc_request(self, rpc_request: OpcUaRpcRequest):
+    def __process_device_rpc_request(self, rpc_request) -> RPCResponse:
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+
         device = self.__get_device_by_name(rpc_request.device_name)
-        rpc_section = device.config.get('rpc_methods', [])
         if device is None:
-            self.__log.error('Device %s not found for RPC request', rpc_request.device_name)
-            self.__gateway.send_rpc_reply(device=rpc_request.device_name,
-                                          req_id=rpc_request.id,
-                                          content={"result": {"error": 'Device not found'}})
-            return
+            err_msg = f'Device {rpc_request.device_name} not found for RPC request'
+            self.__log.error(err_msg)
+            response.set_error_msg(err_msg)
+            return response
 
+        rpc_section = device.config.get('rpc_methods', [])
         if not device.is_valid_rpc_method_name(rpc_device_section=rpc_section, rpc_request=rpc_request):
-            self.__log.error('Requested rpc method is not found in config %s', rpc_request.device_name)
-            self.__gateway.send_rpc_reply(device=rpc_request.device_name,
-                                          req_id=rpc_request.id,
-                                          content={"result": {"error": 'Requested rpc method is not found in config'}})
-            return
+            err_msg = 'Requested rpc method is not found in config'
+            self.__log.error('%s %s', err_msg, rpc_request.device_name)
+            response.set_error_msg(err_msg)
+            return response
 
+        rpc_request.arguments = rpc_request.params
         rpc_request.arguments = device.get_device_rpc_arguments(rpc_device_section=rpc_section, rpc_request=rpc_request)
         if isinstance(rpc_request.arguments, dict):
             error_msg = rpc_request.arguments.get('error')
-            self.__log.error(f'{error_msg} for device {rpc_request.device_name}')
-            self.__gateway.send_rpc_reply(device=rpc_request.device_name,
-                                          req_id=rpc_request.id,
-                                          content={"result": error_msg})
-            return
+            self.__log.error('%s for device %s', error_msg, rpc_request.device_name)
+            response.set_error_msg(error_msg)
+            return response
 
         try:
             task = self.__loop.create_task(
-                self.__call_method(device.path, rpc_request.rpc_method, rpc_request.arguments))
+                self.__call_method(device.path, rpc_request.method_name, rpc_request.arguments))
             task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout,
                                                                    poll_interval=0.2)
             if not task_completed:
-                self.__log.error(
-                    "Failed to process rpc request for %s, timeout has been reached",
-                    device.name,
-                )
-                result = {"error": f"Timeout rpc has been reached for {device.name}"}
-            elif task_completed:
-                self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
+                err_msg = f"Failed to process rpc request for {device.name}, timeout has been reached"
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
 
-            self.__gateway.send_rpc_reply(rpc_request.device_name,
-                                          rpc_request.id,
-                                          {"result": result})
-            return result
+            self.__log.debug("RPC with method %s execution result is: %s", rpc_request.method_name, result)
+            response.set_message(result)
+            return response
 
         except Exception as e:
             self.__log.exception(e)
-            self.__gateway.send_rpc_reply(rpc_request.device_name, rpc_request.id,
-                                          {"result": {"error": str(e)}})
+            response.set_error_msg(str(e))
+            return response
 
-    def __process_reserved_rpc_request(self, rpc_request: OpcUaRpcRequest):
+    def __process_reserved_rpc_request(self, rpc_request) -> RPCResponse:
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+
         identifier = ''
         device = self.__get_device_by_name(rpc_request.device_name)
         if device is None:
-            self.__log.error('Device %s not found for RPC request', rpc_request.device_name)
-            self.__gateway.send_rpc_reply(device=rpc_request.device_name,
-                                          req_id=rpc_request.id,
-                                          content={"result": {"error": 'Device not found'}})
-            return
+            err_msg = f'Device {rpc_request.device_name} not found for RPC request'
+            self.__log.error(err_msg)
+            response.set_error_msg(err_msg)
+            return response
+
+        self.__parse_reserved_rpc_params(rpc_request)
+
         is_node_id = self.__is_node_identifier(rpc_request.params)
 
         if is_node_id:
             identifier = rpc_request.params
             if not identifier:
-                self.__log.error("Could not find node for requested rpc request %s", rpc_request.params)
-                self.__gateway.send_rpc_reply(device=rpc_request.device_name,
-                                              req_id=rpc_request.id,
-                                              content={
-                                                  "result": {"error": 'Could not find node for requested rpc request'}})
+                err_msg = 'Could not find node for requested rpc request'
+                self.__log.error("%s %s", err_msg, rpc_request.params)
+                response.set_error_msg(err_msg)
 
-        elif not is_node_id:
-
+        else:
             identifier = device.get_node_by_key(rpc_request.params)
             if not identifier:
                 identifier = self.find_full_node_path(params=rpc_request.params, device=device)
@@ -1536,30 +1543,64 @@ class OpcUaConnector(Connector, Thread):
             task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout,
                                                                    poll_interval=0.2)
             if not task_completed:
-                self.__log.error(
-                    "Failed to process rpc request for %s, timeout has been reached",
-                    device.name,
-                )
-                result = {"error": f"Timeout rpc has been reached for {device.name}"}
-            elif task_completed:
-                self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
-            self.__gateway.send_rpc_reply(rpc_request.device_name,
-                                          rpc_request.id,
-                                          {"result": result})
-            return result
+                err_msg = f"Failed to process rpc request for {device.name}, timeout has been reached"
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
+
+            self.__log.debug("RPC with method %s execution result is: %s", rpc_request.method_name, result)
+            response.set_message(result)
+            return response
 
         except Exception as e:
             self.__log.exception(e)
-            self.__gateway.send_rpc_reply(rpc_request.device_name, rpc_request.id,
-                                          {"result": {"error": str(e)}})
+            response.set_error_msg(str(e))
+            return response
 
-    async def __process_rpc_request(self, identifier: Node | str, rpc_request: OpcUaRpcRequest):
+    def __parse_reserved_rpc_params(self, rpc_request):
+        params = rpc_request.params
+        if rpc_request.method_name == "get":
+            rpc_request.params = params.rstrip(' ;\t\n\r')
+            return
+        if rpc_request.method_name != "set" or not isinstance(params, str):
+            return
+
+        ident = self.__find_identifier_in_params(params)
+
+        if ident:
+            value = params[len(ident):]
+            delimiter = next((p for p in RPC_SET_SPLIT_PATTERNS if p in params), None)
+            rpc_request.params = ident
+            rpc_request.arguments = re.sub(r"[;\s]+$", "", value.split(delimiter)[-1]).strip(' ;')
+            return
+
+        delimiter = next((p for p in RPC_SET_SPLIT_PATTERNS if p in params), None)
+        parts = (
+            [p.strip() for p in params.split(delimiter) if p.strip()]
+            if delimiter
+            else [params.strip()]
+        )
+
+        if not delimiter or len(parts) != 2:
+            return
+
+        full_path, value = parts
+        rpc_request.params = full_path
+        rpc_request.arguments = re.sub(r"[;\s]+$", "", value)
+
+    @staticmethod
+    def __find_identifier_in_params(path: str) -> str | None:
+        identifier = re.findall(r"(ns=\d+;[isgb]=[^;\s}]+)(?=;|\s|$)", path)
+        if identifier:
+            return identifier[0]
+
+    async def __process_rpc_request(self, identifier: Node | str, rpc_request):
         result = {}
         try:
-            if rpc_request.rpc_method == 'get':
+            if rpc_request.method_name == 'get':
                 result = await self.__read_value(identifier)
                 return result
-            elif rpc_request.rpc_method == 'set':
+            elif rpc_request.method_name == 'set':
                 result = await self.__write_value(identifier, rpc_request.arguments)
                 return result
             else:
@@ -1713,6 +1754,7 @@ class OpcUaConnector(Connector, Thread):
             self.__log.warning("Sub keep alive period must be a positive number, set a valid one ")
             value = 0
         self.__sub_keep_alive_period = value
+
 
 class SubHandler:
     def __init__(self, queue, logger, status_change_callback):

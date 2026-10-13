@@ -29,6 +29,18 @@ SUPPORTED_OBJECTS_TYPES = {
     '4': 'binaryOutput',
     '5': 'binaryValue',
 }
-
+GET_RPC_PATTERN = (
+    r'^objectType=(?P<objectType>[A-Za-z]+);'
+    r'objectId=(?P<objectId>\d+);'
+    r'propertyId=(?P<propertyId>[A-Za-z]+);$'
+)
+SET_RPC_PATTERN = (
+    r'^objectType=(?P<objectType>[A-Za-z]+);'
+    r'objectId=(?P<objectId>\d+);'
+    r'propertyId=(?P<propertyId>[A-Za-z]+);'
+    r'(?:priority=(?P<priority>\d+);)?'
+    r'value=(?P<value>.+);$'
+)
 RESERVED_GET_RPC_SCHEMA = "get objectType=<objectType>;objectId=<objectId>;propertyId=<propertyId>;"
 RESERVED_SET_RPC_SCHEMA = "set objectType=<objectType>;objectId=<objectId>;propertyId=<propertyId>;priority=<priority>;value=<value>;"  # noqa: E501
+DEFAULT_RPC_TIMEOUT = 10

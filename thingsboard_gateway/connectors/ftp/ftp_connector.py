@@ -14,7 +14,7 @@
 
 import io
 import re
-from ftplib import FTP, FTP_TLS
+from ftplib import FTP, FTP_TLS, all_errors
 from queue import Queue
 from random import choice
 from re import fullmatch
@@ -25,10 +25,18 @@ from time import perf_counter as timer, sleep
 import simplejson
 
 from thingsboard_gateway.connectors.ftp.backward_compatibility_adapter import FTPBackwardCompatibilityAdapter
+from thingsboard_gateway.connectors.ftp.constants import (
+    RESERVED_GET_RPC_SCHEMA,
+    RESERVED_SET_RPC_SCHEMA,
+    RESERVED_GET_RPC_PATTERN,
+    RESERVED_SET_RPC_PATTERN
+)
 from thingsboard_gateway.connectors.ftp.file import File
 from thingsboard_gateway.connectors.ftp.ftp_uplink_converter import FTPUplinkConverter
 from thingsboard_gateway.connectors.ftp.path import Path
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.rpc_request import RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger, TbLogger
@@ -424,108 +432,114 @@ class FTPConnector(Connector, Thread):
             self.__rpc_requests.append(rpc_request)
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
-    def server_side_rpc_handler(self, content):
+    def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
+        self.__log.debug('Received RPC request: %s', rpc_request)
+
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
         try:
-            self.__log.debug("Handling incoming server-side RPC with %s", content)
-
-            if content.get('data') is None:
-                content['data'] = {'params': content['params'], 'method': content['method'], 'id': content['id']}
-
-            rpc_method = content['data']['method']
-
-            # check if RPC type is connector RPC
-            try:
-                (connector_type, rpc_method_name) = rpc_method.split('_')
-                if connector_type == self._connector_type:
-                    value_expression = content['data']['params']['valueExpression']
-                    converted_data, success_sent = self.__process_rpc(rpc_method_name, value_expression)
-                    self.__log.info("Successfully sent RPC request to FTP for %s rpc method", rpc_method_name)
-                    result = converted_data if isinstance(converted_data, dict) else {'result': converted_data}
-                    return {'success': bool(success_sent), **result}
-            except ValueError:
-                pass
-
-            # check if RPC method is reserved get/set
-            if rpc_method == 'get' or rpc_method == 'set':
-                params = {}
-                for param in content['data']['params'].split(';'):
-                    try:
-                        (key, value) = param.split('=')
-                    except ValueError:
-                        continue
-
-                    if key and value:
-                        params[key] = value
-
-                rpc_method = 'write' if rpc_method == 'set' else 'read'
-
-                if rpc_method == 'read':
-                    value_expression = params.get('filePath')
-                else:
-                    value_expression = params.get('filePath') + ';' + params.get('value')
-
-                converted_data, success_sent = self.__process_rpc(rpc_method, value_expression)
-                self.__send_rpc_reply({}, content, converted_data, success_sent)
-                self.__log.info("Successfully sent RPC request to FTP for %s rpc method", rpc_method)
-                return
-
-            for rpc_request in self.__rpc_requests:
-                if not fullmatch(rpc_request['deviceNameFilter'], content['device']):
-                    continue
-                if fullmatch(rpc_request['methodFilter'], rpc_method):
-                    params_field_expression = rpc_request['valueExpression']
-
-                    value_expression_key = TBUtility.get_value(params_field_expression, content['data'], get_tag=True)
-                    value_expression = content['data'][value_expression_key]
-                    converted_data, success_sent = self.__process_rpc(rpc_method, value_expression)
-
-                    self.__send_rpc_reply(rpc_request, content, converted_data, success_sent)
-                    self.__log.info("Successfully sent RPC request to FTP for %s rpc method", rpc_method)
-
-        except Exception as e:
-            self.__log.error(
-                "Failed to perform incoming server side RPC for content %s and rpc method due to %r", content, str(e))
-            self.__log.debug("Error:", exc_info=e)
-
-    def __process_rpc(self, method, value_expression):
-        self.__log.info("Called __process_rpc, %r %r", method, value_expression)
-        with self.__ftp() as ftp:
-            if not self._connected or not ftp.sock:
-                self.__connect(ftp)
-
-            converted_data = None
-            success_sent = None
-            if method == 'write':
-                try:
-                    arr = re.sub("'", '', value_expression).split(';')
-                    io_stream = self._get_io_stream(arr[1])
-                    ftp.storbinary('STOR ' + arr[0], io_stream)
-                    io_stream.close()
-                    success_sent = True
-                    converted_data = {"result": arr[1]} if len(arr[1]) < 80 else {"result": True}
-                    self.__log.info("The value %s is written to %s", arr[1], arr[0])
-                except Exception as e:
-                    self.__log.error("Can not process for method write due to %r", str(e))
-                    self.__log.debug("Error:", exc_info=e)
-                    converted_data = '{"error": "' + str(e) + '"}'
+            if rpc_request.rpc_type == RPCType.DEVICE:
+                file_path, value = self.__get_device_rpc_file_operation(rpc_request.device_name, rpc_request.id,
+                                                                        rpc_request.method_name, rpc_request.params)
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                file_path, value = self.__get_reserved_rpc_file_operation(rpc_request.method_name, rpc_request.params)
+            elif rpc_request.rpc_type == RPCType.CONNECTOR:
+                file_path, value = self.__get_connector_rpc_file_operation(rpc_request.method_name, rpc_request.params)
             else:
-                handle_stream = io.BytesIO()
-                ftp.retrbinary('RETR ' + value_expression, handle_stream.write)
-                converted_data = str(handle_stream.getvalue(), 'UTF-8')
-                success_sent = True
-                handle_stream.close()
+                raise ValueError(f'Invalid RPC type request: {rpc_request}')
 
-            return converted_data, success_sent
+            response.set_message(self.__execute_file_operation(file_path, value))
+        except Exception as e:
+            self.__log.error('Failed to process RPC request %s: %s', rpc_request, e)
+            response.set_error_msg(f"Failed to process '{rpc_request.method_name}' RPC request: {e}")
 
-    def __send_rpc_reply(self, rpc_request, content, converted_data, success_sent):
-        if content.get('device') and fullmatch(rpc_request.get('deviceNameFilter', ''), content.get('device')):
-            self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
-                                          success_sent=success_sent, content={'result': converted_data})
-        elif content.get('device'):
-            self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
-                                          success_sent=success_sent, content={'result': converted_data})
-        else:
-            return converted_data
+        return response
+
+    def __get_device_rpc_file_operation(self, device_name, rpc_id, method_name, params):
+        rpc_config = self.__find_rpc_config(device_name, method_name)
+        if rpc_config is None:
+            raise ValueError('Neither of configured device rpc methods match')
+
+        body = {'id': rpc_id, 'method': method_name, 'params': params}
+        value_expression_key = TBUtility.get_value(rpc_config['valueExpression'], body, get_tag=True)
+        value_expression = body.get(value_expression_key)
+        if value_expression is None:
+            raise ValueError(f"Value for '{rpc_config['valueExpression']}' not found in RPC params")
+
+        return self.__parse_value_expression(method_name, value_expression)
+
+    def __find_rpc_config(self, device_name, method_name):
+        for rpc_config in self.__rpc_requests:
+            if (fullmatch(rpc_config['deviceNameFilter'], device_name)
+                    and fullmatch(rpc_config['methodFilter'], method_name)):
+                return rpc_config
+        return None
+
+    @staticmethod
+    def __get_reserved_rpc_file_operation(method_name, params):
+        if not params:
+            raise ValueError("No 'params' found in reserved RPC request")
+
+        is_set = method_name.lower() == 'set'
+        pattern = RESERVED_SET_RPC_PATTERN if is_set else RESERVED_GET_RPC_PATTERN
+        match = fullmatch(pattern, params)
+        if match is None:
+            expected_schema = RESERVED_SET_RPC_SCHEMA if is_set else RESERVED_GET_RPC_SCHEMA
+            raise ValueError(f"The requested RPC does not match with the schema: {expected_schema}")
+
+        return match.group('filePath'), match.group('value') if is_set else None
+
+    def __get_connector_rpc_file_operation(self, method_name, params):
+        if method_name not in ('read', 'write'):
+            raise ValueError("Unsupported FTP connector RPC method, expected 'read' or 'write'")
+
+        value_expression = params.get('valueExpression')
+        if value_expression is None:
+            raise ValueError("Connector RPC requires 'valueExpression' param")
+
+        return self.__parse_value_expression(method_name, value_expression)
+
+    @staticmethod
+    def __parse_value_expression(method_name, value_expression):
+        if not isinstance(value_expression, str):
+            raise ValueError(f"Value must be a string, got {type(value_expression).__name__}")
+
+        if method_name != 'write':
+            return value_expression, None
+
+        write_expression = re.sub("'", '', value_expression).split(';', 1)
+        if len(write_expression) != 2:
+            raise ValueError(f"Value must be in format '<filePath>;<value>', got '{value_expression}'")
+
+        return write_expression[0], write_expression[1]
+
+    def __execute_file_operation(self, file_path, value):
+        with self.__ftp() as ftp:
+            self.__connect(ftp)
+            if ftp.sock is None:
+                raise ConnectionError(f'Cannot connect to FTP server {self.host}:{self.port}')
+
+            try:
+                if value is None:
+                    return self.__read_file_content(ftp, file_path)
+
+                self.__write_file_content(ftp, file_path, self._get_io_stream(value))
+                self.__log.info("The value %s is written to %s", value, file_path)
+                return value if len(value) < 80 else True
+            except all_errors as e:
+                raise ValueError(f"FTP error while processing file '{file_path}': {e}")
+            except UnicodeDecodeError:
+                raise ValueError(f"File '{file_path}' is not a valid UTF-8 text file")
+
+    @staticmethod
+    def __read_file_content(ftp, file_path):
+        handle_stream = io.BytesIO()
+        ftp.retrbinary('RETR ' + file_path, handle_stream.write)
+        return str(handle_stream.getvalue(), 'UTF-8')
+
+    @staticmethod
+    def __write_file_content(ftp, file_path, io_stream):
+        ftp.storbinary('STOR ' + file_path, io_stream)
+        io_stream.close()
 
     def get_config(self):
         return self.config

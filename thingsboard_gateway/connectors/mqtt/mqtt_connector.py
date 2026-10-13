@@ -17,7 +17,7 @@ import socket
 import ssl
 import string
 from queue import Queue, Empty
-from re import fullmatch, match, search
+from re import fullmatch, match, search, compile
 from threading import Thread, Event
 from time import sleep, time
 from typing import List, Union
@@ -35,6 +35,14 @@ from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceived
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.entities.rpc_request import RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
+from thingsboard_gateway.connectors.mqtt.constants import (
+    GET_PATTERN_REGEX,
+    GET_RPC_EXPECTED_SCHEMA,
+    SET_PATTERN_REGEX,
+    SET_RPC_EXPECTED_SCHEMA
+)
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
@@ -687,7 +695,7 @@ class MqttConnector(Connector, Thread):
                 # The gateway is expecting for this message => no wildcards here, the topic must be evaluated as is
 
                 if self.__gateway.is_rpc_in_progress(message.topic):
-                    content = message.payload.decode('utf-8').replace("'", '"')
+                    content = {'result': message.payload.decode('utf-8').replace("'", '"')}
                     self.__log.info("RPC response arrived. Forwarding it to thingsboard.")
                     self.__gateway.rpc_with_reply_processing(message.topic, content)
                     continue
@@ -921,155 +929,175 @@ class MqttConnector(Connector, Thread):
             self.__log.exception('Error while processing attributes update %s', str(e))
             self.__log.debug("Exception: %s", e, exc_info=True)
 
-    def __process_rpc_request(self, content, rpc_config):
+    def __process_rpc_request(self, rpc_request, rpc_config):
+        # This handler seems able to handle the request
+        self.__log.info("Candidate RPC handler found")
+
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+
+        expects_response = rpc_config.get("responseTopicExpression")
+        defines_timeout = rpc_config.get("responseTimeout")
+
+        # 2-way RPC setup
+        if expects_response and defines_timeout:
+            expected_response_topic = rpc_config["responseTopicExpression"] \
+                .replace("${methodName}", str(rpc_request.method_name)) \
+                .replace("${requestId}", str(rpc_request.id))
+
+            if rpc_request.device_name is not None:
+                expected_response_topic = expected_response_topic.replace("${deviceName}",
+                                                                          str(rpc_request.device_name))
+
+            expected_response_topic = TBUtility.replace_params_tags_from_rpc_request(expected_response_topic,
+                                                                                     rpc_request)
+
+            timeout = time() * 1000 + float(defines_timeout)
+
+            # Start listening on the response topic
+            self.__log.info("Subscribing to: %s", expected_response_topic)
+            self.__subscribe(expected_response_topic, rpc_config.get("responseTopicQoS", 1))
+
+            # Wait for subscription to be carried out
+            sub_response_timeout = 10
+
+            while expected_response_topic in self.__subscribes_sent.values():
+                sub_response_timeout -= 1
+                sleep(0.1)
+                if sub_response_timeout == 0:
+                    break
+
+            # Ask the gateway to enqueue this as an RPC response
+            self.__gateway.register_rpc_request_timeout(rpc_request,
+                                                        timeout,
+                                                        expected_response_topic,
+                                                        self.rpc_cancel_processing)
+
+            # Wait for RPC to be successfully enqueued, which never fails.
+            while not self.__gateway.is_rpc_in_progress(expected_response_topic):
+                sleep(0.1)
+
+        elif expects_response and not defines_timeout:
+            self.__log.info("2-way RPC without timeout: treating as 1-way")
+
+        # Actually reach out for the device
+        request_topic: str = rpc_config.get("requestTopicExpression") \
+            .replace("${methodName}", str(rpc_request.method_name)) \
+            .replace("${requestId}", str(rpc_request.id))
+
+        if rpc_request.device_name is not None:
+            request_topic = request_topic.replace("${deviceName}", str(rpc_request.device_name))
+
+        request_topic = TBUtility.replace_params_tags_from_rpc_request(request_topic, rpc_request)
+
+        data_to_send_tags = TBUtility.get_values(rpc_config.get('valueExpression'),
+                                                 {'params': rpc_request.params},
+                                                 get_tag=True)
+        data_to_send_values = TBUtility.get_values(rpc_config.get('valueExpression'),
+                                                   {'params': rpc_request.params},
+                                                   expression_instead_none=True)
+
+        data_to_send = rpc_config.get('valueExpression')
+
+        if rpc_request.device_name is not None:
+            data_to_send = data_to_send.replace(
+                "${deviceName}", str(rpc_request.device_name))
+
+        for (tag, value) in zip(data_to_send_tags, data_to_send_values):
+            data_to_send = data_to_send.replace(
+                '${' + tag + '}', orjson.dumps(value).decode('utf-8'))
+
+        self.__log.info("Publishing to: %s with data %s",
+                        request_topic, data_to_send)
+        result = None
         try:
-            # This handler seems able to handle the request
-            self.__log.info("Candidate RPC handler found")
-
-            expects_response = rpc_config.get("responseTopicExpression")
-            defines_timeout = rpc_config.get("responseTimeout")
-
-            # 2-way RPC setup
-            if expects_response and defines_timeout:
-                expected_response_topic = rpc_config["responseTopicExpression"] \
-                    .replace("${methodName}", str(content['data']['method'])) \
-                    .replace("${requestId}", str(content["data"]["id"]))
-
-                if content.get('device'):
-                    expected_response_topic = expected_response_topic.replace("${deviceName}", str(content["device"]))
-
-                expected_response_topic = TBUtility.replace_params_tags(expected_response_topic, content)
-
-                timeout = time() * 1000 + float(defines_timeout)
-
-                # Start listening on the response topic
-                self.__log.info("Subscribing to: %s", expected_response_topic)
-                self.__subscribe(expected_response_topic, rpc_config.get("responseTopicQoS", 1))
-
-                # Wait for subscription to be carried out
-                sub_response_timeout = 10
-
-                while expected_response_topic in self.__subscribes_sent.values():
-                    sub_response_timeout -= 1
-                    sleep(0.1)
-                    if sub_response_timeout == 0:
-                        break
-
-                # Ask the gateway to enqueue this as an RPC response
-                self.__gateway.register_rpc_request_timeout(content,
-                                                            timeout,
-                                                            expected_response_topic,
-                                                            self.rpc_cancel_processing)
-
-                # Wait for RPC to be successfully enqueued, which never fails.
-                while not self.__gateway.is_rpc_in_progress(expected_response_topic):
-                    sleep(0.1)
-
-            elif expects_response and not defines_timeout:
-                self.__log.info("2-way RPC without timeout: treating as 1-way")
-
-            # Actually reach out for the device
-            request_topic: str = rpc_config.get("requestTopicExpression") \
-                .replace("${methodName}", str(content['data']['method'])) \
-                .replace("${requestId}", str(content["data"]["id"]))
-
-            if content.get('device'):
-                request_topic = request_topic.replace("${deviceName}", str(content["device"]))
-
-            request_topic = TBUtility.replace_params_tags(request_topic, content)
-
-            data_to_send_tags = TBUtility.get_values(rpc_config.get('valueExpression'), content['data'],
-                                                     'params',
-                                                     get_tag=True)
-            data_to_send_values = TBUtility.get_values(rpc_config.get('valueExpression'), content['data'],
-                                                       'params',
-                                                       expression_instead_none=True)
-
-            data_to_send = rpc_config.get('valueExpression')
-
-            if content.get('device'):
-                data_to_send = data_to_send.replace("${deviceName}", str(content["device"]))
-
-            for (tag, value) in zip(data_to_send_tags, data_to_send_values):
-                data_to_send = data_to_send.replace('${' + tag + '}', orjson.dumps(value).decode('utf-8'))
-
-            try:
-                self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)
-                result = None
-                try:
-                    result = self._publish(request_topic,
-                                           data_to_send,
-                                           rpc_config.get('retain', False),
-                                           rpc_config.get('qos', 0))
-                except Exception as e:
-                    self.__log.exception("Error during publishing to target broker: %r", e)
-                    self.__gateway.send_rpc_reply(device=content.get("device"),
-                                                  req_id=content["data"]["id"],
-                                                  content={
-                                                      "error": str.format("Error on publish to target broker: %r",
-                                                                          str(e))},
-                                                  success_sent=False, to_connector_rpc=True if content.get('device') is None else False) # noqa
-                    return
-                if not expects_response or not defines_timeout:
-                    self.__log.info("One-way RPC: sending ack to ThingsBoard immediately")
-                    self.__gateway.send_rpc_reply(device=content.get('device'), req_id=content["data"]["id"],
-                                                  success_sent=result is not None, to_connector_rpc=True if content.get('device') is None else False) # noqa
-
-                # Everything went out smoothly: RPC is served
-                return
-            except Exception as e:
-                self.__log.exception("Error during publishing RPC response: ", exc_info=e)
+            result = self._publish(request_topic,
+                                   data_to_send,
+                                   rpc_config.get('retain', False),
+                                   rpc_config.get('qos', 0))
         except Exception as e:
-            self.__log.exception("Error during processing RPC request: ", exc_info=e)
+            err_msg = f'Error during publishing to target broker: {e}'
+            self.__log.exception(err_msg)
+            response.set_error_msg(err_msg)
+            return response
+
+        if not expects_response or not defines_timeout:
+            self.__log.info("One-way RPC: sending ack to ThingsBoard immediately")
+
+            if result is not None:
+                response.set_message('success')
+            else:
+                response.set_error_msg('error')
+
+            return response
+
+        # NOTE: if expects_response == True, response will be sent in TBGatewayService.rpc_with_reply_processing
+        # NOTE: due to waiting response message back from broker
+        return None
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
-    def server_side_rpc_handler(self, content):
+    def server_side_rpc_handler(self, rpc_request):
+        self.__log.info("Incoming server-side RPC: %s", rpc_request)
+
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+
         try:
-            self.__log.info("Incoming server-side RPC: %s", content)
-
-            if content.get('data') is None:
-                content['data'] = {'params': content['params'], 'method': content['method'], 'id': content['id']}
-
-            rpc_method = content['data']['method']
-
-            # check if RPC type is connector RPC (can be only 'get' or 'set')
-            try:
-                (connector_type, rpc_method_name) = rpc_method.split('_')
-                if connector_type == self._connector_type:
-                    rpc_method = rpc_method_name
-            except ValueError:
-                pass
-
-            if content.get('device'):
-                # check if RPC method is reserved get/set
-                if rpc_method == 'get' or rpc_method == 'set':
-                    params = {}
-                    for param in content['data']['params'].split(';'):
-                        try:
-                            (key, value) = param.split('=')
-                        except ValueError:
-                            continue
-
-                        if key and value:
-                            params[key] = value
-
-                    params['valueExpression'] = params.pop('value', None)
-                    if params.get('responseTimeout') is None and params.get("responseTopicExpression") is not None:
-                        params['responseTimeout'] = RPC_DEFAULT_TIMEOUT * 1000
-
-                    return self.__process_rpc_request(content, params)
-                else:
-                    # Check whether one of my RPC handlers can handle this request
-                    for rpc_config in self.__server_side_rpc:
-                        if search(rpc_config["deviceNameFilter"], content["device"]) \
-                                and search(rpc_config["methodFilter"], rpc_method) is not None:
-                            return self.__process_rpc_request(content, rpc_config)
-
-                    self.__log.error("RPC not handled: %s", content)
+            if rpc_request.rpc_type == RPCType.CONNECTOR:
+                return self.__process_rpc_request(rpc_request, rpc_request.params)
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                return self._process_reserved_rpc(rpc_request)
+            elif rpc_request.rpc_type == RPCType.DEVICE:
+                return self._process_rpc_to_device(rpc_request)
             else:
-                return self.__process_rpc_request(content, content['data']['params'])
+                err_msg = f"Invalid RPC type request: {rpc_request}"
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
         except Exception as e:
-            self.__log.exception("Error during handling RPC request", exc_info=e)
+            err_msg = f'Error during handling RPC request: {e}'
+            self.__log.exception(err_msg, exc_info=e)
+            response.set_error_msg(err_msg)
+            return response
+
+    def _process_rpc_to_device(self, rpc_request):
+        for rpc_config in self.__server_side_rpc:
+            if search(rpc_config["deviceNameFilter"], rpc_request.device_name) and \
+               search(rpc_config["methodFilter"], rpc_request.method_name) is not None:
+                return self.__process_rpc_request(rpc_request, rpc_config)
+
+        err_msg = f'Config not found for {rpc_request.method_name} RPC method and {rpc_request.device_name} device'
+        self.__log.error(err_msg)
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+        response.set_error_msg(err_msg)
+        return response
+
+    def _process_reserved_rpc(self, rpc_request):
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+
+        if not rpc_request.params:
+            err_msg = f"No 'params' found in reserved RPC request '{rpc_request.method_name}'"
+            response.set_error_msg(err_msg)
+            return response
+
+        get_pattern = compile(GET_PATTERN_REGEX)
+        set_pattern = compile(SET_PATTERN_REGEX)
+        pattern = get_pattern if rpc_request.method_name == 'get' else set_pattern
+        expected_schema = (
+                    GET_RPC_EXPECTED_SCHEMA if rpc_request.method_name == "get"
+                    else SET_RPC_EXPECTED_SCHEMA)
+        match = pattern.match(rpc_request.params)
+        if not match:
+            err_msg = f'The requested RPC either does not match with the schema {expected_schema} or incorrect value/values provided'  # noqa
+            self.__log.error(err_msg)
+            response.set_error_msg(err_msg)
+            return response
+
+        rpc_request.params = match.groupdict()
+        rpc_request.params['valueExpression'] = rpc_request.params.pop('value', None)
+        if rpc_request.params.get('responseTimeout') is None and \
+           rpc_request.params.get("responseTopicExpression") is not None:
+            rpc_request.params['responseTimeout'] = RPC_DEFAULT_TIMEOUT * 1000
+
+        return self.__process_rpc_request(rpc_request, rpc_request.params)
 
     @CustomCollectStatistics(start_stat_type='allBytesSentToDevices')
     def _publish(self, request_topic, data_to_send, retain, qos):

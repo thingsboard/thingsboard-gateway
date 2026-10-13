@@ -68,7 +68,9 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
                                 telemetry_entry = TelemetryEntry({datapoint_key: decoded_data})
                                 converted_data.add_to_telemetry(telemetry_entry)
                         else:
-                            self._log.error('Key for %s not found in config: %s', config['type'], config['section_config'])
+                            self._log.error('Key for %s not found in config: %s',
+                                            config['type'],
+                                            config['section_config'])
                     except Exception as e:
                         self._log.exception(e)
         except Exception as e:
