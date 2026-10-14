@@ -7,6 +7,7 @@
     "latencyDebugMode": false,
     "statistics": {
       "enable": true,
+      "enableCustom": false,
       "statsSendPeriodInSeconds": 60,
       "customStatsSendPeriodInSeconds": 3600
     },
