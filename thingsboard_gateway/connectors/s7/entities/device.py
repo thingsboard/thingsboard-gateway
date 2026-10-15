@@ -47,6 +47,7 @@ class Device:
         self._reading_request_queue = reading_request_queue
         self._log = logger
         self._on_disconnect_callback = on_disconnect
+        self._reconnecting = False
         self.uplink_converter = self._load_converter(UPLINK_PREFIX, converter_logger)
         self.downlink_converter = self._load_converter(DOWNLINK_PREFIX, converter_logger)
         self._client: PlcClient | LogoClient = None
@@ -115,7 +116,20 @@ class Device:
                 f"Failed to disconnect from Logo device '{self.config.device_name}' at {self.config.address}:{self.config.port}: {e}")  # noqa: E501
 
     def on_disconnect(self) -> None:
-        self._on_disconnect_callback(self)
+        if self._reconnecting:
+            self._log.error(
+                f"Failed to reconnect to device '{self.config.device_name}' at {self.config.address}:{self.config.port}")  # noqa: E501
+            self._on_disconnect_callback(self)
+            return
+
+        self._reconnecting = True
+        self._log.info(
+            f"Connection to device '{self.config.device_name}' at {self.config.address}:{self.config.port} lost, reconnecting...")  # noqa: E501
+
+    def on_reconnect(self) -> None:
+        self._reconnecting = False
+        self._log.info(
+            f"Reconnected to device '{self.config.device_name}' at {self.config.address}:{self.config.port}")
 
     @abstractmethod
     async def connect(self) -> None:
@@ -151,7 +165,8 @@ class PLC(Device):
             retry_delay=config.retry_delay,
             max_delay=config.max_delay,
             heartbeat_interval=config.heartbeat_interval,
-            on_disconnect=self.on_disconnect
+            on_disconnect=self.on_disconnect,
+            on_reconnect=self.on_reconnect
         )
 
     async def connect(self) -> None:
@@ -216,7 +231,8 @@ class Logo(Device):
             retry_delay=config.retry_delay,
             max_delay=config.max_delay,
             heartbeat_interval=config.heartbeat_interval,
-            on_disconnect=self.on_disconnect
+            on_disconnect=self.on_disconnect,
+            on_reconnect=self.on_reconnect
         )
 
     async def connect(self) -> None:
