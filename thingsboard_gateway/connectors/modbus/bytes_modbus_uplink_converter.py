@@ -279,16 +279,30 @@ class BytesModbusUplinkConverter(ModbusConverter):
         decoded = None
 
         if lower_type in ['bit', 'bits']:
-            decoded = decoder_functions[lower_type]()
-            decoded_lastbyte = decoder_functions[lower_type]()
-            if configuration.get('functionCode') in (1, 2):
-                # BinaryPayloadDecoder.fromCoils() (used for coils/discrete inputs) reverses
-                # the bit order within each decoded byte relative to the original coil
-                # order, so undo that reversal before concatenating.
-                decoded = decoded[::-1]
-                decoded_lastbyte = decoded_lastbyte[::-1]
-            decoded += decoded_lastbyte
-            decoded = decoded[:objects_count]
+            is_register_function = configuration.get('functionCode') in (3, 4)
+            select_single_bit = configuration.get('bit') is not None
+
+            # For holding/input registers (FC3/4), objectsCount drives how many registers are
+            # requested from the device, not how many bits to keep. When selecting a single bit
+            # from register data, decode all bits of every requested register instead of only
+            # the first one, so that any bit index within that range can be addressed.
+            if select_single_bit and is_register_function:
+                bytes_to_decode = max(objects_count, 1) * 2
+            else:
+                bytes_to_decode = 2
+
+            decoded = []
+            for _ in range(bytes_to_decode):
+                byte_bits = decoder_functions[lower_type]()
+                if not is_register_function:
+                    # BinaryPayloadDecoder.fromCoils() (used for coils/discrete inputs) reverses
+                    # the bit order within each decoded byte relative to the original coil
+                    # order, so undo that reversal before concatenating.
+                    byte_bits = byte_bits[::-1]
+                decoded += byte_bits
+
+            if not select_single_bit:
+                decoded = decoded[:objects_count]
 
         elif lower_type == "string":
             decoded = decoder_functions[lower_type](objects_count * 2)
