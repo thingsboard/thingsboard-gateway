@@ -45,7 +45,6 @@ class GrpcMqttConnector(GwGrpcConnector):
         self._connector_type = 'mqtt'
         self.name = self.__config.get("name", 'MQTT Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
 
-        self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
         self.__subscribes_sent = {}
 
         self.__broker = self.__config.get('broker')
@@ -387,7 +386,6 @@ class GrpcMqttConnector(GwGrpcConnector):
         GrpcMsgCreator.create_attributes_connector_msg(attributes, device_name=data['deviceName'],
                                                        basic_message=basic_msg)
         self._grpc_client.send(basic_msg)
-        self.statistics['MessagesSent'] += 1
         log.debug("Successfully converted message from topic %s", topic)
 
     def __threads_manager(self):
@@ -418,7 +416,6 @@ class GrpcMqttConnector(GwGrpcConnector):
             if not self._on_message_queue.empty():
                 client, userdata, message = self._on_message_queue.get()
 
-                self.statistics['MessagesReceived'] += 1
                 content = TBUtility.decode(message)
 
                 # Check if message topic exists in mappings "i.e., I'm posting telemetry/attributes" -------------------

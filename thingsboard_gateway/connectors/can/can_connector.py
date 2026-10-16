@@ -68,8 +68,6 @@ class CanConnector(Connector, Thread):
     DEFAULT_SIGNED_FLAG = False
 
     def __init__(self, gateway, config, connector_type):
-        self.statistics = {'MessagesReceived': 0,
-                           'MessagesSent': 0}
         super().__init__()
         self.name = config.get("name", 'CAN Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__gateway = gateway
@@ -294,8 +292,6 @@ class CanConnector(Connector, Thread):
                         # log.debug("[%s] New CAN message received %s", self.get_name(), message)
                         StatisticsService.count_connector_message(self.name,
                                                                   stat_parameter_name='connectorMsgsReceived')
-                        StatisticsService.count_connector_bytes(self.name, message,
-                                                                stat_parameter_name='connectorBytesReceived')
                         self.__process_message(message)
                     self.__check_if_error_happened()
             except Exception as e:
@@ -416,9 +412,7 @@ class CanConnector(Connector, Thread):
         self.__check_and_send(data)
 
     def __check_and_send(self, new_data: ConvertedData):
-        self.statistics['MessagesReceived'] += 1
         self.__gateway.send_to_storage(self.get_name(), self.get_id(), new_data)
-        self.statistics['MessagesSent'] += 1
 
     def __is_reconnect_enabled(self):
         if self.__reconnect_conf["enabled"]:
@@ -660,7 +654,9 @@ class CanConnector(Connector, Thread):
 
     def __get_converter(self, config, need_uplink):
         if config is None:
-            return BytesCanUplinkConverter(self._log) if need_uplink else BytesCanDownlinkConverter(self._log)
+            if need_uplink:
+                return BytesCanUplinkConverter(self._converter_log)
+            return BytesCanDownlinkConverter(self._converter_log)
         else:
             if need_uplink:
                 uplink = config.get("uplink")
