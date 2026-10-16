@@ -30,7 +30,6 @@ from thingsboard_gateway.gateway.constants import TELEMETRY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.rpc_request import RPCType
 from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
-from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
@@ -63,8 +62,6 @@ class OdbcConnector(Connector, Thread):
         self.daemon = True
         self.name = config.get("name", 'ODBC Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
 
-        self.statistics = {'MessagesReceived': 0,
-                           'MessagesSent': 0}
         self.__gateway = gateway
         self.__config = config
         self.__id = self.__config.get('id')
@@ -128,7 +125,6 @@ class OdbcConnector(Connector, Thread):
     def on_attributes_update(self, content):
         pass
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
         self._log.debug("[%s] Received RPC request: %s", self.get_name(), rpc_request)
 
@@ -228,17 +224,25 @@ class OdbcConnector(Connector, Thread):
         if self.__rpc_cursor is None:
             self.__rpc_cursor = self.__connection.cursor()
 
-        if query:
-            if sql_params:
-                self.__rpc_cursor.execute(query, sql_params)
+        try:
+            if query:
+                if sql_params:
+                    self.__rpc_cursor.execute(query, sql_params)
+                else:
+                    self.__rpc_cursor.execute(query)
             else:
-                self.__rpc_cursor.execute(query)
-        else:
-            if sql_params:
-                query_to_execute = "{{CALL {} ({})}}".format(procedure_name, ("?," * len(sql_params))[0:-1])
-                self.__rpc_cursor.execute(query_to_execute, sql_params)
-            else:
-                self.__rpc_cursor.execute("{{CALL {}}}".format(procedure_name))
+                if sql_params:
+                    query_to_execute = "{{CALL {} ({})}}".format(procedure_name, ("?," * len(sql_params))[0:-1])
+                    self.__rpc_cursor.execute(query_to_execute, sql_params)
+                else:
+                    self.__rpc_cursor.execute("{{CALL {}}}".format(procedure_name))
+        except (pyodbc.OperationalError, pyodbc.InterfaceError):
+            raise
+        except pyodbc.Error:
+            StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+            raise
+
+        StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
 
     def run(self):
         while not self.__stopped:
@@ -304,8 +308,6 @@ class OdbcConnector(Connector, Thread):
             for row in rows:
                 self._log.debug("[%s] Fetch row: %s", self.get_name(), row)
                 StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
-                StatisticsService.count_connector_bytes(self.name, row,
-                                                        stat_parameter_name='connectorBytesReceived')
 
                 self.__process_row(row)
                 row_count += 1
@@ -323,9 +325,9 @@ class OdbcConnector(Connector, Thread):
 
             converted_data: ConvertedData = self.__converter.convert(self.__config["mapping"], data)
 
-            StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+            StatisticsService.count_connector_message(self._converter_log.name, 'convertersAttrProduced',
                                                       count=converted_data.attributes_datapoints_count)
-            StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+            StatisticsService.count_connector_message(self._converter_log.name, 'convertersTsProduced',
                                                       count=converted_data.telemetry_datapoints_count)
 
             converted_data.device_name = eval(self.__config["mapping"]["device"]["name"], globals(), data)
@@ -353,12 +355,9 @@ class OdbcConnector(Connector, Thread):
         return data
 
     def __check_and_send(self, to_send: ConvertedData):
-        self.statistics['MessagesReceived'] += 1
-
         if to_send.attributes_datapoints_count + to_send.telemetry_datapoints_count > 0:
             self._log.debug("[%s] Converted data for device '%s': %s", self.get_name(), to_send.device_name, to_send)
             self.__gateway.send_to_storage(self.get_name(), self.get_id(), to_send)
-            self.statistics['MessagesSent'] += 1
 
     def __substitute_env_placeholders(self, connection_str):
         for placeholder in TBUtility.get_values(connection_str, get_tag=True):

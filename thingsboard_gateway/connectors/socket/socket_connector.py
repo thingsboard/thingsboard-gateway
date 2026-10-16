@@ -25,10 +25,8 @@ from simplejson import dumps
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.socket.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics, CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
-from thingsboard_gateway.connectors.socket.socket_decorators import CustomCollectStatistics
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 from thingsboard_gateway.gateway.entities.rpc_request import RPCType
 from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
@@ -55,7 +53,6 @@ class SocketConnector(Connector, Thread):
 
         self.__id = self.__config.get('id')
         self._connector_type = connector_type
-        self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
         self.__gateway = gateway
         self.name = self.__config.get("name", 'TCP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         remote_logging = self.__config.get('enableRemoteLogging', False)
@@ -63,7 +60,7 @@ class SocketConnector(Connector, Thread):
         self.__log = init_logger(self.__gateway, self.name, log_level,
                                  enable_remote_logging=remote_logging,
                                  is_connector_logger=True)
-        self.__converter_log = init_logger(self.__gateway, self.name, log_level,
+        self.__converter_log = init_logger(self.__gateway, self.name + '_converter', log_level,
                                            enable_remote_logging=remote_logging,
                                            is_converter_logger=True, attr_name=self.name)
 
@@ -247,6 +244,7 @@ class SocketConnector(Connector, Thread):
         while not self.__stopped:
             if not self.__converting_requests.empty():
                 (address, port), data = self.__converting_requests.get()
+                StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
                 for conf_device_address in self.__devices:
                     client_address = f"{address}:{port}"
                     if client_address != conf_device_address and not fullmatch(conf_device_address, client_address):
@@ -275,9 +273,6 @@ class SocketConnector(Connector, Thread):
                         if is_attribute_request:
                             continue
 
-                    StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
-                    StatisticsService.count_connector_bytes(self.name, data,
-                                                            stat_parameter_name='connectorBytesReceived')
                     converter = self.__device_converters.get(conf_device_address)
                     self.__convert_data(device, data, converter)
 
@@ -298,13 +293,10 @@ class SocketConnector(Connector, Thread):
             }
             converted_data: ConvertedData = converter.convert(device_config, data)
 
-            self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
-
             if (converted_data and
                     (converted_data.telemetry_datapoints_count > 0 or
                      converted_data.attributes_datapoints_count > 0)):
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
-                self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                 self.__log.info('Data to ThingsBoard %s', converted_data)
         except Exception as e:
             self.__log.exception(e)
@@ -330,7 +322,6 @@ class SocketConnector(Connector, Thread):
                     self.__log.error('Data length not valid due to attributeNameExpression')
                     return
 
-        self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
         self.__attribute_type[attr['type']](device_name, found_attributes, self.__attribute_request_callback)
 
     def __attribute_request_callback(self, response, _):
@@ -348,7 +339,6 @@ class SocketConnector(Connector, Thread):
             self.__write_value_via_tcp(address, port, converted_value)
         else:
             self.__write_value_via_udp(address, port, converted_value)
-        self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
 
     def close(self):
         self.__stopped = True
@@ -382,7 +372,6 @@ class SocketConnector(Connector, Thread):
     def get_id(self):
         return self.__id
 
-    @CustomCollectStatistics(start_stat_type='allBytesSentToDevices')
     def __write_value_via_tcp(self, address, port, value):
         try:
             self.__connections[(address, int(port))].sendall(bytes(value, encoding='utf-8'))
@@ -399,13 +388,11 @@ class SocketConnector(Connector, Thread):
                 return e
 
     @staticmethod
-    @CollectStatistics(start_stat_type='allBytesSentToDevices')
     def __write_value_via_udp(address, port, value):
         new_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         new_socket.sendto(value, (address, int(port)))
         new_socket.close()
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         try:
             device = tuple(filter(lambda item: item['deviceName'] == content['device'], self.__config['devices']))[0]
@@ -420,7 +407,6 @@ class SocketConnector(Connector, Thread):
         except IndexError:
             self.__log.error('Device not found')
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
         response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
 
