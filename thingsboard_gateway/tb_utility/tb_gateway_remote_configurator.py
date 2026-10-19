@@ -29,7 +29,7 @@ from simplejson import dumps, load
 from tb_gateway_mqtt import TBGatewayMqttClient
 
 from thingsboard_gateway.gateway.constants import CONFIG_VERSION_PARAMETER, REPORT_STRATEGY_PARAMETER, \
-    DEFAULT_REPORT_STRATEGY_CONFIG, CONNECTOR_PARAMETER, ReportStrategy
+    DEFAULT_REPORT_STRATEGY_CONFIG, CONNECTOR_PARAMETER, ReportStrategy, EXTENSION_SUBFOLDER_PARAMETER
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.report_strategy.report_strategy_service import ReportStrategyService
 from thingsboard_gateway.gateway.tb_client import TBClient
@@ -133,6 +133,8 @@ class RemoteConfigurator:
             }
             if connector.get('class') is not None:
                 config['class'] = connector.get('class')
+            if connector.get(EXTENSION_SUBFOLDER_PARAMETER):
+                config[EXTENSION_SUBFOLDER_PARAMETER] = connector[EXTENSION_SUBFOLDER_PARAMETER]
             connectors_config.append(config)
 
         adopted_general_config = {}
@@ -621,6 +623,9 @@ class RemoteConfigurator:
                 if config.get('class'):
                     connector_configuration['class'] = config['class']
 
+                if config.get(EXTENSION_SUBFOLDER_PARAMETER):
+                    connector_configuration[EXTENSION_SUBFOLDER_PARAMETER] = config[EXTENSION_SUBFOLDER_PARAMETER]
+
                 locally_formatted_connector_config = {'logLevel': config['logLevel'],
                                                       'name': connector_name,
                                                       'enableRemoteLogging': config.get('enableRemoteLogging', False),
@@ -671,6 +676,8 @@ class RemoteConfigurator:
                         or found_connector.get('name') != connector_name
                         or found_connector.get('type') != connector_type
                         or found_connector.get('class') != config.get('class')
+                        or ((found_connector.get(EXTENSION_SUBFOLDER_PARAMETER) or None)
+                            != (config.get(EXTENSION_SUBFOLDER_PARAMETER) or None))
                         or found_connector.get('key') != config.get('key')
                         or found_connector.get('configurationJson', {}).get('logLevel') != config.get('logLevel')
                         or found_connector.get('enableRemoteLogging', False) != config.get('enableRemoteLogging',
@@ -691,6 +698,11 @@ class RemoteConfigurator:
 
                     if config.get('class'):
                         connector_configuration['class'] = config['class']
+
+                    if config.get(EXTENSION_SUBFOLDER_PARAMETER):
+                        connector_configuration[EXTENSION_SUBFOLDER_PARAMETER] = config[EXTENSION_SUBFOLDER_PARAMETER]
+                    else:
+                        found_connector.pop(EXTENSION_SUBFOLDER_PARAMETER, None)
 
                     found_connector.update(connector_configuration)
 

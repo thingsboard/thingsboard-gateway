@@ -24,6 +24,7 @@ from os import execv, listdir, path, pathsep, stat, system
 from platform import system as platform_system
 from queue import SimpleQueue, Empty
 from random import choice
+from re import fullmatch
 from signal import signal, SIGINT
 from string import ascii_lowercase, hexdigits
 from sys import argv, executable, stdin, stdout, stderr
@@ -41,7 +42,7 @@ from thingsboard_gateway.gateway.constants import DEFAULT_CONNECTORS, CONNECTED_
     CONNECTOR_ID_PARAMETER, ATTRIBUTES_FOR_REQUEST, CONFIG_VERSION_PARAMETER, CONFIG_SECTION_PARAMETER, \
     DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER, DATA_RETRIEVING_STARTED, ReportStrategy, \
     REPORT_STRATEGY_PARAMETER, DEFAULT_STATISTIC, DEFAULT_DEVICE_FILTER, CUSTOM_RPC_DIR, DISCONNECTED_PARAMETER, \
-    PROVISIONED_CREDENTIALS_FILENAME
+    PROVISIONED_CREDENTIALS_FILENAME, EXTENSION_SUBFOLDER_PARAMETER
 from thingsboard_gateway.gateway.device_filter import DeviceFilter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
@@ -343,6 +344,7 @@ class TBGatewayService:
         self.__updates_check_time = 0
 
         self._implemented_connectors = {}
+        self._connectors_extension_paths = {}
         self._event_storage_types = {
             "memory": MemoryEventStorage,
             "file": FileEventStorage,
@@ -857,6 +859,20 @@ class TBGatewayService:
 
         return connector_persistent_key
 
+    def _get_connector_extension_path(self, connector_config, connector_type):
+        extension_subfolder = connector_config.get(EXTENSION_SUBFOLDER_PARAMETER)
+        if not extension_subfolder:
+            return connector_type
+        if connector_type in self._default_connectors:
+            log.warning("Parameter %s is supported only for custom connectors, it will be ignored for connector %s",
+                        EXTENSION_SUBFOLDER_PARAMETER, connector_config['name'])
+            return connector_type
+        if not isinstance(extension_subfolder, str) or fullmatch(r'[A-Za-z0-9_-]+', extension_subfolder) is None:
+            log.error("Invalid %s value %r for connector %s, only letters, digits, '_' and '-' are allowed",
+                      EXTENSION_SUBFOLDER_PARAMETER, extension_subfolder, connector_config['name'])
+            return None
+        return f'{connector_type}/{extension_subfolder}'
+
     def load_connectors(self, config=None):
         self._load_connectors(config=config)
 
@@ -886,30 +902,36 @@ class TBGatewayService:
                         continue
 
                     if connector_type != "grpc":
+                        extension_path = self._get_connector_extension_path(connector_config_from_main,
+                                                                            connector_type)
+                        if extension_path is None:
+                            continue
+                        self._connectors_extension_paths[connector_config_from_main['name']] = extension_path
+
                         connector_class = None
                         if connector_config_from_main.get('useGRPCForce', False):
                             module_name = f'Grpc{self._default_connectors.get(connector_type, connector_config_from_main.get("class"))}' # noqa
-                            connector_class = TBModuleLoader.import_module(connector_type, module_name)
+                            connector_class = TBModuleLoader.import_module(extension_path, module_name)
 
                         if self.__grpc_manager and self.__grpc_manager.is_alive() and connector_class:
                             connector_persistent_key = self._generate_persistent_key(connector_config_from_main,
                                                                                      connectors_persistent_keys)
                         else:
-                            connector_class = TBModuleLoader.import_module(connector_type,
+                            connector_class = TBModuleLoader.import_module(extension_path,
                                                                            self._default_connectors.get(
                                                                                connector_type,
                                                                                connector_config_from_main.get('class')))
 
                         if connector_class is not None and isinstance(connector_class, list):
-                            log.warning("Connector implementation not found for %s",
-                                        connector_config_from_main['name'])
+                            log.warning("Connector implementation not found for %s in %s",
+                                        connector_config_from_main['name'], extension_path)
                             for error in connector_class:
                                 log.error("The following error occurred during importing connector class: %s",
                                           error, exc_info=error)
                             self._implemented_connectors[connector_config_from_main['name']] = DummyCustomConnector
                         elif connector_class is None:
-                            log.error("Connector implementation not found for %s",
-                                      connector_config_from_main['name'])
+                            log.error("Connector implementation not found for %s in %s",
+                                      connector_config_from_main['name'], extension_path)
                             self._implemented_connectors[connector_config_from_main['name']] = DummyCustomConnector
                         else:
                             self._implemented_connectors[connector_config_from_main['name']] = connector_class
@@ -1053,7 +1075,8 @@ class TBGatewayService:
             available_connector = self.available_connectors_by_id.get(_id)
 
             if available_connector is None or available_connector.is_stopped():
-                connector = self._implemented_connectors[name](self, deepcopy(configuration), _type)
+                extension_path = self._connectors_extension_paths.get(name, _type)
+                connector = self._implemented_connectors[name](self, deepcopy(configuration), extension_path)
                 connector.name = name
                 self.available_connectors_by_id[_id] = connector
                 self.available_connectors_by_name[name] = connector
@@ -1963,7 +1986,7 @@ class TBGatewayService:
         self.tb_client.client.gw_connect_device(device_name, device_type).get()
         if device_name in self.__saved_devices:
             if content.get(CONNECTOR_PARAMETER) is not None:
-                connector_type = content['connector'].get_type()
+                connector_type = content['connector'].get_type().split('/')[0]
                 connector_name = content['connector'].get_name()
                 try:
                     if (self.__added_devices.get(device_name) is None
