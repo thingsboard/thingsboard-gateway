@@ -633,6 +633,12 @@ class AsyncModbusConnector(Connector, Thread):
             for k, v in match.groupdict().items()
         }
 
+        if config.get('type') == 'bits' and isinstance(config.get('value'), str):
+            try:
+                config['value'] = TBUtility.str_to_bool(config['value'])
+            except ValueError:
+                pass
+
         return config, None
 
     def __process_device_rpc_request(self, rpc_request):
