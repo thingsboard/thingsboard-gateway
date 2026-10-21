@@ -554,6 +554,9 @@ class AsyncModbusConnector(Connector, Thread):
 
         response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
 
+        if rpc_request.params.get('type') == 'bits' and rpc_request.value is not None:
+            rpc_request.value = TBUtility.str_to_bool(rpc_request.value)
+
         results = []
         for device in self.__slaves:
             rpc_request.device_name = device.device_name
@@ -729,7 +732,8 @@ class AsyncModbusConnector(Connector, Thread):
             address=config.get(ADDRESS_PARAMETER)
         )
 
-        data_to_convert = {DATA_PARAMETER: {RPC_PARAMS_PARAMETER: data.params}}
+        value = data.value if data.rpc_type == RPCType.CONNECTOR else data.params
+        data_to_convert = {DATA_PARAMETER: {RPC_PARAMS_PARAMETER: value}}
         converted_data = device.downlink_converter.convert(config, data_to_convert)
 
         if config.function_code in (5, 6):
