@@ -12,7 +12,7 @@
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
 
-GET_RPC_EXPECTED_SCHEMA = 'get requestTopicExpression=<requestTopicExpression>;responseTopicExpression=<responseTopicExpression>;value=<value>;'  # noqa
+GET_RPC_EXPECTED_SCHEMA = 'get requestTopicExpression=<requestTopicExpression>;(optional)responseTopicExpression=<responseTopicExpression>;value=<value>;'  # noqa
 SET_RPC_EXPECTED_SCHEMA = 'set requestTopicExpression=<requestTopicExpression>;value=<value>;'
-GET_PATTERN_REGEX = r'^requestTopicExpression=(?P<requestTopicExpression>.+);responseTopicExpression=(?P<responseTopicExpression>.+);value=(?P<value>.+);$'  # noqa
+GET_PATTERN_REGEX = r'^requestTopicExpression=(?P<requestTopicExpression>.+?);(?:responseTopicExpression=(?P<responseTopicExpression>.+?);)?value=(?P<value>.+);$'  # noqa
 SET_PATTERN_REGEX = r'^requestTopicExpression=(?P<requestTopicExpression>.+);value=(?P<value>.+);$'
