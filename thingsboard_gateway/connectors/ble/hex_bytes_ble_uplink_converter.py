@@ -16,6 +16,8 @@ class HexBytesBLEUplinkConverter(BLEUplinkConverter):
         self.__config = config
 
     def convert(self, config, data):
+        StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
+
         converted_data = ConvertedData(device_name=self.__config['deviceName'],
                                         device_type=self.__config['deviceType'])
 
@@ -64,7 +66,6 @@ class HexBytesBLEUplinkConverter(BLEUplinkConverter):
                     except Exception as e:
                         self._log.error('\nException caught when processing data for %s\n\n %s', pformat(config), e)
         except Exception as e:
-            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.exception(e)
 
         self._log.debug('Converted data: %s', converted_data)

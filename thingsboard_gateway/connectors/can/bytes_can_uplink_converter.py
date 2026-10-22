@@ -19,7 +19,6 @@ from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -28,9 +27,9 @@ class BytesCanUplinkConverter(CanConverter):
     def __init__(self, logger):
         self._log = logger
 
-    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                       end_stat_type='convertedBytesFromDevice')
     def convert(self, configs, can_data):
+        StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
+
         device_name = configs.get("deviceName")
         device_type = configs.get("deviceType")
 
@@ -84,7 +83,6 @@ class BytesCanUplinkConverter(CanConverter):
                     telemetry_entry = TelemetryEntry({datapoint_key: value})
                     converted_data.add_to_telemetry(telemetry_entry)
             except Exception as e:
-                StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                 self._log.error("Failed to convert CAN data to TB %s '%s': %s",
                                 "time series key" if config["is_ts"] else "attribute", tb_key, str(e))
                 continue

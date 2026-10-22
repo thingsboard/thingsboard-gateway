@@ -26,10 +26,12 @@ from thingsboard_gateway.gateway.grpc_service.grpc_uplink_converter import GrpcU
 from thingsboard_gateway.gateway.grpc_service.tb_grpc_server import TBGRPCServer
 from thingsboard_gateway.gateway.proto.messages_pb2 import *
 from thingsboard_gateway.gateway.proto.messages_pb2_grpc import add_TBGatewayProtoServiceServicer_to_server
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 log = logging.getLogger('grpc')
 
-DEFAULT_STATISTICS_DICT = {"MessagesReceived": 0, "MessagesSent": 0}
+DEVICE_MESSAGE_FIELDS = ('gatewayTelemetryMsg', 'gatewayAttributesMsg', 'gatewayClaimMsg', 'connectMsg',
+                         'disconnectMsg', 'gatewayRpcResponseMsg', 'gatewayAttributeRequestMsg')
 
 
 class TBGRPCServerManager(Thread):
@@ -76,6 +78,9 @@ class TBGRPCServerManager(Thread):
                 self.__unregister_connector(session_id, msg.unregisterConnectorMsg.connectorKey)
                 outgoing_message = True
             elif self.sessions.get(session_id) is not None and self.sessions[session_id].get('name') is not None:
+                if any(msg.HasField(field) for field in DEVICE_MESSAGE_FIELDS):
+                    StatisticsService.count_connector_message(self.sessions[session_id]['name'],
+                                                              stat_parameter_name='connectorMsgsReceived')
                 if msg.HasField("response"):
                     if msg.response.ByteSize() == 0:
                         outgoing_message = True
@@ -91,35 +96,29 @@ class TBGRPCServerManager(Thread):
                     data = self.__convert_with_uplink_converter(msg.gatewayTelemetryMsg)
                     result_status = self.__gateway.send_to_storage(self.sessions[session_id]['name'], self.sessions[session_id]['id'], data)
                     outgoing_message = True
-                    self.__increase_incoming_statistic(session_id)
                 if msg.HasField("gatewayAttributesMsg"):
                     data = self.__convert_with_uplink_converter(msg.gatewayAttributesMsg)
                     result_status = self.__gateway.send_to_storage(self.sessions[session_id]['name'], self.sessions[session_id]['id'], data)
                     outgoing_message = True
-                    self.__increase_incoming_statistic(session_id)
                 if msg.HasField("gatewayClaimMsg"):
                     data = self.__convert_with_uplink_converter(msg.gatewayClaimMsg)
                     result_status = self.__gateway.send_to_storage(self.sessions[session_id]['name'], self.sessions[session_id]['id'], data)
                     outgoing_message = self.__downlink_converter.convert(downlink_converter_config, result_status)
-                    self.__increase_incoming_statistic(session_id)
                 if msg.HasField("connectMsg"):
                     data = self.__convert_with_uplink_converter(msg.connectMsg)
                     data['name'] = self.sessions[session_id]['name']
                     result_status = self.__gateway.add_device_async(data)
                     outgoing_message = self.__downlink_converter.convert(downlink_converter_config, result_status)
-                    self.__increase_incoming_statistic(session_id)
                 if msg.HasField("disconnectMsg"):
                     data = self.__convert_with_uplink_converter(msg.disconnectMsg)
                     data['name'] = self.sessions[session_id]['name']
                     result_status = self.__gateway.del_device_async(data)
                     outgoing_message = self.__downlink_converter.convert(downlink_converter_config, result_status)
-                    self.__increase_incoming_statistic(session_id)
                 if msg.HasField("gatewayRpcResponseMsg"):
                     data = self.__convert_with_uplink_converter(msg.gatewayRpcResponseMsg)
                     result_status = self.__gateway.send_rpc_reply(device=data['deviceName'], req_id=data['id'],
                                                                   content=data['data'])
                     outgoing_message = True
-                    self.__increase_incoming_statistic(session_id)
                 if msg.HasField("gatewayAttributeRequestMsg"):
                     shared_keys = None
                     client_keys = None
@@ -142,7 +141,6 @@ class TBGRPCServerManager(Thread):
                                                              callback_with_extra_params
                                                              )
                     outgoing_message = True
-                    self.__increase_incoming_statistic(session_id)
             else:
                 outgoing_message = self.__downlink_converter.convert(downlink_converter_config, Status.FAILURE)
             if outgoing_message is None:
@@ -158,7 +156,6 @@ class TBGRPCServerManager(Thread):
             session_id = self.__connectors_sessions.get(connector_id)
         if session_id is not None:
             self.__grpc_server.write(session_id, msg)
-            self.__increase_outgoing_statistic(session_id)
         else:
             log.warning("[%r] Cannot write to connector with name %s, session is not found. Client is not registered!",
                         connector_id, connector_name)
@@ -170,7 +167,7 @@ class TBGRPCServerManager(Thread):
             connector_name = connector_configuration['name']
             connector_id = connector_configuration['id']
             self.sessions[session_id] = {"config": connector_configuration, "name": connector_name,
-                                         "id": connector_id, "statistics": DEFAULT_STATISTICS_DICT}
+                                         "id": connector_id}
             self.__connectors_sessions[connector_id] = session_id
             msg = self.__grpc_server.get_response("SUCCESS", additional_message)
             configuration_msg = ConnectorConfigurationMsg()
@@ -204,12 +201,6 @@ class TBGRPCServerManager(Thread):
             msg = self.__grpc_server.get_response("FAILURE", additional_message)
             self.__grpc_server.write(session_id, msg)
 
-    def get_connector_statistics(self, session_id):
-        if session_id in self.sessions:
-            return self.sessions[session_id].get('statistics', DEFAULT_STATISTICS_DICT)
-        else:
-            return DEFAULT_STATISTICS_DICT
-
     def __process_requested_attributes(self, content, error, extra_params):
         log.debug("Received requested attributes")
         if error:
@@ -220,14 +211,6 @@ class TBGRPCServerManager(Thread):
 
     def __convert_with_uplink_converter(self, data):
         return self.__uplink_converter.convert(None, data)
-
-    def __increase_incoming_statistic(self, session_id):
-        if session_id in self.sessions:
-            self.sessions[session_id]['statistics']["MessagesReceived"] += 1
-
-    def __increase_outgoing_statistic(self, session_id):
-        if session_id in self.sessions:
-            self.sessions[session_id]['statistics']["MessagesSent"] += 1
 
     async def serve(self, config):
         self.__aio_server = grpc.aio.server(

@@ -21,7 +21,6 @@ from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -112,12 +111,10 @@ class FTPUplinkConverter(FTPConverter):
                             converted_data.add_to_telemetry(telemetry_entry)
 
                     except Exception as e:
-                        StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                         self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(information),
                                         data, e)
 
         except Exception as e:
-            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
                             e)
 
@@ -177,11 +174,9 @@ class FTPUplinkConverter(FTPConverter):
                             if self.__config['devicePatternType'] == information['value']:
                                 converted_data.device_type = val
                     except Exception as e:
-                        StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                         self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(information),
                                         data, e)
         except Exception as e:
-            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
                             e)
 
@@ -254,7 +249,6 @@ class FTPUplinkConverter(FTPConverter):
                                                                                   str(device_name_value)) \
                         if is_valid_key else device_name_tag
         except Exception as e:
-            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
                             e)
 
@@ -278,7 +272,6 @@ class FTPUplinkConverter(FTPConverter):
                                                                                   str(device_type_value)) \
                         if is_valid_key else device_type_tag
         except Exception as e:
-            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
                             e)
 
@@ -338,11 +331,9 @@ class FTPUplinkConverter(FTPConverter):
                         else:
                             converted_data.add_to_attributes(datapoint_key, full_value)
                     except Exception as e:
-                        StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                         self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s',
                                         dumps(datatype_config), data, e)
         except Exception as e:
-            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
                             str(data), e)
 
@@ -352,9 +343,9 @@ class FTPUplinkConverter(FTPConverter):
                                                   count=converted_data.telemetry_datapoints_count)
         return converted_data
 
-    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                       end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
+        StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
+
         if data:
             if config['file_ext'] == 'csv' or (
                     config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'TABLE'):
@@ -364,5 +355,4 @@ class FTPUplinkConverter(FTPConverter):
             elif config['file_ext'] == 'json':
                 return self._convert_json_file(data)
             else:
-                StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                 raise Exception('Incorrect file extension or file data view mode')

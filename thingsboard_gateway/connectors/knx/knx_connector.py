@@ -19,10 +19,8 @@ from threading import Thread, Event
 from time import sleep, monotonic
 from typing import Tuple, Any
 
-from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_SENT_PARAMETER
 from thingsboard_gateway.gateway.entities.rpc_request import RPCType
 from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
-from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector
@@ -57,8 +55,6 @@ class KNXConnector(Connector, Thread):
                                            config.get('logLevel', 'INFO'),
                                            enable_remote_logging=config.get('enableRemoteLogging', False),
                                            is_converter_logger=True, attr_name=config['name'])
-
-        self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
 
         self.__config = config
         self.__id = self.__config.get('id')
@@ -179,7 +175,7 @@ class KNXConnector(Connector, Thread):
 
                     for key, config in device.group_addresses_to_read.items():
                         try:
-                            response = await read_group_value(self.__client, key, config.get('type'))
+                            response = await self.__read_group_value(key, config.get('type'))
 
                             if response is not None:
                                 self.__log.trace('Response from KNX bus: %s', response)
@@ -218,15 +214,12 @@ class KNXConnector(Connector, Thread):
             try:
                 device, data_to_save = self.__data_to_save_queue.get_nowait()
                 self.__log.trace('%s data to save: %s', device, data_to_save)
-                StatisticsService.count_connector_message(self.get_name(), stat_parameter_name='storageMsgPushed')
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), data_to_save)
-                self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
             except Empty:
                 await asyncio.sleep(.01)
             except Exception as e:
                 self.__log.error('Error saving data: %s', e)
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         self.__log.debug('Received attribute update request: %s', content)
 
@@ -277,7 +270,6 @@ class KNXConnector(Connector, Thread):
             self.__log.debug('Error: %r', str(e), exc_info=True)
             return result
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
         self.__log.debug('Received RPC request: %s', rpc_request)
         response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
@@ -376,7 +368,7 @@ class KNXConnector(Connector, Thread):
         if value is not None or config['requestType'] == 'write':
             return self.__process_group_value_write(group_address, value, data_type)
 
-        return await self.__read_group_value(group_address, data_type)
+        return str(await self.__read_group_value(group_address, data_type))
 
     def __process_group_value_write(self, group_address, value, data_type):
         group_value_write(self.__client, group_address, value, data_type)
@@ -384,7 +376,9 @@ class KNXConnector(Connector, Thread):
 
     async def __read_group_value(self, group_address, data_type):
         result = await read_group_value(self.__client, group_address, data_type)
-        return str(result)
+        if result is not None:
+            StatisticsService.count_connector_message(self.get_name(), stat_parameter_name='connectorMsgsReceived')
+        return result
 
     def __find_rpc_config_by_device_and_name(self, rpc_method_name, device_name):
         device_name_match_filter = tuple(filter(lambda rpc_config:
