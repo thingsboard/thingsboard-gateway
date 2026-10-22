@@ -15,7 +15,7 @@
 import asyncio
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from random import choice
-from re import fullmatch, search
+from re import fullmatch
 from socket import gethostbyname
 from string import ascii_lowercase
 from threading import Thread
@@ -290,7 +290,7 @@ class SNMPConnector(Connector, Thread):
 
             for attribute_request_config in device["attributeUpdateRequests"]:
                 for attribute, value in content["data"].items():
-                    if search(attribute, attribute_request_config["attributeFilter"]):
+                    if fullmatch(attribute_request_config["attributeFilter"], attribute):
                         common_parameters = self.__get_common_parameters(device)
                         result_key = "mappings" if "mappings" in attribute_request_config else "value"
                         converted_value = device["downlink_converter"].convert(
@@ -351,7 +351,7 @@ class SNMPConnector(Connector, Thread):
             return self.__rpc_error_response(rpc_request, f'Device {rpc_request.device_name} not found')
 
         rpc_config = next((rpc_config for rpc_config in device.get("serverSideRpcRequests", [])
-                           if search(rpc_request.method_name, rpc_config['requestFilter'])), None)
+                           if fullmatch(rpc_config['requestFilter'], rpc_request.method_name)), None)
         if rpc_config is None:
             return self.__rpc_error_response(
                 rpc_request, f'Neither of configured device rpc methods match with {rpc_request.method_name}')
