@@ -391,12 +391,12 @@ class SocketConnector(Connector, Thread):
             try:
                 new_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 new_socket.connect((address, int(port)))
-                new_socket.sendall(value)
+                new_socket.sendall(bytes(value, encoding='utf-8'))
                 new_socket.close()
                 return 'ok'
             except ConnectionRefusedError as e:
                 self.__log.error('Can\'t connect to %s:%s\n %s', address, port, e)
-                return e
+                return str(e)
 
     @staticmethod
     @CollectStatistics(start_stat_type='allBytesSentToDevices')
