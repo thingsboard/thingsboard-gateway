@@ -55,7 +55,7 @@ class TBModuleLoader:
             return TBModuleLoader.LOADED_CONNECTORS[buffered_module_name]
         try:
             for current_path in TBModuleLoader.PATHS:
-                current_extension_path = current_path + path.sep + extension_type
+                current_extension_path = path.join(current_path, *extension_type.split('/'))
                 if path.exists(current_extension_path):
                     for file in listdir(current_extension_path):
                         if not file.startswith('__') and (file.endswith('.py') or file.endswith('.pyc')):
