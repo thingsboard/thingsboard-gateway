@@ -342,12 +342,11 @@ class SocketConnector(Connector, Thread):
         address, port = device['address'].split(':')
 
         value = response.get('value') or response.get('values')
-        converted_value = bytes(dumps(value), encoding='utf-8')
 
         if self.__socket_type == 'TCP':
-            self.__write_value_via_tcp(address, port, converted_value)
+            self.__write_value_via_tcp(address, port, dumps(value))
         else:
-            self.__write_value_via_udp(address, port, converted_value)
+            self.__write_value_via_udp(address, port, bytes(dumps(value), encoding='utf-8'))
         self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
 
     def close(self):
@@ -383,15 +382,15 @@ class SocketConnector(Connector, Thread):
         return self.__id
 
     @CustomCollectStatistics(start_stat_type='allBytesSentToDevices')
-    def __write_value_via_tcp(self, address, port, value):
+    def __write_value_via_tcp(self, address, port, value, encoding='utf-8'):
         try:
-            self.__connections[(address, int(port))].sendall(bytes(value, encoding='utf-8'))
+            self.__connections[(address, int(port))].sendall(bytes(value, encoding=encoding))
             return 'ok'
         except KeyError:
             try:
                 new_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 new_socket.connect((address, int(port)))
-                new_socket.sendall(bytes(value, encoding='utf-8'))
+                new_socket.sendall(bytes(value, encoding=encoding))
                 new_socket.close()
                 return 'ok'
             except ConnectionRefusedError as e:
@@ -415,8 +414,10 @@ class SocketConnector(Connector, Thread):
                     if attribute_update_config['attributeOnThingsBoard'] == attribute_update:
                         address, port = device['address'].split(':')
                         encoding = device.get('encoding', 'utf-8').lower()
-                        converted_data = bytes(str(content['data'][attribute_update]), encoding=encoding)
-                        self.__write_value_via_tcp(address, port, converted_data)
+                        self.__write_value_via_tcp(address,
+                                                   port,
+                                                   str(content['data'][attribute_update]),
+                                                   encoding=encoding)
         except IndexError:
             self.__log.error('Device not found')
 
@@ -461,7 +462,10 @@ class SocketConnector(Connector, Thread):
             return response
 
         config = match.groupdict()
-        result = self._write_value(config['address'], config['port'], config['value'])
+        result = self._write_value(config['address'],
+                                   config['port'],
+                                   config['value'],
+                                   encoding=config.get('encoding', 'utf-8'))
         if result is None:
             response.set_message('Success')
         else:
@@ -488,7 +492,7 @@ class SocketConnector(Connector, Thread):
 
         address, port = device_config['address'].split(':')
 
-        result = self._write_value(address, port, rpc_request.params)
+        result = self._write_value(address, port, rpc_request.params, encoding=device_config.get('encoding', 'utf-8'))
         if result is None:
             response.set_message('Success')
         else:
@@ -512,10 +516,10 @@ class SocketConnector(Connector, Thread):
 
         return result
 
-    def _write_value(self, address, port, converted_data):
+    def _write_value(self, address, port, converted_data, encoding='utf-8'):
         result = None
         if self.__socket_type == 'TCP':
-            result = self.__write_value_via_tcp(address, port, converted_data)
+            result = self.__write_value_via_tcp(address, port, converted_data, encoding=encoding)
         else:
             self.__write_value_via_udp(address, port, converted_data)
 
