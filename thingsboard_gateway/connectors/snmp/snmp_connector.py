@@ -14,7 +14,6 @@
 
 import asyncio
 from concurrent.futures import TimeoutError as FutureTimeoutError
-from datetime import timedelta
 from random import choice
 from re import fullmatch
 from socket import gethostbyname
@@ -29,6 +28,7 @@ from thingsboard_gateway.connectors.snmp.constants import (
     RESERVED_GET_RPC_PATTERN,
     RESERVED_SET_RPC_PATTERN
 )
+from thingsboard_gateway.connectors.snmp.utils import Utils
 from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.rpc_request import RPCType
@@ -405,29 +405,9 @@ class SNMPConnector(Connector, Thread):
             return self.__rpc_error_response(
                 rpc_request, f'Timeout exception on connection to device {device["deviceName"]}')
 
-        result = self.__to_json_safe(result)
+        result = Utils.to_json_safe(result)
         self._log.trace('RPC result: %s', result)
 
         response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
         response.set_message(result)
         return response
-
-    @classmethod
-    def __to_json_safe(cls, value):
-        if isinstance(value, dict):
-            return {str(cls.__to_json_safe(key)): cls.__to_json_safe(item) for key, item in value.items()}
-        if isinstance(value, (list, tuple, set)):
-            return [cls.__to_json_safe(item) for item in value]
-        if isinstance(value, (bytes, bytearray)):
-            try:
-                text = bytes(value).decode('utf-8')
-            except UnicodeDecodeError:
-                return bytes(value).hex()
-            if all(char.isprintable() or char in '\r\n\t' for char in text):
-                return text
-            return bytes(value).hex()
-        if isinstance(value, timedelta):
-            return value.total_seconds()
-        if value is None or isinstance(value, (str, int, float, bool)):
-            return value
-        return str(value)
