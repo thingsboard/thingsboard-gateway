@@ -342,12 +342,11 @@ class SocketConnector(Connector, Thread):
         address, port = device['address'].split(':')
 
         value = response.get('value') or response.get('values')
-        converted_value = bytes(dumps(value), encoding='utf-8')
 
         if self.__socket_type == 'TCP':
-            self.__write_value_via_tcp(address, port, converted_value)
+            self.__write_value_via_tcp(address, port, dumps(value))
         else:
-            self.__write_value_via_udp(address, port, converted_value)
+            self.__write_value_via_udp(address, port, bytes(dumps(value), encoding='utf-8'))
         self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
 
     def close(self):
