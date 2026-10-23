@@ -134,9 +134,11 @@ class DummyCustomConnector(Connector, Thread):
     def on_attributes_update(self, content):
         pass
 
-    def server_side_rpc_handler(self, content):
+    def server_side_rpc_handler(self, rpc_request):
         self.__log.error(
             "Cannot process RPC request for connector '%s': real custom connector class '%s' is not implemented.",
             self.get_name(), self._get_requested_class_name())
-        return {"error": f"Custom connector '{self.get_name()}' is not implemented."}
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+        response.set_error_msg(f"Custom connector '{self.get_name()}' is not implemented.")
+        return response
 
