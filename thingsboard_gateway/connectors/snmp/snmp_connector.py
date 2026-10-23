@@ -28,7 +28,7 @@ from thingsboard_gateway.connectors.snmp.constants import (
     RESERVED_GET_RPC_PATTERN,
     RESERVED_SET_RPC_PATTERN
 )
-from thingsboard_gateway.connectors.snmp.utils import Utils
+from thingsboard_gateway.connectors.snmp.utils import to_json_safe
 from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.rpc_request import RPCType
@@ -405,7 +405,7 @@ class SNMPConnector(Connector, Thread):
             return self.__rpc_error_response(
                 rpc_request, f'Timeout exception on connection to device {device["deviceName"]}')
 
-        result = Utils.to_json_safe(result)
+        result = to_json_safe(result)
         self._log.trace('RPC result: %s', result)
 
         response = RPCResponse(rpc_request.id, device=rpc_request.device_name)

@@ -15,23 +15,21 @@
 from datetime import timedelta
 
 
-class Utils:
-    @staticmethod
-    def to_json_safe(value):
-        if isinstance(value, dict):
-            return {str(Utils.to_json_safe(key)): Utils.to_json_safe(item) for key, item in value.items()}
-        if isinstance(value, (list, tuple, set)):
-            return [Utils.to_json_safe(item) for item in value]
-        if isinstance(value, (bytes, bytearray)):
-            try:
-                text = bytes(value).decode('utf-8')
-            except UnicodeDecodeError:
-                return bytes(value).hex()
-            if all(char.isprintable() or char in '\r\n\t' for char in text):
-                return text
+def to_json_safe(value):
+    if isinstance(value, dict):
+        return {str(to_json_safe(key)): to_json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [to_json_safe(item) for item in value]
+    if isinstance(value, (bytes, bytearray)):
+        try:
+            text = bytes(value).decode('utf-8')
+        except UnicodeDecodeError:
             return bytes(value).hex()
-        if isinstance(value, timedelta):
-            return value.total_seconds()
-        if value is None or isinstance(value, (str, int, float, bool)):
-            return value
-        return str(value)
+        if all(char.isprintable() or char in '\r\n\t' for char in text):
+            return text
+        return bytes(value).hex()
+    if isinstance(value, timedelta):
+        return value.total_seconds()
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
