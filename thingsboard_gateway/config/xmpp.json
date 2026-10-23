@@ -44,7 +44,6 @@
       "serverSideRpc": [
         {
           "methodRPC": "rpc1",
-          "withResponse": true,
           "valueExpression": "${params}"
         }
       ]

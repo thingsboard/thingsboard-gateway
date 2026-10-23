@@ -37,8 +37,8 @@
         },
         {
           "messageTypeFilter": "MeterValues,",
-          "key": "vendorId",
-          "value": "${connector_id}"
+          "key": "evseId",
+          "value": "${evse_id}"
         }
       ],
       "timeseries": [
@@ -57,7 +57,6 @@
       "serverSideRpc": [
         {
           "methodRPC": "rpc1",
-          "withResponse": true,
           "valueExpression": "${params}"
         }
       ]
