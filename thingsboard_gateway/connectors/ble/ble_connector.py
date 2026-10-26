@@ -22,6 +22,7 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep, time, monotonic
 
+from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.rpc_request import RPCType
 from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
@@ -291,17 +292,18 @@ class BLEConnector(Connector, Thread):
         try:
             if rpc_request.rpc_type == RPCType.DEVICE:
                 device = self.__find_device_by_name(rpc_request.device_name)
-                rpc_config = self.__get_device_rpc_config(device, rpc_request.method_name, rpc_request.params)
+                rpc_config, timeout = self.__get_device_rpc_config(device, rpc_request.method_name, rpc_request.params)
             elif rpc_request.rpc_type == RPCType.RESERVED:
                 device = self.__find_device_by_name(rpc_request.device_name)
                 rpc_config = self.__get_reserved_rpc_config(rpc_request.method_name, rpc_request.params)
+                timeout = rpc_request.timeout
             elif rpc_request.rpc_type == RPCType.CONNECTOR:
                 raise ValueError('Connector RPC is not supported by BLE connector')
             else:
                 raise ValueError(f'Invalid RPC type request: {rpc_request}')
 
             coroutine = self.__process_rpc_request(device, **rpc_config)
-            response.set_message(self.__run_coroutine(coroutine, rpc_request.timeout))
+            response.set_message(self.__run_coroutine(coroutine, timeout))
         except Exception as e:
             self.__log.error('Failed to process RPC request %s: %s', rpc_request, e)
             response.set_error_msg(f"Failed to process '{rpc_request.method_name}' RPC request: {e}")
@@ -315,9 +317,10 @@ class BLEConnector(Connector, Thread):
         if rpc_config is None:
             raise ValueError(f"No configuration for '{method_name}' RPC request")
 
-        return {'method_processing': rpc_config['methodProcessing'],
-                'characteristic_uuid': rpc_config.get('characteristicUUID'),
-                'value': params}
+        return ({'method_processing': rpc_config['methodProcessing'],
+                 'characteristic_uuid': rpc_config.get('characteristicUUID'),
+                 'value': params},
+                rpc_config.get('timeout', RPC_DEFAULT_TIMEOUT * 1000) / 1000)
 
     @staticmethod
     def __get_reserved_rpc_config(method_name, params):
