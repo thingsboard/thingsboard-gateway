@@ -895,10 +895,11 @@ class TBGatewayService:
                             connector_persistent_key = self._generate_persistent_key(connector_config_from_main,
                                                                                      connectors_persistent_keys)
                         else:
-                            connector_class = TBModuleLoader.import_module(connector_type,
-                                                                           self._default_connectors.get(
-                                                                               connector_type,
-                                                                               connector_config_from_main.get('class')))
+                            module_name = self._default_connectors.get(connector_type,
+                                                                       connector_config_from_main.get('class'))
+                            connector_class = None
+                            if module_name is not None:
+                                connector_class = TBModuleLoader.import_module(connector_type, module_name)
 
                         if connector_class is not None and isinstance(connector_class, list):
                             log.warning("Connector implementation not found for %s",
