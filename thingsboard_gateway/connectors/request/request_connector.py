@@ -301,7 +301,6 @@ class RequestConnector(Connector, Thread):
             "requestValueExpression": params.get("requestValueExpression", "${params}"),
             "responseValueExpression": params.get("responseValueExpression"),
             "timeout": params.get("timeout", 0.5),
-            "tries": params.get("tries", 3),
             "httpHeaders": loads(headers) if isinstance(headers, str) else headers
         }
 
