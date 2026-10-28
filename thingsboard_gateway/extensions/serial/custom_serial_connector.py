@@ -200,24 +200,23 @@ class SerialDevice(Thread):
         It reads data until the delimiter is found.
         """
         data_from_device = b''
-        serial_conn = None
         try:
             serial_conn = self.get_serial()
-            if serial_conn and serial_conn.is_open: 
+            if serial_conn and serial_conn.is_open:
                 # Ensure serial_conn is not None before accessing its timeout attribute
                 previous_timeout = serial_conn.timeout
-                while not data_from_device.endswith(self.delimiter.encode('utf-8')):
-                    serial_conn.timeout = timeout
-                    chunk = serial_conn.read(1)
-                    if chunk:
-                        data_from_device += chunk
-                    if self.__connector_stopped.is_set() or not chunk or self.stopped:
-                        break
+                try:
+                    while not data_from_device.endswith(self.delimiter.encode('utf-8')):
+                        serial_conn.timeout = timeout
+                        chunk = serial_conn.read(1)
+                        if chunk:
+                            data_from_device += chunk
+                        if self.__connector_stopped.is_set() or not chunk or self.stopped:
+                            break
+                finally:
+                    serial_conn.timeout = previous_timeout
         except Exception as e:
             self.__log.exception("Failed to read from device %s: %s", self.name, e)
-        finally:
-            if serial_conn:
-                serial_conn.timeout = previous_timeout
         return data_from_device
 
     def stop(self):
