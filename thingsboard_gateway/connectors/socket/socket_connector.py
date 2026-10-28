@@ -413,7 +413,11 @@ class SocketConnector(Connector, Thread):
                 for attribute_update in content['data']:
                     if attribute_update_config['attributeOnThingsBoard'] == attribute_update:
                         address, port = device['address'].split(':')
+
                         encoding = device.get('encoding', 'utf-8').lower()
+                        if attribute_update_config.get('encoding') is not None:
+                            encoding = attribute_update_config['encoding']
+
                         self.__write_value_via_tcp(address,
                                                    port,
                                                    str(content['data'][attribute_update]),
@@ -492,7 +496,11 @@ class SocketConnector(Connector, Thread):
 
         address, port = device_config['address'].split(':')
 
-        result = self._write_value(address, port, rpc_request.params, encoding=device_config.get('encoding', 'utf-8'))
+        encoding = device_config.get('encoding', 'utf-8')
+        if rpc_config.get('encoding') is not None:
+            encoding = rpc_config['encoding']
+
+        result = self._write_value(address, port, rpc_request.params, encoding=encoding)
         if result is None:
             response.set_message('Success')
         else:
