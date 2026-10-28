@@ -320,9 +320,13 @@ class XMPPConnector(Connector, Thread):
             response.set_error_msg(err_msg)
             return response
 
-        data_to_send_tags = TBUtility.get_values(rpc_config.get('valueExpression'), rpc_request.params, get_tag=True)
+        data_to_send_tags = TBUtility.get_values(rpc_config.get('valueExpression'),
+                                                 {'params': rpc_request.params},
+                                                 'params',
+                                                 get_tag=True)
         data_to_send_values = TBUtility.get_values(rpc_config.get('valueExpression'),
-                                                   rpc_request.params,
+                                                   {'params': rpc_request.params},
+                                                   'params',
                                                    expression_instead_none=True)
 
         data_to_send = rpc_config.get('valueExpression')
