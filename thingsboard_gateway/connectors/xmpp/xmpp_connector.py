@@ -359,11 +359,10 @@ class XMPPConnector(Connector, Thread):
         response.set_message('success')
         return response
 
-    def __get_reserved_rpc_params(self, rpc):
+    def __get_reserved_rpc_params(self, rpc_params):
         params = {}
 
-        rpc_params = rpc.get('data', {}).get('params')
-        if rpc_params is None:
+        if not rpc_params or not isinstance(rpc_params, str):
             return {}
 
         for param in rpc_params.split(';'):
