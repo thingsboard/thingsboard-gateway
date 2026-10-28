@@ -516,13 +516,11 @@ class SocketConnector(Connector, Thread):
         return device_list[0]
 
     def _find_rpc_config(self, device_config, rpc_method_name):
-        result = None
-
         for rpc_config in device_config['serverSideRpc']:
             if rpc_config['methodRPC'] == rpc_method_name:
-                result = rpc_config['methodRPC']
+                return rpc_config
 
-        return result
+        return None
 
     def _write_value(self, address, port, converted_data, encoding='utf-8'):
         result = None
