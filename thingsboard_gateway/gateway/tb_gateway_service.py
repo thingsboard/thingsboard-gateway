@@ -894,10 +894,11 @@ class TBGatewayService:
                             connector_persistent_key = self._generate_persistent_key(connector_config_from_main,
                                                                                      connectors_persistent_keys)
                         else:
-                            connector_class = TBModuleLoader.import_module(connector_type,
-                                                                           self._default_connectors.get(
-                                                                               connector_type,
-                                                                               connector_config_from_main.get('class')))
+                            module_name = self._default_connectors.get(connector_type,
+                                                                       connector_config_from_main.get('class'))
+                            connector_class = None
+                            if module_name is not None:
+                                connector_class = TBModuleLoader.import_module(connector_type, module_name)
 
                         if connector_class is not None and isinstance(connector_class, list):
                             log.warning("Connector implementation not found for %s",
@@ -1740,7 +1741,7 @@ class TBGatewayService:
                                                self.__rpc_scheduled_methods_functions[rpc_request.method_name]])
             log.info("Gateway %s scheduled in %i seconds", rpc_request.method_name, seconds_to_restart / 1000)
 
-            response.set_gateway_rpc_msg('Success')
+            response.set_gateway_rpc_msg({"success": True})
         elif method_function is None:
             log.error("RPC method %s - Not found", rpc_request.method_name)
             response.set_error_msg('Method not found')

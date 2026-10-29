@@ -259,7 +259,7 @@ class OdbcConnector(Connector, Thread):
                     self._log.error("[%s] Cannot connect to database so exit from main loop", self.get_name())
                     break
 
-                if not self.__init_iterator():
+                if self.__iterator is None and not self.__init_iterator():
                     self._log.error("[%s] Cannot init database iterator so exit from main loop", self.get_name())
                     break
 
@@ -283,16 +283,20 @@ class OdbcConnector(Connector, Thread):
     def __close(self):
         with self.__db_lock:
             if self.is_connected():
-                try:
-                    self.__cursor.close()
-                    if self.__rpc_cursor is not None:
-                        self.__rpc_cursor.close()
-                    self.__connection.close()
-                finally:
-                    self._log.info("[%s] Connection to database closed", self.get_name())
-                    self.__connection = None
-                    self.__cursor = None
-                    self.__rpc_cursor = None
+                for resource_name, resource in (("cursor", self.__cursor),
+                                                ("RPC cursor", self.__rpc_cursor),
+                                                ("connection", self.__connection)):
+                    if resource is None:
+                        continue
+                    try:
+                        resource.close()
+                    except Exception as e:
+                        self._log.warning("[%s] Failed to close database %s: %s", self.get_name(), resource_name, e)
+
+                self._log.info("[%s] Connection to database closed", self.get_name())
+                self.__connection = None
+                self.__cursor = None
+                self.__rpc_cursor = None
 
     def __poll(self):
         with self.__db_lock:

@@ -982,9 +982,11 @@ class MqttConnector(Connector, Thread):
 
         data_to_send_tags = TBUtility.get_values(rpc_config.get('valueExpression'),
                                                  {'params': rpc_request.params},
+                                                 'params',
                                                  get_tag=True)
         data_to_send_values = TBUtility.get_values(rpc_config.get('valueExpression'),
                                                    {'params': rpc_request.params},
+                                                   'params',
                                                    expression_instead_none=True)
 
         data_to_send = rpc_config.get('valueExpression')

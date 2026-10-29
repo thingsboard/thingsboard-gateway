@@ -130,7 +130,8 @@ class Device:
                 if time() - self.last_polled_time >= self.poll_period:
                     self.last_polled_time = time()
                     await self.__process_self()
-                    await self._process_adv_data(scanned_devices_callback=scanned_devices_callback)
+                    if self.config['advertisement']['telemetry'] or self.config['advertisement']['attributes']:
+                        await self._process_adv_data(scanned_devices_callback=scanned_devices_callback)
                 else:
                     await sleep(.2)
             except Exception as e:

@@ -52,7 +52,6 @@
       "serverSideRpc": [
         {
           "methodRPC": "rpcMethod1",
-          "withResponse": true,
           "encoding": "utf-8"
         }
       ]
