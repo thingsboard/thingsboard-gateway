@@ -30,6 +30,8 @@ except ImportError:
     import serial
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.gateway.entities.rpc_request import RPCType
+from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
@@ -198,24 +200,23 @@ class SerialDevice(Thread):
         It reads data until the delimiter is found.
         """
         data_from_device = b''
-        serial_conn = None
         try:
             serial_conn = self.get_serial()
-            if serial_conn and serial_conn.is_open: 
+            if serial_conn and serial_conn.is_open:
                 # Ensure serial_conn is not None before accessing its timeout attribute
                 previous_timeout = serial_conn.timeout
-                while not data_from_device.endswith(self.delimiter.encode('utf-8')):
-                    serial_conn.timeout = timeout
-                    chunk = serial_conn.read(1)
-                    if chunk:
-                        data_from_device += chunk
-                    if self.__connector_stopped.is_set() or not chunk or self.stopped:
-                        break
+                try:
+                    while not data_from_device.endswith(self.delimiter.encode('utf-8')):
+                        serial_conn.timeout = timeout
+                        chunk = serial_conn.read(1)
+                        if chunk:
+                            data_from_device += chunk
+                        if self.__connector_stopped.is_set() or not chunk or self.stopped:
+                            break
+                finally:
+                    serial_conn.timeout = previous_timeout
         except Exception as e:
             self.__log.exception("Failed to read from device %s: %s", self.name, e)
-        finally:
-            if serial_conn:
-                serial_conn.timeout = previous_timeout
         return data_from_device
 
     def stop(self):
@@ -413,28 +414,33 @@ class SerialConnector(Thread, Connector):
         else:
             self._log.error("Device name is not provided in the attribute update request: %s", content)
 
-    def server_side_rpc_handler(self, content):
+    def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
         """
         Callback method to process RPC requests from the platform.
+        Returns RPCResponse, the gateway sends it to the platform as the RPC reply.
         """
-        self._log.debug("Received RPC request: %s", content)
-        device_name = content.get("device")
-        rpc_data = content.get("data", {})
-        rpc_method = rpc_data.get("method")
-        req_id = rpc_data.get("id")
-        params = rpc_data.get("params")
-        if device_name is not None:
-            for device in self.__devices:
-                if device_name == device.name:
-                    result = device.handle_rpc_request(rpc_method, params)
-                    if "error" in result:
-                        self._log.error("Failed to process RPC request for device %s, error: %s",
-                                        device_name, result["error"])
-                    if result is not None:
-                        self.__gateway.send_rpc_reply(device=device_name,
-                                                      req_id=req_id,
-                                                      content=result,
-                                                      wait_for_publish=True,
-                                                      quality_of_service=1)
+        self._log.debug("Received RPC request: %s", rpc_request)
+        response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
+
+        if rpc_request.rpc_type == RPCType.CONNECTOR:
+            response.set_error_msg("RPC to connector is not supported by Serial connector")
+            return response
+
+        if rpc_request.rpc_type == RPCType.RESERVED:
+            response.set_error_msg("Reserved RPC methods (get/set) are not supported by Serial connector")
+            return response
+
+        device = next((device for device in self.__devices if device.name == rpc_request.device_name), None)
+        if device is None:
+            response.set_error_msg(f"Device {rpc_request.device_name} not found")
+            return response
+
+        result = device.handle_rpc_request(rpc_request.method_name, rpc_request.params)
+        if "error" in result:
+            self._log.error("Failed to process RPC request for device %s, error: %s",
+                            rpc_request.device_name, result["error"])
+            response.set_error_msg(result["error"])
         else:
-            self._log.error("Device name is not provided in the RPC request: %s", content)
+            response.set_message(result.get("result", result))
+
+        return response

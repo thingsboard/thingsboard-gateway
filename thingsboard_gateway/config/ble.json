@@ -53,19 +53,16 @@
       "serverSideRpc": [
         {
           "methodRPC": "rpcMethod1",
-          "withResponse": true,
           "characteristicUUID": "00002A00-0000-1000-8000-00805F9B34FB",
           "methodProcessing": "read"
         },
         {
           "methodRPC": "rpcMethod2",
-          "withResponse": true,
           "characteristicUUID": "00002A00-0000-1000-8000-00805F9B34FB",
           "methodProcessing": "write"
         },
         {
           "methodRPC": "rpcMethod3",
-          "withResponse": true,
           "methodProcessing": "scan"
         }
       ]

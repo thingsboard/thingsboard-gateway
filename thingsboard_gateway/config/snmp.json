@@ -96,7 +96,19 @@
         },
         {
           "requestFilter": "multiSetData",
-          "method": "multiset"
+          "method": "multiset",
+          "mappings": [
+            {
+              "oid": "1.3.6.1.2.1.1.4.0",
+              "type": "OCTETSTRING",
+              "value": "${params.contact}"
+            },
+            {
+              "oid": "1.3.6.1.2.1.1.6.0",
+              "type": "OCTETSTRING",
+              "value": "${params.location}"
+            }
+          ]
         },
         {
           "requestFilter": "getData",

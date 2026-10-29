@@ -19,6 +19,7 @@ from random import choice
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep
+from packaging import version
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.xmpp.device import Device
@@ -31,14 +32,25 @@ from thingsboard_gateway.gateway.entities.rpc_request import RPCType
 from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
-try:
-    from slixmpp import ClientXMPP
-except ImportError:
-    print("Slixmpp library not found - installing...")
-    TBUtility.install_package("slixmpp")
-    from slixmpp import ClientXMPP
+installation_required = False
+required_version = '1.8.6'
+force_install = False
 
-from slixmpp.exceptions import IqError, IqTimeout
+try:
+    from slixmpp import __version__ as slixmpp_version
+
+    if version.parse(slixmpp_version) != version.parse(required_version):
+        installation_required = True
+        force_install = True
+except ImportError:
+    installation_required = True
+
+if installation_required:
+    print("Slixmpp library not found - installing...")
+    TBUtility.install_package("slixmpp", required_version, force_install=force_install)
+
+from slixmpp import ClientXMPP  # noqa: E402
+from slixmpp.exceptions import IqError, IqTimeout  # noqa: E402
 
 DEFAULT_UPLINK_CONVERTER = 'XmppUplinkConverter'
 
@@ -308,9 +320,13 @@ class XMPPConnector(Connector, Thread):
             response.set_error_msg(err_msg)
             return response
 
-        data_to_send_tags = TBUtility.get_values(rpc_config.get('valueExpression'), rpc_request.params, get_tag=True)
+        data_to_send_tags = TBUtility.get_values(rpc_config.get('valueExpression'),
+                                                 {'params': rpc_request.params},
+                                                 'params',
+                                                 get_tag=True)
         data_to_send_values = TBUtility.get_values(rpc_config.get('valueExpression'),
-                                                   rpc_request.params,
+                                                   {'params': rpc_request.params},
+                                                   'params',
                                                    expression_instead_none=True)
 
         data_to_send = rpc_config.get('valueExpression')
@@ -343,11 +359,10 @@ class XMPPConnector(Connector, Thread):
         response.set_message('success')
         return response
 
-    def __get_reserved_rpc_params(self, rpc):
+    def __get_reserved_rpc_params(self, rpc_params):
         params = {}
 
-        rpc_params = rpc.get('data', {}).get('params')
-        if rpc_params is None:
+        if not rpc_params or not isinstance(rpc_params, str):
             return {}
 
         for param in rpc_params.split(';'):

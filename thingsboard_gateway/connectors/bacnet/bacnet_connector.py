@@ -849,6 +849,12 @@ class AsyncBACnetConnector(Thread, Connector):
         response = RPCResponse(rpc_request.id, device=rpc_request.device_name)
 
         try:
+            if rpc_request.rpc_type == RPCType.CONNECTOR:
+                err_msg = 'Connector RPC is not supported by BACnet connector'
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
+
             device = self.__get_device_by_name(rpc_request.device_name)
             if not device:
                 err_msg = f'Failed to found device {rpc_request.device_name}'
@@ -856,12 +862,7 @@ class AsyncBACnetConnector(Thread, Connector):
                 response.set_error_msg(err_msg)
                 return response
 
-            if rpc_request.rpc_type == RPCType.CONNECTOR:
-                err_msg = 'Not implemented'
-                self.__log.error(err_msg)
-                response.set_error_msg(err_msg)
-                return response
-            elif rpc_request.rpc_type == RPCType.RESERVED:
+            if rpc_request.rpc_type == RPCType.RESERVED:
                 return self._process_reserved_rpc(rpc_request, device)
             elif rpc_request.rpc_type == RPCType.DEVICE:
                 return self._process_rpc_to_device(rpc_request, device)
