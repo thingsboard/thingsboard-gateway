@@ -37,8 +37,11 @@ except ImportError:
 
 from thingsboard_gateway.connectors.can.bytes_can_downlink_converter import BytesCanDownlinkConverter
 from thingsboard_gateway.connectors.can.bytes_can_uplink_converter import BytesCanUplinkConverter
-from thingsboard_gateway.connectors.can.constants import (RESERVED_SET_RPC_PATTERN, RESERVED_SET_RPC_SCHEMA,
-                                                          RESERVED_SET_RPC_VALUE_RANGES)
+from thingsboard_gateway.connectors.can.constants import (
+    RESERVED_SET_RPC_PATTERN,
+    RESERVED_SET_RPC_SCHEMA,
+    RESERVED_SET_RPC_VALUE_RANGES
+)
 from thingsboard_gateway.connectors.connector import Connector
 
 
