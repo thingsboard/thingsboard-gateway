@@ -382,8 +382,10 @@ class CanConnector(Connector, Thread):
         for option_name, option_value in options.items():
             if option_name in rpc_params:
                 config[option_name] = rpc_params[option_name]
+            elif option_name in rpc_config:
+                config[option_name] = rpc_config[option_name]
             elif option_value is not None:
-                config[option_name] = rpc_config.get(option_name, option_value)
+                config[option_name] = option_value
         return config
 
     def __process_message(self, message):
