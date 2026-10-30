@@ -65,10 +65,6 @@ class RESTConnector(Connector, Thread):
             "uplink": "JsonRESTUplinkConverter",
             "downlink": "JsonRESTDownlinkConverter"
         }
-        self._events_type = {
-            'STATISTICS_MESSAGE_RECEIVED': self.statistic_message_received,
-            'STATISTICS_MESSAGE_SEND': self.statistic_message_send
-        }
         self.__gateway = gateway
         self.name = config.get("name", 'REST Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__enable_remote_logging = config.get('enableRemoteLogging', False)
@@ -88,8 +84,6 @@ class RESTConnector(Connector, Thread):
         self.__server_config = self.__config['server']
         self.__requests_config = self.__config.get('requestsMapping', [])
         self._connector_type = connector_type
-        self.statistics = {'MessagesReceived': 0,
-                           'MessagesSent': 0}
         self._default_downlink_converter = TBModuleLoader.import_module(self._connector_type,
                                                                         self._default_converters['downlink'])
         self._default_uplink_converter = TBModuleLoader.import_module(self._connector_type,
@@ -155,9 +149,9 @@ class RESTConnector(Connector, Thread):
                     self.__log.warning("GET and HEAD methods are not allowed together. HEAD method will be ignored.")
                     mapping['HTTPMethods'].remove('HEAD')
                 for http_method in mapping['HTTPMethods']:
-                    handler = data_handlers[security_type](self.collect_statistic_and_send, self.get_name(),
+                    handler = data_handlers[security_type](self.__gateway.send_to_storage, self.get_name(),
                                                            self.get_id(), self.endpoints[mapping["endpoint"]],
-                                                           self.__converter_log, self.__log, provider=self.__event_provider)
+                                                           self.__converter_log, self.__log)
                     handlers.append(web.route(http_method, mapping['endpoint'], handler))
             except Exception as e:
                 self.__log.error("Error on creating handlers - %s", str(e))
@@ -381,23 +375,6 @@ class RESTConnector(Connector, Thread):
         rpc_response.set_message(result)
         return rpc_response
 
-    def __event_provider(self, event_type):
-        try:
-            self._events_type[event_type]()
-        except KeyError:
-            self.__log.error('Unresolved event type')
-
-    def statistic_message_received(self):
-        self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
-
-    def statistic_message_send(self):
-        self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
-
-    def collect_statistic_and_send(self, connector_name, connector_id, data):
-        self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
-        self.__gateway.send_to_storage(connector_name, connector_id, data)
-        self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
-
     def __fill_requests_from_TB(self):
         requests_from_tb = {
             "attributeUpdates": self.__attribute_updates,
@@ -561,6 +538,9 @@ class RESTConnector(Connector, Thread):
             self.__log.error("Cannot connect to %s. Connection error.", url)
             data_to_storage.append({"error": f"Cannot connect to target url: {url}"})
 
+        if response is not None:
+            StatisticsService.count_connector_message(self.get_name(), stat_parameter_name='connectorMsgsReceived')
+
         if response and response.ok:
             try:
                 response_value = response.json()
@@ -573,7 +553,6 @@ class RESTConnector(Connector, Thread):
 
             if len(data_to_storage) == 3 and with_queue and not converter_queue.full():
                 converter_queue.put(data_to_storage)
-                self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
         else:
             if response is not None:
                 self.__log.error("Request to URL: %s finished with code: %i. Cat information: http://http.cat/%i",
@@ -586,8 +565,6 @@ class RESTConnector(Connector, Thread):
             if with_queue:
                 converter_queue.put(data_to_storage)
 
-            self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
-
         if not with_queue:
             return data_to_storage
 
@@ -596,14 +573,13 @@ class BaseDataHandler:
     responses_queue = Queue()
     response_attribute_request = Queue()
 
-    def __init__(self, send_to_storage, name, id, endpoint, converter_logger, connector_logger, provider=None):
+    def __init__(self, send_to_storage, name, id, endpoint, converter_logger, connector_logger):
         self.converter_logger = converter_logger
         self.connector_logger = connector_logger
         self.send_to_storage = send_to_storage
         self.connector_id = id
         self.__name = name
         self.__endpoint = endpoint
-        self.__provider = provider
 
         self.success_response = self.__endpoint['config'].get('response', {}).get('successResponse')
         self.unsuccessful_response = self.__endpoint['config'].get('response', {}).get('unsuccessfulResponse')
@@ -710,7 +686,6 @@ class BaseDataHandler:
             time_point = time()
             while not time() - time_point >= self.endpoint['config']['timeout']:
                 if not BaseDataHandler.response_attribute_request.empty():
-                    self.__provider('STATISTICS_MESSAGE_SEND')
                     return web.Response(body=BaseDataHandler.response_attribute_request.get())
 
                 sleep(.2)
@@ -748,7 +723,6 @@ class BaseDataHandler:
                 return False
 
             self.__endpoint['function'](device_name, found_attribute_names, self.attribute_request_callback)
-            self.__provider('STATISTICS_MESSAGE_RECEIVED')
             return True
 
         return False
@@ -756,6 +730,7 @@ class BaseDataHandler:
 
 class AnonymousDataHandler(BaseDataHandler):
     async def __call__(self, request: web.Request):
+        StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
         json_data = await self._convert_data_from_request(request)
 
         if not json_data and not len(request.query):
@@ -808,6 +783,7 @@ class BasicDataHandler(BaseDataHandler):
 
         auth = BasicAuth.decode(request.headers['Authorization'])
         if self.verify(auth.login, auth.password):
+            StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
             json_data = await self._convert_data_from_request(request)
 
             if not json_data:
@@ -829,9 +805,6 @@ class BasicDataHandler(BaseDataHandler):
                 return result
 
             try:
-                StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
-                StatisticsService.count_connector_bytes(self.name, data, stat_parameter_name='connectorBytesReceived')
-
                 self.connector_logger.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
 
                 converter_config = endpoint_config['converter']

@@ -22,7 +22,6 @@ from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.mqtt.utils import Utils
@@ -43,8 +42,6 @@ class BytesMqttUplinkConverter(MqttUplinkConverter):
     def config(self, value):
         self.__config = value
 
-    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                       end_stat_type='convertedBytesFromDevice')
     def convert(self, topic, data):
         StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
 
@@ -86,7 +83,6 @@ class BytesMqttUplinkConverter(MqttUplinkConverter):
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s',
                             dumps(self.__config),
                             str(data), e)
-            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
 
         self._log.debug('Converted data: %s', converted_data)
 

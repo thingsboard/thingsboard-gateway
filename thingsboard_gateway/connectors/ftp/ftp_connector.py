@@ -37,7 +37,6 @@ from thingsboard_gateway.connectors.ftp.path import Path
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.rpc_request import RPCType
 from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
-from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger, TbLogger
 
@@ -49,8 +48,6 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 class FTPConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
-        self.statistics = {'MessagesReceived': 0,
-                           'MessagesSent': 0}
         using_old_config_format_detected = FTPBackwardCompatibilityAdapter.is_old_config_format(config)
         if using_old_config_format_detected:
             self.config = FTPBackwardCompatibilityAdapter(config).convert()
@@ -245,16 +242,8 @@ class FTPConnector(Connector, Thread):
 
                     self._on_file_preprocessing(ftp, self.__log, file)
 
-                    handle_stream = io.BytesIO()
-                    ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
-
-                    handled_str = str(handle_stream.getvalue(), 'UTF-8')
+                    handled_str = self.__read_file_content(ftp, file.path_to_file)
                     handled_array = handled_str.split('\n')
-
-                    StatisticsService.count_connector_message(self.name,
-                                                              stat_parameter_name='connectorMsgsReceived')
-                    StatisticsService.count_connector_bytes(self.name, handled_str,
-                                                            stat_parameter_name='connectorBytesReceived')
 
                     convert_conf = {'file_ext': file.path_to_file.split('.')[-1]}
 
@@ -311,7 +300,6 @@ class FTPConnector(Connector, Thread):
                                     self.__log.debug('Converted data: %s', converted_data)
                                     self.__send_data(converted_data)
 
-                    handle_stream.close()
                     self._on_file_postprocessing(ftp, self.__log, file)
 
     def __is_file_hash_changed(self, file: File, current_hash: str):
@@ -322,7 +310,6 @@ class FTPConnector(Connector, Thread):
                 (converted_data.telemetry_datapoints_count > 0 or
                  converted_data.attributes_datapoints_count > 0)):
             self.__gateway.send_to_storage(self.name, self.get_id(), converted_data)
-            self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
             self.__log.debug("Data being sent to ThingsBoard: %s", converted_data)
 
     @staticmethod
@@ -370,7 +357,6 @@ class FTPConnector(Connector, Thread):
             return False
         return True
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         self.__log.debug("Processing an attribute update from %r", content)
         try:
@@ -397,6 +383,8 @@ class FTPConnector(Connector, Thread):
                                 if self.__is_json(json_data):
                                     io_stream = io.BytesIO(str.encode(json_data))
                                     ftp.storbinary('STOR ' + file.path_to_file, io_stream)
+                                    StatisticsService.count_connector_message(
+                                        self.name, stat_parameter_name='connectorMsgsReceived')
                                     io_stream.close()
                                 else:
                                     self.__log.error("Invalid json data in attribute update %s", json_data)
@@ -405,17 +393,23 @@ class FTPConnector(Connector, Thread):
                                 if attribute_request['writingMode'] == 'OVERRIDE':
                                     io_stream = self._get_io_stream(data_expression)
                                     ftp.storbinary('STOR ' + file.path_to_file, io_stream)
+                                    StatisticsService.count_connector_message(
+                                        self.name, stat_parameter_name='connectorMsgsReceived')
                                     io_stream.close()
                                     self.__log.info(
                                         "Successfully process attribute update %s on override request", attribute_key)
                                 else:
                                     handle_stream = io.BytesIO()
                                     ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
+                                    StatisticsService.count_connector_message(
+                                        self.name, stat_parameter_name='connectorMsgsReceived')
                                     converted_data = str(handle_stream.getvalue(), 'UTF-8')
                                     handle_stream.close()
 
                                     io_stream = io.BytesIO(str.encode(str(converted_data + '\n' + data_expression)))
                                     ftp.storbinary('STOR ' + file.path_to_file, io_stream)
+                                    StatisticsService.count_connector_message(
+                                        self.name, stat_parameter_name='connectorMsgsReceived')
                                     io_stream.close()
                                     self.__log.info("Successfully process attribute update for %s", attribute_key)
 
@@ -423,7 +417,6 @@ class FTPConnector(Connector, Thread):
             self.__log.error("Failed to process attribute update with error %r", str(e))
             self.__log.debug("Error:", exc_info=e)
 
-    @CollectAllReceivedBytesStatistics('allBytesSentToDevices')
     def _get_io_stream(self, data_expression):
         return io.BytesIO(str.encode(data_expression))
 
@@ -431,7 +424,6 @@ class FTPConnector(Connector, Thread):
         for rpc_request in self.config.get('requestsMapping', {}).get("serverSideRpc", []):
             self.__rpc_requests.append(rpc_request)
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
         self.__log.debug('Received RPC request: %s', rpc_request)
 
@@ -530,15 +522,15 @@ class FTPConnector(Connector, Thread):
             except UnicodeDecodeError:
                 raise ValueError(f"File '{file_path}' is not a valid UTF-8 text file")
 
-    @staticmethod
-    def __read_file_content(ftp, file_path):
+    def __read_file_content(self, ftp, file_path):
         handle_stream = io.BytesIO()
         ftp.retrbinary('RETR ' + file_path, handle_stream.write)
+        StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
         return str(handle_stream.getvalue(), 'UTF-8')
 
-    @staticmethod
-    def __write_file_content(ftp, file_path, io_stream):
+    def __write_file_content(self, ftp, file_path, io_stream):
         ftp.storbinary('STOR ' + file_path, io_stream)
+        StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
         io_stream.close()
 
     def get_config(self):

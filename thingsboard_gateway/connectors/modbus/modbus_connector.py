@@ -32,11 +32,9 @@ from thingsboard_gateway.connectors.modbus.constants import (
     SET_RPC_EXPECTED_SCHEMA,
 )
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
-from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector
-from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, \
-    STATISTIC_MESSAGE_SENT_PARAMETER, CONNECTOR_PARAMETER, DEVICE_SECTION_PARAMETER, DATA_PARAMETER, \
+from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, DEVICE_SECTION_PARAMETER, DATA_PARAMETER, \
     ATTRIBUTE_UPDATE_METHOD_PARAMETER, ATTRIBUTE_UPDATE_PARAMS_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT, \
     RPC_PARAMS_PARAMETER
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
@@ -84,8 +82,6 @@ from pymodbus.pdu.register_message import WriteMultipleRegistersResponse, WriteS
 
 class AsyncModbusConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
-        self.statistics = {STATISTIC_MESSAGE_RECEIVED_PARAMETER: 0,
-                           STATISTIC_MESSAGE_SENT_PARAMETER: 0}
         super().__init__()
         self.__gateway = gateway
         self._connector_type = connector_type
@@ -390,9 +386,7 @@ class AsyncModbusConnector(Connector, Thread):
             if not self.__data_to_save.empty():
                 try:
                     converted_data = self.__data_to_save.get_nowait()
-                    StatisticsService.count_connector_message(self.get_name(), stat_parameter_name='storageMsgPushed')
                     self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
-                    self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
                 except Empty:
                     await asyncio.sleep(.001)
             else:

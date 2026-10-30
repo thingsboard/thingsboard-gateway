@@ -40,14 +40,9 @@ from thingsboard_gateway.connectors.s7.constants import (
     RESERVED_SET_VM_RPC_PATTERN,
     RESERVED_RPC_TYPE_PATTERN,
 )
-from thingsboard_gateway.gateway.constants import (
-    STATISTIC_MESSAGE_RECEIVED_PARAMETER,
-    STATISTIC_MESSAGE_SENT_PARAMETER,
-)
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 installation_required = False
 required_version = '3.1.2'
@@ -96,10 +91,6 @@ class S7Connector(Thread, Connector):
         }
 
     def __init__(self, gateway, config, connector_type) -> None:
-        self.statistics = {
-            STATISTIC_MESSAGE_RECEIVED_PARAMETER: 0,
-            STATISTIC_MESSAGE_SENT_PARAMETER: 0,
-        }
         self.__connector_type = connector_type
         super().__init__()
         self.__gateway: TBGatewayService = gateway
@@ -246,11 +237,8 @@ class S7Connector(Thread, Connector):
                 device, data_to_save = self.__data_to_save_queue.get_nowait()
                 self.__log.trace('%s data to save: %s',
                                  device.config.device_name, data_to_save)
-                StatisticsService.count_connector_message(
-                    self.get_name(), stat_parameter_name='storageMsgPushed')
                 self.__gateway.send_to_storage(
                     self.get_name(), self.get_id(), data_to_save)
-                self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
             except asyncio.QueueEmpty:
                 await asyncio.sleep(0.1)
             except Exception as e:

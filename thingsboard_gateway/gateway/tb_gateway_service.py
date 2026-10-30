@@ -50,8 +50,7 @@ from thingsboard_gateway.gateway.entities.rpc_request import create_rpc_request_
 from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.gateway.report_strategy.report_strategy_service import ReportStrategyService
 from thingsboard_gateway.gateway.shell.proxy import AutoProxy
-from thingsboard_gateway.gateway.statistics.decorators import CountMessage, CollectStorageEventsStatistics, \
-    CollectAllSentTBBytesStatistics, CollectRPCReplyStatistics
+from thingsboard_gateway.gateway.statistics.decorators import CountMessage, CollectStorageEventsStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
@@ -1608,7 +1607,6 @@ class TBGatewayService:
             log.error("Error while sending data to ThingsBoard, it will be resent.", exc_info=e)
             return False
 
-    @CollectAllSentTBBytesStatistics(start_stat_type='allBytesSentToTB')
     def __send_data(self, devices_data_in_event_pack):
         try:
             for device in devices_data_in_event_pack:
@@ -1811,7 +1809,6 @@ class TBGatewayService:
         except KeyError as e:
             log.error("No valid data provided for RPC reply processing: %s", e)
 
-    @CollectRPCReplyStatistics(start_stat_type='allBytesSentToTB')
     @CountMessage('msgsSentToPlatform')
     def send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None,
                        quality_of_service=0, to_connector_rpc=False):
@@ -1912,22 +1909,12 @@ class TBGatewayService:
         else:
             self._attributes_parse(content)
 
-    def __form_statistics(self):
-        summary_messages = {"eventsProduced": 0, "eventsSent": 0}
-        for connector in self.available_connectors_by_name:
-            connector_camel_case = connector.replace(' ', '')
-            telemetry = {
-                (connector_camel_case + ' EventsProduced').replace(' ', ''):
-                    self.available_connectors_by_name[connector].statistics.get('MessagesReceived', 0), # noqa
-                (connector_camel_case + ' EventsSent').replace(' ', ''):
-                    self.available_connectors_by_name[connector].statistics.get('MessagesSent', 0) # noqa
-            }
-            summary_messages['eventsProduced'] += telemetry[
-                str(connector_camel_case + ' EventsProduced').replace(' ', '')]
-            summary_messages['eventsSent'] += telemetry[
-                str(connector_camel_case + ' EventsSent').replace(' ', '')]
-            summary_messages.update(telemetry)
-        return summary_messages
+    @staticmethod
+    def __form_statistics():
+        connectors_statistics = StatisticsService.get_last_connector_statistics()
+        events_produced = sum(stats.get('connectorMsgsReceived', 0) for stats in connectors_statistics.values())
+        events_sent = sum(stats.get('storageMsgPushed', 0) for stats in connectors_statistics.values())
+        return {"eventsProduced": events_produced, "eventsSent": events_sent, **connectors_statistics}
 
     def add_device_async(self, data):
         if data['deviceName'] not in self.__saved_devices:

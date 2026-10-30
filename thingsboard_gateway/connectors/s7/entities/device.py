@@ -28,6 +28,7 @@ from thingsboard_gateway.connectors.s7.entities.device_types import (
 )
 from thingsboard_gateway.connectors.s7.s7_downlink_converter import S7DownlinkConverter
 from thingsboard_gateway.connectors.s7.s7_uplink_converter import S7UplinkConverter
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.connectors.s7.constants import (
     UPLINK_PREFIX,
@@ -187,12 +188,14 @@ class PLC(Device):
     def write(self, config, data):
         request_type = config.get('type')
         if request_type == 'data':
-            return self._client.db_write(config['dbNumber'], config['start'], data)
+            result = self._client.db_write(config['dbNumber'], config['start'], data)
         elif request_type == 'tag':
-            return self._client.write_tag(config['tag'], data)
+            result = self._client.write_tag(config['tag'], data)
         else:
             raise ValueError(
                 f"Unsupported request type '{request_type}' for writing data to PLC device '{self.config.device_name}'")
+        StatisticsService.count_connector_message(self._log.name, stat_parameter_name='connectorMsgsReceived')
+        return result
 
     async def read_configured_data(self):
         results = []
@@ -213,12 +216,14 @@ class PLC(Device):
     def read(self, config):
         request_type = config.get('type')
         if request_type == 'data':
-            return self._client.db_read(config['dbNumber'], config['start'], config['size'])
+            result = self._client.db_read(config['dbNumber'], config['start'], config['size'])
         elif request_type == 'tag':
-            return self._client.read_tag(config['tag'])
+            result = self._client.read_tag(config['tag'])
         else:
             raise ValueError(
                 f"Unsupported request type '{request_type}' for reading data from PLC device '{self.config.device_name}'")  # noqa: E501
+        StatisticsService.count_connector_message(self._log.name, stat_parameter_name='connectorMsgsReceived')
+        return result
 
 
 class Logo(Device):
@@ -266,7 +271,11 @@ class Logo(Device):
         return results
 
     def read(self, config):
-        return self._client.read(config['vmAddress'])
+        result = self._client.read(config['vmAddress'])
+        StatisticsService.count_connector_message(self._log.name, stat_parameter_name='connectorMsgsReceived')
+        return result
 
     def write(self, config, data):
-        return self._client.write(config['vmAddress'], data)
+        result = self._client.write(config['vmAddress'], data)
+        StatisticsService.count_connector_message(self._log.name, stat_parameter_name='connectorMsgsReceived')
+        return result

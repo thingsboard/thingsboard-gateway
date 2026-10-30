@@ -24,7 +24,6 @@ from packaging import version
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.xmpp.device import Device
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics, CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -60,9 +59,6 @@ class XMPPConnector(Connector, Thread):
     DATA_TO_SEND = Queue()
 
     def __init__(self, gateway, config, connector_type):
-        self.statistics = {'MessagesReceived': 0,
-                           'MessagesSent': 0}
-
         super().__init__()
 
         self._connector_type = connector_type
@@ -79,7 +75,7 @@ class XMPPConnector(Connector, Thread):
         self.__converter_log = init_logger(self.__gateway, self.name + '_converter',
                                            self.__config.get('logLevel', 'INFO'),
                                            enable_remote_logging=self.__config.get('enableRemoteLogging', False),
-                                           is_connector_logger=True, attr_name=self.name)
+                                           is_converter_logger=True, attr_name=self.name)
 
         self._devices = {}
         self._reformat_devices_config()
@@ -196,8 +192,6 @@ class XMPPConnector(Connector, Thread):
                     if device:
                         StatisticsService.count_connector_message(self.name,
                                                                   stat_parameter_name='connectorMsgsReceived')
-                        StatisticsService.count_connector_bytes(self.name, msg.values['body'],
-                                                                stat_parameter_name='connectorBytesReceived')
 
                         converted_data = device.converter.convert(device, msg.values['body'])
 
@@ -220,9 +214,7 @@ class XMPPConnector(Connector, Thread):
             if not XMPPConnector.DATA_TO_SEND.empty():
                 data: ConvertedData = XMPPConnector.DATA_TO_SEND.get()
                 if data.attributes_datapoints_count > 0 or data.telemetry_datapoints_count > 0:
-                    self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                     self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
-                    self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                     self.__log.info('Data to ThingsBoard %s', data)
 
             sleep(.2)
@@ -251,12 +243,10 @@ class XMPPConnector(Connector, Thread):
     def get_config(self):
         return self.__config
 
-    @CollectStatistics(start_stat_type='allBytesSentToDevices')
     def _send_message(self, jid, data):
         self._xmpp.send_message(mto=jid, mfrom=self._server_config['jid'], mbody=data,
                                 mtype='chat')
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         self.__log.debug('Got attribute update: %s', content)
 
@@ -276,7 +266,6 @@ class XMPPConnector(Connector, Thread):
         except KeyError as e:
             self.__log.error('Key not found %s during processing attribute update', e)
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
         self.__log.debug('Received RPC: %s', rpc_request)
         response = RPCResponse(rpc_request.id, device=rpc_request.device_name)

@@ -434,6 +434,7 @@ class RequestConnector(Connector, Thread):
             params["data"] = params["data"].encode("utf-8")
         self._log.debug("Sending request to URL: %s with params %s", url, params)
         response = request["request"](**params)
+        StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
 
         return url, response
 
@@ -441,9 +442,6 @@ class RequestConnector(Connector, Thread):
         try:
             url, converter, data = data
             data_to_send = []
-
-            StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
-            StatisticsService.count_connector_bytes(self.name, data, stat_parameter_name='connectorBytesReceived')
 
             if isinstance(data, list):
                 for data_item in data:
