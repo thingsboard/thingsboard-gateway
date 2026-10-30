@@ -37,7 +37,11 @@ except ImportError:
 
 from thingsboard_gateway.connectors.can.bytes_can_downlink_converter import BytesCanDownlinkConverter
 from thingsboard_gateway.connectors.can.bytes_can_uplink_converter import BytesCanUplinkConverter
-from thingsboard_gateway.connectors.can.constants import RESERVED_SET_RPC_PATTERN, RESERVED_SET_RPC_SCHEMA
+from thingsboard_gateway.connectors.can.constants import (
+    RESERVED_SET_RPC_PATTERN,
+    RESERVED_SET_RPC_SCHEMA,
+    RESERVED_SET_RPC_VALUE_RANGES
+)
 from thingsboard_gateway.connectors.connector import Connector
 
 
@@ -227,6 +231,10 @@ class CanConnector(Connector, Thread):
                              "isExtendedId": (groups['isExtendedId'] or '').lower() == 'true',
                              "dataByteorder": groups['byteorder'] or self.DEFAULT_BYTEORDER}
         if groups['type'] == 'hex':
+            try:
+                bytes.fromhex(groups['value'])
+            except ValueError:
+                raise ValueError(f"Invalid hex value '{groups['value']}'")
             conversion_config["dataInHex"] = groups['value']
             return conversion_config, {}
 
@@ -239,17 +247,23 @@ class CanConnector(Connector, Thread):
     @staticmethod
     def __cast_reserved_rpc_value(data_type, value):
         if data_type == 'string':
+            if not value.isascii():
+                raise ValueError(f"Invalid {data_type} value '{value}'. Expected ASCII characters only")
             return value
 
         try:
             if data_type == 'bool':
                 return TBUtility.str_to_bool(value)
-            if data_type == '32float':
-                return float(value)
-            if data_type.endswith('int'):
-                return int(value)
+            cast_value = float(value) if data_type == '32float' else int(value)
         except ValueError:
             raise ValueError(f"Invalid {data_type} value '{value}'")
+
+        min_value, max_value = RESERVED_SET_RPC_VALUE_RANGES[data_type]
+        if not min_value <= cast_value <= max_value:
+            raise ValueError(f"Invalid {data_type} value '{value}'. "
+                             f"Expected a value in the range from {min_value} to {max_value}")
+
+        return cast_value
 
     def __send_rpc_data(self, device_name, conversion_config, params):
         if not self.__connected:
