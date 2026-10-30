@@ -61,6 +61,7 @@ from thingsboard_gateway.tb_utility.tb_gateway_remote_configurator import Remote
 from thingsboard_gateway.tb_utility.tb_handler import TBRemoteLoggerHandler
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
+from thingsboard_gateway.tb_utility.tb_memory_trimmer import TBMemoryTrimmer
 from thingsboard_gateway.tb_utility.tb_remote_shell import RemoteShell
 from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -243,6 +244,7 @@ class TBGatewayService:
 
         log.info("Gateway core started.")
 
+        self.__memory_trimmer = TBMemoryTrimmer()
         self._watchers_thread = Thread(target=self._watchers, name='Watchers', daemon=True)
         self._watchers_thread.start()
 
@@ -577,6 +579,8 @@ class TBGatewayService:
                         update_logger_time = cur_time
                         log = logging.getLogger('service')
                         self.__debug_log_enabled = log.isEnabledFor(10)
+
+                    self.__memory_trimmer.trim_if_needed()
 
                     self.stop_event.wait(.1)
                 except Exception as e:
