@@ -21,7 +21,7 @@ psutil
 cryptography
 bacpypes3
 bleak
-python-can
+python-can[multicast]
 xknx
 pymodbus==3.9.2
 pyserial

@@ -103,6 +103,7 @@ class CanConnector(Connector, Thread):
         self.__stopped = False
         self.daemon = True
         self.__parse_config(config)
+        self.__install_interface_dependencies()
 
     def open(self):
         self._log.info("[%s] Starting...", self.get_name())
@@ -444,6 +445,14 @@ class CanConnector(Connector, Thread):
             return self.__reconnect_conf["maxCount"] >= self.__reconnect_count
         else:
             return False
+
+    def __install_interface_dependencies(self):
+        if self.__bus_conf["interface"] == "udp_multicast" and TBUtility.get_package_version("msgpack") is None:
+            self._log.info("[%s] msgpack library not found - installing...", self.get_name())
+            try:
+                TBUtility.install_package("msgpack")
+            except Exception as e:
+                self._log.error("[%s] Failed to install msgpack: %s", self.get_name(), e)
 
     def __parse_config(self, config):
         self.__reconnect_count = 0
