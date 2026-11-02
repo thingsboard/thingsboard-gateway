@@ -34,8 +34,7 @@ asyncua==1.1.5
 requests
 aiohttp
 puresnmp>=2.0.0
-slixmpp
 wheel
 PySocks
 python-snap7==3.1.2
-slixmpp==1.8.6
+slixmpp==1.17.0
