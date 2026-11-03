@@ -87,9 +87,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
     def __process_wide_range_response(self, config, encoded_data):
         encoded_data = self.__validate_wide_range_encoded_data(encoded_data)
-        registers_data = self.__get_registers_from_wide_range_encoded_data(encoded_data,
-                                                                           config['functionCode'],
-                                                                           config['type'])
+        registers_data = self.__get_registers_from_wide_range_encoded_data(encoded_data, config)
         datapoints = self.__process_wide_range_response_encoded_data(config, registers_data)
         return datapoints
 
@@ -106,12 +104,25 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
         return encoded_data
 
-    def __get_registers_from_wide_range_encoded_data(self, encoded_data, function_code, data_type):
+    def __get_registers_from_wide_range_encoded_data(self, encoded_data, config):
+        function_code = config['functionCode']
+        data_type = config['type']
         registers_data = []
 
-        for chunk in encoded_data:
-            registers_chunk = Utils.get_registers_from_encoded_data(chunk, function_code, data_type)
-            registers_data.extend(registers_chunk)
+        if function_code in (1, 2):
+            # Modbus packs coil/discrete-input responses into full bytes, so a response to a
+            # request for e.g. 5 inputs comes back padded to 8 bits. Trim each chunk to the
+            # count that was actually requested for it before concatenating, otherwise the
+            # padding bits leak out as extra, always-zero datapoints.
+            address_ranges = Utils.parse_wide_range_request(config['address'],
+                                                            config.get('maxRegistersPerRequest', 16))
+            for chunk, (_, requested_count) in zip(encoded_data, address_ranges):
+                registers_chunk = Utils.get_registers_from_encoded_data(chunk, function_code, data_type)
+                registers_data.extend(registers_chunk[:requested_count])
+        else:
+            for chunk in encoded_data:
+                registers_chunk = Utils.get_registers_from_encoded_data(chunk, function_code, data_type)
+                registers_data.extend(registers_chunk)
 
         return registers_data
 
@@ -138,11 +149,21 @@ class BytesModbusUplinkConverter(ModbusConverter):
                             e, config, exc_info=e)
             return []
 
+        is_bit_function = config['functionCode'] in (1, 2) and config['type'].lower() in ('bit', 'bits')
+
         for i in range(0, len(encoded_data), config.get('objectsCount', 1)):
             chunk = encoded_data[i:i + config.get('objectsCount', 1)]
-            decoded_data = self.decode_data(chunk, config,
-                                            self.__config.byte_order,
-                                            self.__config.word_order)
+
+            if is_bit_function:
+                # encoded_data already holds plain, individually-extracted coil/discrete-input
+                # values (see __get_registers_from_wide_range_encoded_data), so interpret the
+                # chunk directly instead of re-running it through from_coils()/decode_bits(),
+                # which expects a raw Modbus payload and would mis-decode a single extracted bit.
+                decoded_data = self._bits_to_result_data(chunk, config)
+            else:
+                decoded_data = self.decode_data(chunk, config,
+                                                self.__config.byte_order,
+                                                self.__config.word_order)
 
             if decoded_data is None:
                 self._log.warning("Decoded data is empty, with config: %s", config)
@@ -342,15 +363,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
         elif isinstance(decoded, bytes) and lower_type == "bytes":
             result_data = decoded.hex()
         elif isinstance(decoded, list):
-            if configuration.get('bit') is not None:
-                result_data = int(decoded[configuration['bit'] if
-                                          configuration['bit'] < len(decoded) else len(decoded) - 1])
-            else:
-                bitAsBoolean = configuration.get('bitTargetType', 'bool') == 'bool'
-                if objects_count == 1:
-                    result_data = bool(decoded[-1]) if bitAsBoolean else int(decoded[-1])
-                else:
-                    result_data = [bool(bit) if bitAsBoolean else int(bit) for bit in decoded]
+            result_data = self._bits_to_result_data(decoded, configuration)
         elif isinstance(decoded, float):
             result_data = float(round(decoded, configuration.get('round', 6)))
         elif decoded is not None:
@@ -359,6 +372,23 @@ class BytesModbusUplinkConverter(ModbusConverter):
             result_data = decoded
 
         return result_data
+
+    @staticmethod
+    def _bits_to_result_data(decoded, configuration):
+        if not decoded:
+            return None
+
+        if configuration.get('bit') is not None:
+            bit_index = configuration['bit'] if configuration['bit'] < len(decoded) else len(decoded) - 1
+            return int(decoded[bit_index])
+
+        bit_as_boolean = configuration.get('bitTargetType', 'bool') == 'bool'
+        objects_count = configuration.get('objectsCount', 1)
+
+        if objects_count == 1:
+            return bool(decoded[-1]) if bit_as_boolean else int(decoded[-1])
+
+        return [bool(bit) if bit_as_boolean else int(bit) for bit in decoded]
 
     def _get_device_report_strategy(self, report_strategy, device_name):
         try:
