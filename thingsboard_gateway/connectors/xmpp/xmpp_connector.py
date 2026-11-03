@@ -13,10 +13,12 @@
 #     limitations under the License.
 
 import asyncio
+from functools import partial
 from json import dumps
 from queue import Queue
 from random import choice
 from string import ascii_lowercase
+from sys import version_info
 from threading import Thread
 from time import sleep
 from packaging import version
@@ -33,8 +35,13 @@ from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 installation_required = False
-required_version = '1.8.6'
+required_version = '1.17.0'
+required_python_version = (3, 11)
 force_install = False
+
+if version_info < required_python_version:
+    raise ImportError(f"XMPP connector requires Python {required_python_version[0]}.{required_python_version[1]} "
+                      f"or higher, current version is {version_info[0]}.{version_info[1]}")
 
 try:
     from slixmpp import __version__ as slixmpp_version
@@ -53,6 +60,7 @@ from slixmpp import ClientXMPP  # noqa: E402
 from slixmpp.exceptions import IqError, IqTimeout  # noqa: E402
 
 DEFAULT_UPLINK_CONVERTER = 'XmppUplinkConverter'
+MAX_RECONNECT_DELAY = 300
 
 
 class XMPPConnector(Connector, Thread):
@@ -93,6 +101,9 @@ class XMPPConnector(Connector, Thread):
         self.daemon = True
 
         self._xmpp = None
+        self._loop = None
+        self._reconnect_delay = 0
+        self._reconnect_handle = None
 
     def _reformat_devices_config(self):
         for config in self._devices_config:
@@ -145,39 +156,64 @@ class XMPPConnector(Connector, Thread):
 
     def create_client(self):
         # creating event loop for slixmpp
-        asyncio.set_event_loop(asyncio.new_event_loop())
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
 
         self.__log.info('Starting XMPP Client...')
         self._xmpp = ClientXMPP(jid=self._server_config['jid'], password=self._server_config['password'])
 
         self._xmpp.add_event_handler("session_start", self.session_start)
+        self._xmpp.add_event_handler("disconnected", self.disconnected)
         self._xmpp.add_event_handler("message", self.message)
-        self._xmpp['feature_mechanisms'].unencrypted_plain = self._server_config.get('unencrypted_plain_auth', True)
+        unencrypted_plain_auth = self._server_config.get('unencrypted_plain_auth', True)
+        self._xmpp.plugin['feature_mechanisms'].unencrypted_plain = unencrypted_plain_auth
+        self._xmpp.plugin['feature_mechanisms'].unencrypted_scram = True
 
         for plugin in self._server_config.get('plugins', []):
             self._xmpp.register_plugin(plugin)
 
-        self._xmpp.connect(address=(self._server_config['host'], self._server_config['port']),
-                           use_ssl=self._server_config.get('use_ssl', False),
-                           disable_starttls=self._server_config.get('disable_starttls', False),
-                           force_starttls=self._server_config.get('force_starttls', True))
-        self._xmpp.process(forever=True, timeout=self._server_config.get('timeout', 10000))
+        use_ssl = self._server_config.get('use_ssl', False)
+        self._xmpp.enable_direct_tls = use_ssl
+        self._xmpp.enable_starttls = not use_ssl and not self._server_config.get('disable_starttls', False)
+        self._xmpp.enable_plaintext = not use_ssl and not self._xmpp.enable_starttls
 
-    def session_start(self, _):
+        self._xmpp.connect(host=self._server_config['host'], port=self._server_config['port'])
+        self._loop.run_forever()
+
+        pending_tasks = asyncio.all_tasks(self._loop)
+        for task in pending_tasks:
+            task.cancel()
+        self._loop.run_until_complete(asyncio.gather(*pending_tasks, return_exceptions=True))
+        self._loop.close()
+
+    async def session_start(self, _):
+        self._reconnect_delay = 0
+        self._connected = True
+        self.__log.info('Connected to XMPP server %s:%s', self._server_config['host'], self._server_config['port'])
+
         try:
             self._xmpp.send_presence()
-            self._xmpp.get_roster()
+            await self._xmpp.get_roster()
         except IqError as err:
-            self.__log.error('There was an error getting the roster')
-            self.__log.error(err.iq['error']['condition'])
-            self._xmpp.disconnect()
-            self.close()
+            self.__log.error('There was an error getting the roster: %s', err.iq['error']['condition'])
         except IqTimeout:
-            self.__log.error('Server is taking too long to respond')
-            self._xmpp.disconnect()
-            self.close()
+            self.__log.error('Server is taking too long to respond to the roster request')
 
-        self._connected = True
+    def disconnected(self, _):
+        self._connected = False
+        if self.__stopped or self._reconnect_handle is not None:
+            return
+
+        self.__log.warning('Disconnected from XMPP server, reconnecting in %s s', self._reconnect_delay)
+        self._reconnect_handle = self._loop.call_later(self._reconnect_delay, self._reconnect)
+        self._reconnect_delay = min(self._reconnect_delay * 2 + 1, MAX_RECONNECT_DELAY)
+
+    def _reconnect(self):
+        self._reconnect_handle = None
+        if self.__stopped or self._xmpp.transport is not None:
+            return
+
+        self._xmpp.connect(host=self._server_config['host'], port=self._server_config['port'])
 
     @staticmethod
     def message(msg):
@@ -230,8 +266,14 @@ class XMPPConnector(Connector, Thread):
     def close(self):
         self.__stopped = True
         self._connected = False
+        if self._loop is not None and not self._loop.is_closed() and self._xmpp is not None:
+            asyncio.run_coroutine_threadsafe(self._disconnect(), self._loop)
         self.__log.info('%s has been stopped.', self.get_name())
         self.__log.stop()
+
+    async def _disconnect(self):
+        await self._xmpp.disconnect()
+        self._loop.stop()
 
     def get_id(self):
         return self.__id
@@ -253,12 +295,17 @@ class XMPPConnector(Connector, Thread):
 
     @CollectStatistics(start_stat_type='allBytesSentToDevices')
     def _send_message(self, jid, data):
-        self._xmpp.send_message(mto=jid, mfrom=self._server_config['jid'], mbody=data,
-                                mtype='chat')
+        self._loop.call_soon_threadsafe(partial(self._xmpp.send_message, mto=jid, mfrom=self._server_config['jid'],
+                                                mbody=data, mtype='chat'))
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         self.__log.debug('Got attribute update: %s', content)
+
+        if not self._connected:
+            self.__log.error('Attribute update for %s skipped: XMPP connector is not connected to the server',
+                             content.get('device'))
+            return
 
         try:
             device_jid = self._available_device.get(content['device'])
@@ -285,6 +332,12 @@ class XMPPConnector(Connector, Thread):
             device_jid = self._available_device.get(rpc_request.device_name)
             if not device_jid:
                 err_msg = f'{rpc_request.device_name} device not found'
+                self.__log.error(err_msg)
+                response.set_error_msg(err_msg)
+                return response
+
+            if not self._connected:
+                err_msg = 'XMPP connector is not connected to the server'
                 self.__log.error(err_msg)
                 response.set_error_msg(err_msg)
                 return response

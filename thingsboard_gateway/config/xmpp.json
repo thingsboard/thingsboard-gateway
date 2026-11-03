@@ -6,8 +6,6 @@
     "port": 5222,
     "use_ssl": false,
     "disable_starttls": false,
-    "force_starttls": true,
-    "timeout": 10000,
     "plugins": [
       "xep_0030",
       "xep_0323",
