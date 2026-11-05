@@ -1,0 +1,22 @@
+{
+  "attributes": [
+    { "key": "Customer", "type": "constant", "value": "ACME Corp" },
+    { "key": "Frequency", "type": "path", "value": "${Frequency}" }
+  ],
+  "attributes_updates": [],
+  "deviceInfo": {
+    "deviceNameExpression": "OPCUA New Advanced Device",
+    "deviceNameExpressionSource": "path",
+    "deviceProfileExpression": "default",
+    "deviceProfileExpressionSource": "constant"
+  },
+  "deviceNodePattern": "Root\\.Objects\\.MyObject",
+  "deviceNodeSource": "path",
+  "device_name": "OPCUA New Advanced Device",
+  "device_type": "default",
+  "rpc_methods": [],
+  "timeseries": [
+    { "key": "InitialBatchSize", "type": "constant", "value": "12" },
+    { "key": "Temperature", "type": "path", "value": "${Temperature}" }
+  ]
+}
