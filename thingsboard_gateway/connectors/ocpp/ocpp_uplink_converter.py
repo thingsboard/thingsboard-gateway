@@ -76,6 +76,8 @@ class OcppUplinkConverter(OcppConverter):
                             config, e)
 
     def convert(self, config, data):
+        StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
+
         datatypes = {"attributes": "attributes",
                      "timeseries": "telemetry"}
 
@@ -132,7 +134,6 @@ class OcppUplinkConverter(OcppConverter):
                             telemetry_entry = TelemetryEntry({datapoint_key: full_value}, ts)
                             converted_data.add_to_telemetry(telemetry_entry)
         except Exception as e:
-            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
                             str(data), e)
 

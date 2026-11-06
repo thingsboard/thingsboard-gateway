@@ -81,7 +81,6 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
                             converted_data_append_methods[item_config['type']](payload)  # noqa
             except Exception as e:
                 self.__log.error("Error converting data for item %s: %s", item_config, e)
-                StatisticsService.count_connector_message(self.__log.name, 'convertersError', count=1)
                 continue
 
         StatisticsService.count_connector_message(self.__log.name,

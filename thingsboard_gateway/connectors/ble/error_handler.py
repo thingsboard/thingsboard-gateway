@@ -4,7 +4,7 @@ class ErrorHandler:
 
     def is_char_not_found(self):
         try:
-            if "could not be found!" in self.e.args[0]:
+            if "could not be found!" in self.e.args[0] or "was not found!" in self.e.args[0]:
                 return True
         except IndexError:
             return False

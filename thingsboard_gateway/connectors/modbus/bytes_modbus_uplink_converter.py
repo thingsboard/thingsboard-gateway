@@ -24,7 +24,6 @@ from thingsboard_gateway.connectors.modbus.utils import Utils
 from thingsboard_gateway.connectors.modbus.constants import REQUIRED_KEYS_FOR_WIDE_RANGE_TAG_NAME
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -34,8 +33,6 @@ class BytesModbusUplinkConverter(ModbusConverter):
         self._log = logger
         self.__config = config
 
-    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                       end_stat_type='convertedBytesFromDevice')
     def convert(self, _, data: List[dict]) -> Union[ConvertedData, None]:
         result = ConvertedData(self.__config.device_name, self.__config.device_type)
         device_report_strategy = self._get_device_report_strategy(self.__config.report_strategy,

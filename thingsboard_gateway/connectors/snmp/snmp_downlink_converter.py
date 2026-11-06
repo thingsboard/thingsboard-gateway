@@ -17,7 +17,6 @@ from ipaddress import IPv4Address, AddressValueError
 from puresnmp.types import Integer, OctetString, IpAddress, Counter, Gauge, Counter64, TimeTicks
 
 from thingsboard_gateway.connectors.converter import Converter
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -48,8 +47,6 @@ class SNMPDownlinkConverter(Converter):
     def __init__(self, config):
         self.__config = config
 
-    @CollectStatistics(start_stat_type='allReceivedBytesFromTB',
-                       end_stat_type='allBytesSentToDevices')
     def convert(self, config, data):
         mappings = config.get("mappings")
         if mappings is not None:

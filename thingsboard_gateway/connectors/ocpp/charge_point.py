@@ -19,6 +19,7 @@ from ocpp.v21.enums import Action, RegistrationStatusEnumType, DataTransferStatu
 from ocpp.v21 import call_result
 from datetime import datetime, timezone
 
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
 
@@ -29,9 +30,10 @@ class ChargePoint(CP):
         'Power.Active.Import': 'power_active_import',
     }
 
-    def __init__(self, charge_point_id, websocket, config, callback, logger):
+    def __init__(self, charge_point_id, websocket, config, callback, logger, connector_name):
         super(ChargePoint, self).__init__(charge_point_id, websocket)
         self._log = logger
+        self._connector_name = connector_name
         self._config = config
         self._callback = callback
         self._uplink_converter = self._load_converter(config['uplink_converter_name'])(self._config, self._log)
@@ -56,6 +58,7 @@ class ChargePoint(CP):
     async def start(self):
         while not self._stopped:
             message = await self._connection.recv()
+            StatisticsService.count_connector_message(self._connector_name, stat_parameter_name='connectorMsgsReceived')
 
             await self.route_message(message)
 

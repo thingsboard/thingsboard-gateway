@@ -66,8 +66,6 @@ class S7UplinkConverter(S7Converter):
             except Exception as e:
                 self.__log.exception(
                     "Failed to convert data for device '%s' datapoint '%s': %s", self.__config.device_name, config['key'], e)  # noqa: E501
-                StatisticsService.count_connector_message(
-                    self.__log.name, 'convertersError', count=1)
                 continue
 
         StatisticsService.count_connector_message(self.__log.name,
