@@ -22,9 +22,9 @@ from thingsboard_gateway.connectors.converter import Converter
 class SerialDownlinkConverter(Converter):
     """
     Downlink converter is used to convert data that can be sent to device.
-    Such as we create downlink converter for each configured device,
-    this converter is used to convert data that can be sent to only one device.
-    Because config, that we passed to init method, is device specific.
+    We create one downlink converter per configured device,
+    because the config passed to __init__ is device-specific,
+    so this converter is used to convert data that can be sent to only one device.
     If your connector can handle multiple devices, you can create one converter for all devices.
     """
 
@@ -33,7 +33,7 @@ class SerialDownlinkConverter(Converter):
         self.__config = config
 
     def convert(self, config, data) -> bytes:
-        """Method to convert data that can be send to serial port."""
+        """Method to convert data that can be sent to the serial port."""
         self._log.debug("Data to convert: %s", data)
         byteorder = self.__config.get('byteorder', 'big').lower()
         if data is None:

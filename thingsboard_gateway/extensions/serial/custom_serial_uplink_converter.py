@@ -28,9 +28,9 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 class SerialUplinkConverter(Converter):
     """
     Uplink converter is used to convert incoming data to the format that platform expects.
-    Such as we create uplink converter for each configured device,
-    this converter is used to convert incoming data from only one device.
-    Because config, that we passed to init method, is device specific.
+    We create one uplink converter per configured device,
+    because the config passed to __init__ is device-specific,
+    so this converter is used to convert incoming data from only one device.
     If your connector can handle multiple devices, you can create one converter for all devices.
     """
 
