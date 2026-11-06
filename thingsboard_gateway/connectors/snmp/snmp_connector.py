@@ -187,7 +187,7 @@ class SNMPConnector(Connector, Thread):
     async def __process_methods(self, method, common_parameters, datatype_config):
         client = Client(ip=common_parameters['ip'],
                         port=common_parameters['port'],
-                        credentials=self.__get_credentials(common_parameters))
+                        credentials=self.__get_credentials(common_parameters, datatype_config))
         client.configure(timeout=common_parameters['timeout'])
         client = PyWrapper(client)
 
@@ -264,14 +264,18 @@ class SNMPConnector(Connector, Thread):
         except Exception as e:
             self._log.exception(e)
 
-    def __get_credentials(self, common_parameters):
+    def __get_credentials(self, common_parameters, datatype_config):
         version = common_parameters.get("version", DEFAULT_SNMP_VERSION)
         credentials_type = SNMP_CREDENTIALS_BY_VERSION.get(version)
         if credentials_type is None:
             self._log.warning("Unknown SNMP version: %r, falling back to %r. Supported versions: %s",
                               version, DEFAULT_SNMP_VERSION, ", ".join(SNMP_CREDENTIALS_BY_VERSION))
             credentials_type = SNMP_CREDENTIALS_BY_VERSION[DEFAULT_SNMP_VERSION]
-        return credentials_type(common_parameters["community"])
+
+        community = common_parameters["community"]
+        if datatype_config.get("community") is not None:
+            community = datatype_config["community"]
+        return credentials_type(community)
 
     @staticmethod
     def __get_common_parameters(device):
