@@ -15,7 +15,7 @@
 from datetime import date, datetime, time as dt_time
 from time import time
 from hashlib import sha1
-from os import getenv, path
+from os import path
 from pathlib import Path
 from random import choice
 from re import fullmatch
@@ -45,6 +45,7 @@ except ImportError:
 
 from thingsboard_gateway.connectors.odbc.constants import RESERVED_RPC_SCHEMA, RESERVED_RPC_PATTERN
 from thingsboard_gateway.connectors.odbc.odbc_uplink_converter import OdbcUplinkConverter
+from thingsboard_gateway.connectors.odbc.utils import resolve_env_placeholders
 
 from thingsboard_gateway.connectors.connector import Connector
 
@@ -364,21 +365,11 @@ class OdbcConnector(Connector, Thread):
             self.__gateway.send_to_storage(self.get_name(), self.get_id(), to_send)
             self.statistics['MessagesSent'] += 1
 
-    def __substitute_env_placeholders(self, connection_str):
-        for placeholder in TBUtility.get_values(connection_str, get_tag=True):
-            env_value = getenv(placeholder)
-            if env_value is None:
-                self._log.debug("[%s] No environment variable found for placeholder '%s'",
-                                self.get_name(), placeholder)
-                continue
-            connection_str = connection_str.replace("${" + placeholder + "}", env_value)
-        return connection_str
-
     def __init_connection(self):
         try:
             self._log.debug("[%s] Opening connection to database", self.get_name())
             connection_config = self.__config["connection"]
-            connection_str = self.__substitute_env_placeholders(connection_config["str"])
+            connection_str = resolve_env_placeholders(connection_config["str"], self._log, self.get_name())
             self.__connection = pyodbc.connect(connection_str, **connection_config.get("attributes", {}))
             if connection_config.get("encoding", ""):
                 self._log.info("[%s] Setting encoding to %s", self.get_name(), connection_config["encoding"])

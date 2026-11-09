@@ -14,6 +14,31 @@
 
 from datetime import timedelta
 
+from thingsboard_gateway.connectors.snmp.constants import SNMP_ERROR_STATUS_NAMES
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
+
+def resolve_env_placeholders(value, parameter_name):
+    if not isinstance(value, str):
+        return value
+
+    resolved_value, missing_variables = TBUtility.substitute_env_placeholders(value)
+    if missing_variables:
+        variables = ', '.join(f'"{variable}"' for variable in missing_variables)
+        raise ValueError(f'"{parameter_name}" uses environment variable(s) {variables} that are not set')
+
+    return resolved_value
+
+
+def format_snmp_error(error):
+    error_status = getattr(error, 'error_status', None)
+    error_status_name = SNMP_ERROR_STATUS_NAMES.get(error_status)
+    if error_status_name is None:
+        return str(error)
+
+    offending_oid = getattr(error, 'offending_oid', None) or 'unknown'
+    return f'{error_status_name} (status-code: {error_status}) on OID {offending_oid}'
+
 
 def to_json_safe(value):
     if isinstance(value, dict):

@@ -147,6 +147,54 @@
           "oid": "1.3.6.1.2.1.1.1.0"
         }
       ]
+    },
+    {
+      "deviceName": "SNMPv3 router",
+      "deviceType": "snmp",
+      "ip": "127.0.0.1",
+      "port": 161,
+      "pollPeriod": 5000,
+      "version": "v3",
+      "security": {
+        "username": "YOUR_USERNAME",
+        "authProtocol": "SHA",
+        "authKey": "YOUR_AUTH_KEY",
+        "privProtocol": "AES",
+        "privKey": "YOUR_PRIV_KEY"
+      },
+      "attributes": [
+        {
+          "key": "ReceivedFromGetV3",
+          "method": "get",
+          "oid": "1.3.6.1.2.1.1.1.0"
+        }
+      ],
+      "telemetry": [
+        {
+          "key": "ReceivedFromGetUptimeV3",
+          "method": "get",
+          "oid": "1.3.6.1.2.1.1.3.0"
+        }
+      ],
+      "attributeUpdateRequests": [
+        {
+          "attributeFilter": "dataToSet",
+          "method": "set",
+          "oid": "1.3.6.1.2.1.1.6.0"
+        }
+      ],
+      "serverSideRpcRequests": [
+        {
+          "requestFilter": "getData",
+          "method": "get",
+          "oid": "1.3.6.1.2.1.1.1.0"
+        },
+        {
+          "requestFilter": "setData",
+          "method": "set",
+          "oid": "1.3.6.1.2.1.1.4.0"
+        }
+      ]
     }
   ]
 }
