@@ -67,7 +67,7 @@ from puresnmp.plugins import priv as privacy_plugins  # noqa: E402
 from thingsboard_gateway.connectors.snmp.v3_security import parse_v3_security  # noqa: E402
 
 DEFAULT_SNMP_VERSION = 'v2c'
-SNMP_V3 = 'v3'
+SNMP_V3_VERSION = 'v3'
 SNMP_CREDENTIALS_BY_VERSION = {
     'v1': credentials.V1,
     'v2c': credentials.V2C,
@@ -93,6 +93,7 @@ class SNMPConnector(Connector, Thread):
                                           enable_remote_logging=self.__config.get('enableRemoteLogging', False),
                                           is_connector_logger=True, attr_name=self.name)
         self.__devices = self.__config["devices"]
+        self.__privacy_dependencies_checked = False
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self._default_converters = {
@@ -108,8 +109,6 @@ class SNMPConnector(Connector, Thread):
     def open(self):
         self.__stopped = False
         self.__devices = self.__validate_devices(self.__devices)
-        self.__install_privacy_dependencies(self.__devices)
-        self.__devices = self.__skip_devices_without_privacy_support(self.__devices)
         self.__fill_converters()
         self.start()
 
@@ -117,19 +116,30 @@ class SNMPConnector(Connector, Thread):
         valid_devices = []
         for device in devices:
             try:
-                if self.__get_version(device) == SNMP_V3:
-                    device["v3_security"] = parse_v3_security(device.get("security"))
+                if self.__get_version(device) == SNMP_V3_VERSION:
+                    security = parse_v3_security(device.get("security"))
+                    if security.has_privacy:
+                        self.__check_privacy_support(security.credentials.priv.method)
+                    device["v3_security"] = security
                 elif device.get("community") is None:
                     raise ValueError('"community" is required for SNMP v1/v2c')
                 valid_devices.append(device)
             except ValueError as e:
-                self._log.error("Device \"%s\" skipped due to invalid configuration: %s", device.get("deviceName"), e)
+                self._log.error("Device \"%s\" skipped: %s", device.get("deviceName"), e)
         return valid_devices
 
-    def __install_privacy_dependencies(self, devices):
-        if not any(device.get("v3_security") is not None and device["v3_security"].has_privacy for device in devices):
-            return
+    def __check_privacy_support(self, privacy_method):
+        if not self.__privacy_dependencies_checked:
+            self.__privacy_dependencies_checked = True
+            self.__install_privacy_dependencies()
 
+        try:
+            privacy_plugins.create(privacy_method)
+        except UnknownPrivacyModel:
+            raise ValueError(f'SNMPv3 privacy protocol "{privacy_method.upper()}" requires the puresnmp-crypto '
+                             f'library, which is not available') from None
+
+    def __install_privacy_dependencies(self):
         crypto_version = TBUtility.get_package_version("puresnmp-crypto")
         if crypto_version is not None and version.parse(crypto_version) == version.parse(required_crypto_version):
             return
@@ -140,28 +150,6 @@ class SNMPConnector(Connector, Thread):
                                       force_install=crypto_version is not None)
         except Exception as e:
             self._log.error("Failed to install puresnmp-crypto, SNMPv3 privacy will not work: %s", e)
-
-    def __skip_devices_without_privacy_support(self, devices):
-        supported_devices = []
-        for device in devices:
-            security = device.get("v3_security")
-            if security is not None and security.has_privacy:
-                privacy_method = security.credentials.priv.method
-                if not self.__is_privacy_supported(privacy_method):
-                    self._log.error("Device \"%s\" skipped: SNMPv3 privacy protocol \"%s\" requires "
-                                    "the puresnmp-crypto library, which is not available",
-                                    device["deviceName"], privacy_method.upper())
-                    continue
-            supported_devices.append(device)
-        return supported_devices
-
-    @staticmethod
-    def __is_privacy_supported(privacy_method):
-        try:
-            privacy_plugins.create(privacy_method)
-            return True
-        except UnknownPrivacyModel:
-            return False
 
     def run(self):
         self._connected = True
@@ -228,10 +216,8 @@ class SNMPConnector(Connector, Thread):
                         method = method.lower()
                     if method not in self.__methods:
                         self._log.error("Unknown method: %s, configuration is: %r", method, datatype_config)
-                    if common_parameters["version"] == SNMP_V3 and (
-                            v3_client is None or monotonic() - v3_client_created_at > V3_CLIENT_MAX_AGE_SECONDS):
-                        v3_client = self.__create_client(common_parameters, datatype_config)
-                        v3_client_created_at = monotonic()
+                    v3_client, v3_client_created_at = self.__recreate_client_if_needed(
+                        v3_client, v3_client_created_at, common_parameters, datatype_config)
                     response = await self.__process_methods(method, common_parameters, datatype_config, v3_client)
                     device_responses[datatype_config['key']] = response
 
@@ -244,7 +230,7 @@ class SNMPConnector(Connector, Thread):
                                     device["ip"])
                     return
                 except SnmpError as e:
-                    if common_parameters["version"] == SNMP_V3 and not isinstance(e, ErrorResponse):
+                    if common_parameters["version"] == SNMP_V3_VERSION and not isinstance(e, ErrorResponse):
                         self._log.error("SNMPv3 security error on device \"%s\" with ip: \"%s\": %s",
                                         device["deviceName"],
                                         device["ip"],
@@ -264,6 +250,13 @@ class SNMPConnector(Connector, Thread):
                     (converted_data.attributes_datapoints_count > 0 or
                      converted_data.telemetry_datapoints_count > 0)):
                 self.collect_statistic_and_send(self.get_name(), self.get_id(), converted_data)
+
+    def __recreate_client_if_needed(self, client, client_created_at, common_parameters, datatype_config):
+        if common_parameters["version"] != SNMP_V3_VERSION:
+            return None, 0
+        if client is not None and monotonic() - client_created_at <= V3_CLIENT_MAX_AGE_SECONDS:
+            return client, client_created_at
+        return self.__create_client(common_parameters, datatype_config), monotonic()
 
     def __create_client(self, common_parameters, datatype_config):
         client = Client(ip=common_parameters['ip'],
@@ -353,13 +346,13 @@ class SNMPConnector(Connector, Thread):
 
     def __get_credentials(self, common_parameters, datatype_config):
         version = common_parameters.get("version", DEFAULT_SNMP_VERSION)
-        if version == SNMP_V3:
+        if version == SNMP_V3_VERSION:
             return common_parameters["v3_security"].credentials
 
         credentials_type = SNMP_CREDENTIALS_BY_VERSION.get(version)
         if credentials_type is None:
             self._log.warning("Unknown SNMP version: %r, falling back to %r. Supported versions: %s",
-                              version, DEFAULT_SNMP_VERSION, ", ".join([*SNMP_CREDENTIALS_BY_VERSION, SNMP_V3]))
+                              version, DEFAULT_SNMP_VERSION, ", ".join([*SNMP_CREDENTIALS_BY_VERSION, SNMP_V3_VERSION]))
             credentials_type = SNMP_CREDENTIALS_BY_VERSION[DEFAULT_SNMP_VERSION]
 
         community = common_parameters["community"]
