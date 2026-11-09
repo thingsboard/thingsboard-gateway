@@ -19,16 +19,19 @@ from re import fullmatch
 from socket import gethostbyname
 from string import ascii_lowercase
 from threading import Thread
-from time import time
+from time import monotonic, time
+
+from packaging import version
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.snmp.constants import (
     RESERVED_GET_RPC_SCHEMA,
     RESERVED_SET_RPC_SCHEMA,
     RESERVED_GET_RPC_PATTERN,
-    RESERVED_SET_RPC_PATTERN
+    RESERVED_SET_RPC_PATTERN,
+    V3_CLIENT_MAX_AGE_SECONDS
 )
-from thingsboard_gateway.connectors.snmp.utils import to_json_safe
+from thingsboard_gateway.connectors.snmp.utils import format_snmp_error, to_json_safe
 from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.rpc_request import RPCType
@@ -38,25 +41,33 @@ from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
-# Try import Pymodbus library or install it and import
+# Try import puresnmp library or install it and import
 installation_required = False
+# 2.0.2 rejects SNMPv3 responses without the requested authentication/privacy
+required_version = '2.0.2'
+required_crypto_version = '1.0.1.post1'
+force_install = False
 
 try:
-    from puresnmp import __version__ as pymodbus_version
+    from puresnmp import __version__ as puresnmp_version
 
-    if int(pymodbus_version.split('.')[0]) < 2:
+    if version.parse(puresnmp_version) != version.parse(required_version):
         installation_required = True
+        force_install = True
 except ImportError:
     installation_required = True
 
 if installation_required:
-    print("Modbus library not found - installing...")
-    TBUtility.install_package("puresnmp", ">=2.0.0")
+    print("puresnmp library not found or has a different version - installing...")
+    TBUtility.install_package("puresnmp", required_version, force_install=force_install)
 
-from puresnmp import Client, credentials, PyWrapper
-from puresnmp.exc import Timeout as SNMPTimeoutException
+from puresnmp import Client, credentials, PyWrapper  # noqa: E402
+from puresnmp.exc import ErrorResponse, SnmpError, Timeout as SNMPTimeoutException, UnknownPrivacyModel  # noqa: E402
+from puresnmp.plugins import priv as privacy_plugins  # noqa: E402
+from thingsboard_gateway.connectors.snmp.v3_security import parse_v3_security  # noqa: E402
 
 DEFAULT_SNMP_VERSION = 'v2c'
+SNMP_V3 = 'v3'
 SNMP_CREDENTIALS_BY_VERSION = {
     'v1': credentials.V1,
     'v2c': credentials.V2C,
@@ -96,8 +107,61 @@ class SNMPConnector(Connector, Thread):
 
     def open(self):
         self.__stopped = False
+        self.__devices = self.__validate_devices(self.__devices)
+        self.__install_privacy_dependencies(self.__devices)
+        self.__devices = self.__skip_devices_without_privacy_support(self.__devices)
         self.__fill_converters()
         self.start()
+
+    def __validate_devices(self, devices):
+        valid_devices = []
+        for device in devices:
+            try:
+                if self.__get_version(device) == SNMP_V3:
+                    device["v3_security"] = parse_v3_security(device.get("security"))
+                elif device.get("community") is None:
+                    raise ValueError('"community" is required for SNMP v1/v2c')
+                valid_devices.append(device)
+            except ValueError as e:
+                self._log.error("Device \"%s\" skipped due to invalid configuration: %s", device.get("deviceName"), e)
+        return valid_devices
+
+    def __install_privacy_dependencies(self, devices):
+        if not any(device.get("v3_security") is not None and device["v3_security"].has_privacy for device in devices):
+            return
+
+        crypto_version = TBUtility.get_package_version("puresnmp-crypto")
+        if crypto_version is not None and version.parse(crypto_version) == version.parse(required_crypto_version):
+            return
+
+        self._log.info("puresnmp-crypto library not found or has a different version - installing...")
+        try:
+            TBUtility.install_package("puresnmp-crypto", required_crypto_version,
+                                      force_install=crypto_version is not None)
+        except Exception as e:
+            self._log.error("Failed to install puresnmp-crypto, SNMPv3 privacy will not work: %s", e)
+
+    def __skip_devices_without_privacy_support(self, devices):
+        supported_devices = []
+        for device in devices:
+            security = device.get("v3_security")
+            if security is not None and security.has_privacy:
+                privacy_method = security.credentials.priv.method
+                if not self.__is_privacy_supported(privacy_method):
+                    self._log.error("Device \"%s\" skipped: SNMPv3 privacy protocol \"%s\" requires "
+                                    "the puresnmp-crypto library, which is not available",
+                                    device["deviceName"], privacy_method.upper())
+                    continue
+            supported_devices.append(device)
+        return supported_devices
+
+    @staticmethod
+    def __is_privacy_supported(privacy_method):
+        try:
+            privacy_plugins.create(privacy_method)
+            return True
+        except UnknownPrivacyModel:
+            return False
 
     def run(self):
         self._connected = True
@@ -150,6 +214,8 @@ class SNMPConnector(Connector, Thread):
 
     async def __process_data(self, device):
         common_parameters = self.__get_common_parameters(device)
+        v3_client = None
+        v3_client_created_at = 0
         device_responses = {}
         for datatype in self.__datatypes:
             for datatype_config in device[datatype]:
@@ -162,7 +228,11 @@ class SNMPConnector(Connector, Thread):
                         method = method.lower()
                     if method not in self.__methods:
                         self._log.error("Unknown method: %s, configuration is: %r", method, datatype_config)
-                    response = await self.__process_methods(method, common_parameters, datatype_config)
+                    if common_parameters["version"] == SNMP_V3 and (
+                            v3_client is None or monotonic() - v3_client_created_at > V3_CLIENT_MAX_AGE_SECONDS):
+                        v3_client = self.__create_client(common_parameters, datatype_config)
+                        v3_client_created_at = monotonic()
+                    response = await self.__process_methods(method, common_parameters, datatype_config, v3_client)
                     device_responses[datatype_config['key']] = response
 
                     StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
@@ -173,6 +243,17 @@ class SNMPConnector(Connector, Thread):
                                     device["deviceName"],
                                     device["ip"])
                     return
+                except SnmpError as e:
+                    if common_parameters["version"] == SNMP_V3 and not isinstance(e, ErrorResponse):
+                        self._log.error("SNMPv3 security error on device \"%s\" with ip: \"%s\": %s",
+                                        device["deviceName"],
+                                        device["ip"],
+                                        format_snmp_error(e))
+                        return
+                    self._log.error("SNMP error on device \"%s\" for key \"%s\": %s",
+                                    device["deviceName"],
+                                    datatype_config.get("key"),
+                                    format_snmp_error(e))
                 except Exception as e:
                     self._log.exception(e)
 
@@ -184,12 +265,18 @@ class SNMPConnector(Connector, Thread):
                      converted_data.telemetry_datapoints_count > 0)):
                 self.collect_statistic_and_send(self.get_name(), self.get_id(), converted_data)
 
-    async def __process_methods(self, method, common_parameters, datatype_config):
+    def __create_client(self, common_parameters, datatype_config):
         client = Client(ip=common_parameters['ip'],
                         port=common_parameters['port'],
-                        credentials=self.__get_credentials(common_parameters, datatype_config))
+                        credentials=self.__get_credentials(common_parameters, datatype_config),
+                        context_name=common_parameters['context_name'],
+                        engine_id=common_parameters['context_engine_id'])
         client.configure(timeout=common_parameters['timeout'])
-        client = PyWrapper(client)
+        return PyWrapper(client)
+
+    async def __process_methods(self, method, common_parameters, datatype_config, client=None):
+        if client is None:
+            client = self.__create_client(common_parameters, datatype_config)
 
         response = None
 
@@ -266,10 +353,13 @@ class SNMPConnector(Connector, Thread):
 
     def __get_credentials(self, common_parameters, datatype_config):
         version = common_parameters.get("version", DEFAULT_SNMP_VERSION)
+        if version == SNMP_V3:
+            return common_parameters["v3_security"].credentials
+
         credentials_type = SNMP_CREDENTIALS_BY_VERSION.get(version)
         if credentials_type is None:
             self._log.warning("Unknown SNMP version: %r, falling back to %r. Supported versions: %s",
-                              version, DEFAULT_SNMP_VERSION, ", ".join(SNMP_CREDENTIALS_BY_VERSION))
+                              version, DEFAULT_SNMP_VERSION, ", ".join([*SNMP_CREDENTIALS_BY_VERSION, SNMP_V3]))
             credentials_type = SNMP_CREDENTIALS_BY_VERSION[DEFAULT_SNMP_VERSION]
 
         community = common_parameters["community"]
@@ -279,12 +369,20 @@ class SNMPConnector(Connector, Thread):
 
     @staticmethod
     def __get_common_parameters(device):
+        v3_security = device.get("v3_security")
         return {"ip": gethostbyname(device["ip"]),
                 "port": device.get("port", 161),
                 "timeout": device.get("timeout", 6),
-                "community": device["community"],
-                "version": str(device.get("version", DEFAULT_SNMP_VERSION)).lower(),
+                "community": device.get("community"),
+                "version": SNMPConnector.__get_version(device),
+                "v3_security": v3_security,
+                "context_name": v3_security.context_name if v3_security is not None else b"",
+                "context_engine_id": v3_security.context_engine_id if v3_security is not None else b"",
                 }
+
+    @staticmethod
+    def __get_version(device):
+        return str(device.get("version", DEFAULT_SNMP_VERSION)).lower()
 
     def on_attributes_update(self, content):
         try:
@@ -313,6 +411,9 @@ class SNMPConnector(Connector, Thread):
                             value)
                         self._log.debug(result)
                         self._log.debug(content)
+        except SnmpError as e:
+            self._log.error("SNMP error on attribute update for device \"%s\": %s",
+                            content.get("device"), format_snmp_error(e))
         except Exception as e:
             self._log.exception(e)
 
@@ -342,7 +443,8 @@ class SNMPConnector(Connector, Thread):
             else:
                 return self.__rpc_error_response(rpc_request, f'Invalid RPC type request: {rpc_request}')
         except Exception as e:
-            return self.__rpc_error_response(rpc_request, f'Error processing RPC request {rpc_request}: {e}')
+            return self.__rpc_error_response(rpc_request,
+                                             f'Error processing RPC request {rpc_request}: {format_snmp_error(e)}')
 
     def __rpc_error_response(self, rpc_request, error_msg) -> RPCResponse:
         self._log.error(error_msg)

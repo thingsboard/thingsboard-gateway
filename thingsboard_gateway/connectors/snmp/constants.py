@@ -20,3 +20,39 @@ RESERVED_SET_RPC_PATTERN = (r'^oid=(?P<oid>\.?\d+(?:\.\d+)*);'
                             r'(?:type=(?P<type>[A-Za-z0-9]+);)?'
                             r'(?:timeout=(?P<timeout>\d+(?:\.\d+)?);)?'
                             r'value=(?P<value>.+?);?$')
+
+# SNMPv3 protocol names accepted in the config (upper case, without "-" and "_"),
+# mapped to puresnmp plugin identifiers
+V3_AUTH_PROTOCOLS = {
+    'MD5': 'md5',
+    'SHA': 'sha1',
+    'SHA1': 'sha1',
+}
+V3_PRIV_PROTOCOLS = {
+    'DES': 'des',
+    'AES': 'aes',
+    'AES128': 'aes',
+}
+V3_CLIENT_MAX_AGE_SECONDS = 90
+
+# Error-status names from RFC 3416, puresnmp has no message for some of them (e.g. 16 and 17)
+SNMP_ERROR_STATUS_NAMES = {
+    1: 'tooBig',
+    2: 'noSuchName',
+    3: 'badValue',
+    4: 'readOnly',
+    5: 'genErr',
+    6: 'noAccess',
+    7: 'wrongType',
+    8: 'wrongLength',
+    9: 'wrongEncoding',
+    10: 'wrongValue',
+    11: 'noCreation',
+    12: 'inconsistentValue',
+    13: 'resourceUnavailable',
+    14: 'commitFailed',
+    15: 'undoFailed',
+    16: 'authorizationError',
+    17: 'notWritable',
+    18: 'inconsistentName',
+}
