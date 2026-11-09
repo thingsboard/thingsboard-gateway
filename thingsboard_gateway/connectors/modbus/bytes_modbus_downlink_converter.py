@@ -17,7 +17,6 @@ from pymodbus.payload import BinaryPayloadBuilder
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
 from thingsboard_gateway.connectors.modbus.entities.bytes_downlink_converter_config import \
     BytesDownlinkConverterConfig
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 
 
 class BytesModbusDownlinkConverter(ModbusConverter):
@@ -25,8 +24,6 @@ class BytesModbusDownlinkConverter(ModbusConverter):
     def __init__(self, _, logger):
         self._log = logger
 
-    @CollectStatistics(start_stat_type='allReceivedBytesFromTB',
-                       end_stat_type='allBytesSentToDevices')
     def convert(self, config: BytesDownlinkConverterConfig, data):
         builder = BinaryPayloadBuilder(byteorder=config.byte_order, wordorder=config.word_order, repack=config.repack)
         builder_functions = {"string": builder.add_string,

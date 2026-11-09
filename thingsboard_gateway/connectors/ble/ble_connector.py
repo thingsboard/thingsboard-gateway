@@ -26,8 +26,6 @@ from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.rpc_request import RPCType
 from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
-from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
-from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -51,8 +49,6 @@ from thingsboard_gateway.connectors.ble.device import Device
 class BLEConnector(Connector, Thread):
 
     def __init__(self, gateway, config, connector_type):
-        self.statistics = {'MessagesReceived': 0,
-                           'MessagesSent': 0}
         super().__init__()
         self._connector_type = connector_type
         self.__gateway = gateway
@@ -246,27 +242,21 @@ class BLEConnector(Connector, Thread):
                 config = device_config.pop('config')
                 converter = device_config.pop('converter')
 
-                StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
-                StatisticsService.count_connector_bytes(self.name, data, stat_parameter_name='connectorBytesReceived')
-
                 try:
                     converter = converter(device_config, self.__converter_log)
                     converted_data: ConvertedData = converter.convert(config, data)
-                    self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                     self.__log.debug(converted_data)
 
                     if (converted_data is not None
                             and (converted_data.telemetry_datapoints_count > 0
                                  or converted_data.attributes_datapoints_count > 0)):
                         self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
-                        self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                         self.__log.info('Data to ThingsBoard %s', converted_data)
                 except Exception as e:
                     self.__log.exception(e)
             else:
                 sleep(.2)
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         try:
             self.__log.debug('Received attributes update %s', content)
@@ -289,7 +279,6 @@ class BLEConnector(Connector, Thread):
 
         return device
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
         self.__log.debug('Received RPC request: %s', rpc_request)
 

@@ -37,8 +37,6 @@ from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.rpc_request import RPCType
 from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
-from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
-from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
@@ -76,8 +74,6 @@ class OcppConnector(Connector, Thread):
         self._central_system_config = config['centralSystem']
         self._charge_points_config = config.get('chargePoints', [])
         self._connector_type = connector_type
-        self.statistics = {'MessagesReceived': 0,
-                           'MessagesSent': 0}
         self._gateway = gateway
         self.name = self._config.get("name", 'OCPP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self._log = init_logger(self._gateway, self.name, self._config.get('logLevel', 'INFO'),
@@ -203,7 +199,7 @@ class OcppConnector(Connector, Thread):
         if is_valid:
             uplink_converter_name = cp_config.get('extension', self._default_converters['uplink'])
             cp = ChargePoint(charge_point_id, websocket, {**cp_config, 'uplink_converter_name': uplink_converter_name},
-                             OcppConnector._callback, self._converter_log)
+                             OcppConnector._callback, self._converter_log, self.name)
             cp.authorized = True
 
             self._log.info('Connected Charge Point with id: %s', charge_point_id)
@@ -262,12 +258,7 @@ class OcppConnector(Connector, Thread):
     def _process_data(self):
         while not self.__stopped:
             if not self.DATA_TO_CONVERT.empty():
-                self.statistics['MessagesReceived'] += 1
                 (converter, config, data) = self.DATA_TO_CONVERT.get()
-
-                StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
-                StatisticsService.count_connector_bytes(self.name, data,
-                                                        stat_parameter_name='connectorBytesReceived')
 
                 self._log.debug('Data from Charge Point: %s', data)
                 converted_data: ConvertedData = converter.convert(config, data)
@@ -283,7 +274,6 @@ class OcppConnector(Connector, Thread):
             if not self.DATA_TO_SEND.empty():
                 converted_data = self.DATA_TO_SEND.get()
                 self._gateway.send_to_storage(self.name, self.get_id(), converted_data)
-                self.statistics['MessagesSent'] += 1
                 self._log.info("Data to ThingsBoard: %s", converted_data)
 
             sleep(.001)
@@ -308,7 +298,6 @@ class OcppConnector(Connector, Thread):
             if charge_point.name == name:
                 return charge_point
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         self._log.debug('Got attribute update: %s', content)
 
@@ -330,7 +319,6 @@ class OcppConnector(Connector, Thread):
         except Exception as e:
             self._log.exception(e)
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, rpc_request) -> RPCResponse:
         self._log.debug('Got RPC: %s', rpc_request)
 

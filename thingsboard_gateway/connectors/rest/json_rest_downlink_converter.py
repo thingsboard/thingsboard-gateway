@@ -18,7 +18,6 @@ from simplejson import dumps
 from simplejson import JSONDecodeError
 
 from thingsboard_gateway.connectors.rest.rest_converter import RESTConverter
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -27,8 +26,6 @@ class JsonRESTDownlinkConverter(RESTConverter):
         self._log = logger
         self.__config = config
 
-    @CollectStatistics(start_stat_type='allReceivedBytesFromTB',
-                       end_stat_type='allBytesSentToDevices')
     def convert(self, config, data):
         try:
             if data["data"].get("id") is None:

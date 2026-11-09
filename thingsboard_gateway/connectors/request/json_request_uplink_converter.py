@@ -20,7 +20,6 @@ from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
@@ -32,9 +31,9 @@ class JsonRequestUplinkConverter(RequestConverter):
         self.__datatypes = {"attributes": "attributes",
                             "telemetry": "telemetry"}
 
-    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                       end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
+        StatisticsService.count_connector_message(self.__log.name, 'convertersMsgProcessed')
+
         device_name = None
         device_type = None
 
@@ -73,7 +72,6 @@ class JsonRequestUplinkConverter(RequestConverter):
                 self.__log.error("The expression for looking \"deviceType\" not found in config %s",
                                  dumps(self.__config['converter']))
         except Exception as e:
-            StatisticsService.count_connector_message(self.__log.name, 'convertersMsgDropped')
             self.__log.exception(e)
 
         converted_data = ConvertedData(device_name=device_name, device_type=device_type)
@@ -166,7 +164,6 @@ class JsonRequestUplinkConverter(RequestConverter):
                         telemetry_entry = TelemetryEntry({datapoint_key: full_value}, ts)
                         converted_data.add_to_telemetry(telemetry_entry)
         except Exception as e:
-            StatisticsService.count_connector_message(self.__log.name, 'convertersMsgDropped')
             self.__log.exception(e)
 
         StatisticsService.count_connector_message(self.__log.name, 'convertersAttrProduced',
