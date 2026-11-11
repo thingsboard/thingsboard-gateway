@@ -18,7 +18,7 @@ from random import choice
 from re import fullmatch
 from socket import gethostbyname
 from string import ascii_lowercase
-from threading import Thread
+from threading import Event, Thread
 from time import monotonic, time
 
 from packaging import version
@@ -29,7 +29,10 @@ from thingsboard_gateway.connectors.snmp.constants import (
     RESERVED_SET_RPC_SCHEMA,
     RESERVED_GET_RPC_PATTERN,
     RESERVED_SET_RPC_PATTERN,
-    V3_CLIENT_MAX_AGE_SECONDS
+    V3_CLIENT_MAX_AGE_SECONDS,
+    DEFAULT_TRAP_LISTENER_ADDRESS,
+    DEFAULT_TRAP_LISTENER_PORT,
+    TRAP_LISTENER_CLOSE_TIMEOUT_SECONDS
 )
 from thingsboard_gateway.connectors.snmp.utils import format_snmp_error, to_json_safe
 from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
@@ -64,7 +67,11 @@ if installation_required:
 from puresnmp import Client, credentials, PyWrapper  # noqa: E402
 from puresnmp.exc import ErrorResponse, SnmpError, Timeout as SNMPTimeoutException, UnknownPrivacyModel  # noqa: E402
 from puresnmp.plugins import priv as privacy_plugins  # noqa: E402
-from thingsboard_gateway.connectors.snmp.v3_security import parse_v3_security  # noqa: E402
+from thingsboard_gateway.connectors.snmp.trap_receiver import SNMPTrapReceiver  # noqa: E402
+from thingsboard_gateway.connectors.snmp.v3_security import (  # noqa: E402
+    SNMPv3MessageProcessingModel,
+    parse_v3_security
+)
 
 DEFAULT_SNMP_VERSION = 'v2c'
 SNMP_V3_VERSION = 'v3'
@@ -103,6 +110,9 @@ class SNMPConnector(Connector, Thread):
         self.__methods = ["get", "multiget", "getnext", "walk", "multiwalk", "set", "multiset",
                           "bulkget", "bulkwalk", "table", "bulktable"]
         self.__datatypes = ('attributes', 'telemetry')
+        self.__trap_transport = None
+        self.__trap_listener_closed = Event()
+        self.__trap_listener_closed.set()
 
         self.__loop = asyncio.new_event_loop()
 
@@ -110,6 +120,7 @@ class SNMPConnector(Connector, Thread):
         self.__stopped = False
         self.__devices = self.__validate_devices(self.__devices)
         self.__fill_converters()
+        self.__trap_listener_closed.clear()
         self.start()
 
     def __validate_devices(self, devices):
@@ -159,23 +170,73 @@ class SNMPConnector(Connector, Thread):
             self._log.exception(e)
 
     async def _run(self):
-        while not self.__stopped:
-            current_time = time() * 1000
-            for device in self.__devices:
-                try:
-                    if device.get("previous_poll_time", 0) + device.get("pollPeriod", 10000) < current_time:
-                        await self.__process_data(device)
-                        device["previous_poll_time"] = current_time
-                except Exception as e:
-                    self._log.exception(e)
-            if self.__stopped:
-                break
-            else:
-                await asyncio.sleep(.2)
+        try:
+            self.__trap_transport = await self.__start_trap_listener()
+            if self.__trap_transport is None:
+                self.__trap_listener_closed.set()
+            polling_devices = [device for device in self.__devices if self.__has_polling_entries(device)]
+            while not self.__stopped:
+                current_time = time() * 1000
+                for device in polling_devices:
+                    try:
+                        if device.get("previous_poll_time", 0) + device.get("pollPeriod", 10000) < current_time:
+                            await self.__process_data(device)
+                            device["previous_poll_time"] = current_time
+                    except Exception as e:
+                        self._log.exception(e)
+                if self.__stopped:
+                    break
+                else:
+                    await asyncio.sleep(.2)
+        finally:
+            await self.__close_trap_listener()
+
+    @staticmethod
+    def __has_polling_entries(device):
+        entries = device.get("attributes", []) + device.get("telemetry", [])
+        return any(str(entry.get("method", "")).lower() != "trap" for entry in entries)
+
+    async def __start_trap_listener(self):
+        receiver = SNMPTrapReceiver(self.__devices, self._log, self.__process_trap)
+        if not receiver.has_devices:
+            return None
+
+        listener_config = self.__config.get("trapListener", {})
+        address = listener_config.get("address", DEFAULT_TRAP_LISTENER_ADDRESS)
+        port = listener_config.get("port", DEFAULT_TRAP_LISTENER_PORT)
+        try:
+            transport, _ = await self.__loop.create_datagram_endpoint(lambda: receiver, local_addr=(address, port))
+        except OSError as e:
+            self._log.error("Failed to start SNMP trap listener on %s:%s: %s", address, port, e)
+            return None
+
+        self._log.info("SNMP trap listener started on %s:%s", address, port)
+        return transport
+
+    async def __close_trap_listener(self):
+        if self.__trap_transport is not None:
+            self.__trap_transport.close()
+            self.__trap_transport = None
+            await asyncio.sleep(0)
+        self.__trap_listener_closed.set()
+
+    def __process_trap(self, device, trap_data):
+        converted_data: ConvertedData = device["uplink_converter"].convert(device, trap_data)
+        if (converted_data is not None and
+                (converted_data.attributes_datapoints_count > 0 or
+                 converted_data.telemetry_datapoints_count > 0)):
+            # TODO: update trap statistics collection after statistics refactoring
+            self.collect_statistic_and_send(self.get_name(), self.get_id(), converted_data)
 
     def close(self):
         self.__stopped = True
         self._connected = False
+        if self.__trap_listener_closed.is_set():
+            return
+
+        asyncio.run_coroutine_threadsafe(self.__close_trap_listener(), self.__loop)
+        if not self.__trap_listener_closed.wait(TRAP_LISTENER_CLOSE_TIMEOUT_SECONDS):
+            self._log.error("SNMP trap listener was not stopped in %s seconds", TRAP_LISTENER_CLOSE_TIMEOUT_SECONDS)
 
     def get_id(self):
         return self.__id
@@ -206,7 +267,7 @@ class SNMPConnector(Connector, Thread):
         v3_client_created_at = 0
         device_responses = {}
         for datatype in self.__datatypes:
-            for datatype_config in device[datatype]:
+            for datatype_config in device.get(datatype, []):
                 try:
                     method = datatype_config.get("method")
                     if method is None:
@@ -214,6 +275,8 @@ class SNMPConnector(Connector, Thread):
                         continue
                     else:
                         method = method.lower()
+                    if method == "trap":
+                        continue
                     if method not in self.__methods:
                         self._log.error("Unknown method: %s, configuration is: %r", method, datatype_config)
                     v3_client, v3_client_created_at = self.__recreate_client_if_needed(
@@ -264,6 +327,8 @@ class SNMPConnector(Connector, Thread):
                         credentials=self.__get_credentials(common_parameters, datatype_config),
                         context_name=common_parameters['context_name'],
                         engine_id=common_parameters['context_engine_id'])
+        if common_parameters["version"] == SNMP_V3_VERSION:
+            client.mpm = SNMPv3MessageProcessingModel(client.transport_handler, client.config.lcd)
         client.configure(timeout=common_parameters['timeout'])
         return PyWrapper(client)
 
@@ -332,17 +397,16 @@ class SNMPConnector(Connector, Thread):
         return response
 
     def __fill_converters(self):
-        try:
-            for device in self.__devices:
-                device["uplink_converter"] = TBModuleLoader.import_module("snmp", device.get('converter',
-                                                                                             self._default_converters[
-                                                                                                 "uplink"]))(device,
-                                                                                                             self._converter_log)
-                device["downlink_converter"] = TBModuleLoader.import_module("snmp", device.get('converter',
-                                                                                               self._default_converters[
-                                                                                                   "downlink"]))(device)
-        except Exception as e:
-            self._log.exception(e)
+        for device in self.__devices:
+            try:
+                uplink_converter_class_name = device.get('converter', self._default_converters["uplink"])
+                downlink_converter_class_name = device.get('converter', self._default_converters["downlink"])
+                device["uplink_converter"] = TBModuleLoader.import_module("snmp", uplink_converter_class_name)(
+                    device, self._converter_log)
+                device["downlink_converter"] = TBModuleLoader.import_module("snmp", downlink_converter_class_name)(
+                    device)
+            except Exception as e:
+                self._log.error("Failed to load converter for device \"%s\": %s", device.get("deviceName"), e)
 
     def __get_credentials(self, common_parameters, datatype_config):
         version = common_parameters.get("version", DEFAULT_SNMP_VERSION)
@@ -384,7 +448,7 @@ class SNMPConnector(Connector, Thread):
                 self._log.error("Device \"%s\" not found", content["device"])
                 return
 
-            for attribute_request_config in device["attributeUpdateRequests"]:
+            for attribute_request_config in device.get("attributeUpdateRequests", []):
                 for attribute, value in content["data"].items():
                     if fullmatch(attribute_request_config["attributeFilter"], attribute):
                         common_parameters = self.__get_common_parameters(device)
