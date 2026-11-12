@@ -45,8 +45,8 @@ class SNMPUplinkConverter(Converter):
 
         try:
             for datatype in ('attributes', 'telemetry'):
-                for datatype_config in config[datatype]:
-                    data_key = datatype_config["key"]
+                for datatype_config in config.get(datatype, []):
+                    data_key = datatype_config.get("key")
                     item_data = data.get(data_key)
                     value = None
                     if isinstance(item_data, dict):
