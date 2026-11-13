@@ -12,8 +12,7 @@
         {
           "key": "ReceivedFromGet",
           "method": "get",
-          "oid": "1.3.6.1.2.1.1.1.0",
-          "timeout": 6
+          "oid": "1.3.6.1.2.1.1.1.0"
         },
         {
           "key": "ReceivedFromMultiGet",
@@ -21,14 +20,12 @@
           "oid": [
             "1.3.6.1.2.1.1.1.0",
             "1.3.6.1.2.1.1.2.0"
-          ],
-          "timeout": 6
+          ]
         },
         {
           "key": "ReceivedFromGetNext",
           "method": "getnext",
-          "oid": "1.3.6.1.2.1.1.1.0",
-          "timeout": 6
+          "oid": "1.3.6.1.2.1.1.1.0"
         },
         {
           "key": "ReceivedFromMultiWalk",
