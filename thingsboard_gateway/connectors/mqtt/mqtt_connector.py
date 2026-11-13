@@ -149,6 +149,7 @@ class MqttConnector(Connector, Thread):
 
         self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
         self.__subscribes_sent = {}
+        self.__rpc_requests_in_progress = {}
 
         if using_old_config_format_detected:
             self.__log.info("Old MQTT connector configuration format detected. Automatic conversion is applied.")
@@ -694,10 +695,11 @@ class MqttConnector(Connector, Thread):
                 # Check if message topic exists in RPC handlers --------------------------------------------------------
                 # The gateway is expecting for this message => no wildcards here, the topic must be evaluated as is
 
-                if self.__gateway.is_rpc_in_progress(message.topic):
-                    content = {'result': message.payload.decode('utf-8').replace("'", '"')}
+                response_queue = self.__rpc_requests_in_progress.pop(message.topic, None)
+                if response_queue is not None:
+                    content = message.payload.decode('utf-8').replace("'", '"')
                     self.__log.info("RPC response arrived. Forwarding it to thingsboard.")
-                    self.__gateway.rpc_with_reply_processing(message.topic, content)
+                    response_queue.put(content)
                     continue
 
                 self.__log.debug("Received message to topic \"%s\" with unknown interpreter data: \n\n\"%s\"",
@@ -951,8 +953,6 @@ class MqttConnector(Connector, Thread):
             expected_response_topic = TBUtility.replace_params_tags_from_rpc_request(expected_response_topic,
                                                                                      rpc_request)
 
-            timeout = time() * 1000 + float(defines_timeout)
-
             # Start listening on the response topic
             self.__log.info("Subscribing to: %s", expected_response_topic)
             self.__subscribe(expected_response_topic, rpc_config.get("responseTopicQoS", 1))
@@ -966,15 +966,10 @@ class MqttConnector(Connector, Thread):
                 if sub_response_timeout == 0:
                     break
 
-            # Ask the gateway to enqueue this as an RPC response
-            self.__gateway.register_rpc_request_timeout(rpc_request,
-                                                        timeout,
-                                                        expected_response_topic,
-                                                        self.rpc_cancel_processing)
-
-            # Wait for RPC to be successfully enqueued, which never fails.
-            while not self.__gateway.is_rpc_in_progress(expected_response_topic):
-                sleep(0.1)
+            # Track this request locally so _process_on_message can hand the device's reply
+            # back to us once it arrives on expected_response_topic.
+            response_queue = Queue(maxsize=1)
+            self.__rpc_requests_in_progress[expected_response_topic] = response_queue
 
         elif expects_response and not defines_timeout:
             self.__log.info("2-way RPC without timeout: treating as 1-way")
@@ -1020,6 +1015,9 @@ class MqttConnector(Connector, Thread):
             err_msg = f'Error during publishing to target broker: {e}'
             self.__log.exception(err_msg)
             response.set_error_msg(err_msg)
+            if expects_response and defines_timeout:
+                self.__rpc_requests_in_progress.pop(expected_response_topic, None)
+                self.rpc_cancel_processing(expected_response_topic)
             return response
 
         if not expects_response or not defines_timeout:
@@ -1032,9 +1030,18 @@ class MqttConnector(Connector, Thread):
 
             return response
 
-        # NOTE: if expects_response == True, response will be sent in TBGatewayService.rpc_with_reply_processing
-        # NOTE: due to waiting response message back from broker
-        return None
+        # Two-way RPC: block until the device's reply arrives on expected_response_topic, or timeout.
+        try:
+            raw_content = response_queue.get(timeout=float(defines_timeout) / 1000)
+            response.set_message(raw_content)
+        except Empty:
+            self.__log.error("RPC to %s topic canceled or terminated.", expected_response_topic)
+            response.set_error_msg('Request timeout')
+        finally:
+            self.__rpc_requests_in_progress.pop(expected_response_topic, None)
+            self.rpc_cancel_processing(expected_response_topic)
+
+        return response
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, rpc_request):
