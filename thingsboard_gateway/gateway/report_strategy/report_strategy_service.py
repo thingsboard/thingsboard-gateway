@@ -233,10 +233,7 @@ class ReportStrategyService:
 
                     data_entry = data_to_report[data_report_key]
                     if report_strategy_data_record.is_telemetry():
-                        # data_entry.add_to_telemetry(TelemetryEntry({key: value}, report_strategy_data_record.get_ts())) # Can be used to keep first ts, instead of overwriting it with current ts # noqa
-                        current_ts = int(time() * 1000)
-                        data_entry.add_to_telemetry(TelemetryEntry({key: value}, current_ts))
-                        report_strategy_data_record.update_ts(current_ts)
+                        data_entry.add_to_telemetry(TelemetryEntry({key: value}, report_strategy_data_record.get_ts()))
 
                         reported_data_length += 1
                     else:
