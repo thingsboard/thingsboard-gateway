@@ -317,7 +317,6 @@ class TBGatewayService:
         self.__rpc_remote_shell_command_in_progress = None
         self.connectors_configs = {}
         self.__scheduled_rpc_calls = []
-        self.__rpc_requests_in_progress = {}
         self.available_connectors_by_name: dict[str, Connector] = {}
         self.available_connectors_by_id: dict[str, Connector] = {}
         self.__devices_shared_attributes = {}
@@ -335,7 +334,6 @@ class TBGatewayService:
         self.__rpc_processing_queue = SimpleQueue()
         self.__rpc_to_devices_queue = SimpleQueue()
         self.__async_device_actions_queue = SimpleQueue()
-        self.__rpc_register_queue = SimpleQueue()
         self.__converted_data_queue = SimpleQueue()
         self.__sync_device_shared_attrs_queue = SimpleQueue()
 
@@ -526,36 +524,11 @@ class TBGatewayService:
                                 if result == 256:
                                     log.warning("Error on RPC command: 256. Permission denied.")
 
-                    if ((self.__rpc_requests_in_progress or not self.__rpc_register_queue.empty())
-                            and self.tb_client.is_connected()):
-                        try:
-                            new_rpc_request_in_progress = {}
-                            if self.__rpc_requests_in_progress:
-                                for rpc_in_progress, data in self.__rpc_requests_in_progress.items():
-                                    if cur_time >= data[1]:
-                                        data[2](rpc_in_progress)
-                                        self.cancel_rpc_request(rpc_in_progress)
-                                        log.error("RPC to %s topic canceled or terminated.", rpc_in_progress)
-                                        self.__rpc_requests_in_progress[rpc_in_progress] = "del"
-                                new_rpc_request_in_progress = {key: value for key, value in
-                                                               self.__rpc_requests_in_progress.items() if value != 'del'
-                                                               }
-                            if not self.__rpc_register_queue.empty():
-                                new_rpc_request_in_progress = self.__rpc_requests_in_progress
-                                rpc_request_from_queue = self.__rpc_register_queue.get(False)
-                                topic = rpc_request_from_queue["topic"]
-                                data = rpc_request_from_queue["data"]
-                                new_rpc_request_in_progress[topic] = data
-                            self.__rpc_requests_in_progress = new_rpc_request_in_progress
-                        except Exception as e:
-                            log.error("Error while processing RPC requests: %s", exc_info=e)
-                            self.stop_event.wait(1)
-                    else:
-                        try:
-                            self.stop_event.wait(.02)
-                        except Exception as e:
-                            log.error("Error in main loop: %s", exc_info=e)
-                            break
+                    try:
+                        self.stop_event.wait(.02)
+                    except Exception as e:
+                        log.error("Error in main loop: %s", exc_info=e)
+                        break
 
                     if (not self.__requested_config_after_connect and self.tb_client.is_connected()
                             and self.tb_client.is_subscribed_to_service_attributes()):
@@ -1650,10 +1623,7 @@ class TBGatewayService:
                 self.__rpc_to_devices_queue.put((rpc_request, monotonic()))
             elif rpc_request.rpc_type == RPCType.CONNECTOR:
                 response = self._process_rpc_to_connector(rpc_request)
-
-                # TODO: remove this `if` after simplifying RPC processing in MQTT connector
-                if response is not None:
-                    response.to_connector_rpc = True
+                response.to_connector_rpc = True
             elif rpc_request.rpc_type == RPCType.GATEWAY:
                 response = self._process_rpc_to_gateway(rpc_request)
             else:
@@ -1690,6 +1660,11 @@ class TBGatewayService:
         while not self.stopped:
             try:
                 rpc_request, received_time = self.__rpc_to_devices_queue.get_nowait()
+            except (TimeoutError, Empty):
+                self.stop_event.wait(.1)
+                continue
+
+            try:
                 if monotonic() - received_time > rpc_request.timeout:
                     log.error("RPC request %s timeout", rpc_request.id)
                     self.send_rpc_reply(rpc_request.device_name,
@@ -1716,13 +1691,11 @@ class TBGatewayService:
                     continue
 
                 response = connector.server_side_rpc_handler(rpc_request)
-                # TODO: remove this `if` after simplifying RPC processing in MQTT connector
-                if response is not None:
-                    self.send_rpc_reply(response.device_name,
-                                        response.id,
-                                        dumps(response.message))
-            except (TimeoutError, Empty):
-                self.stop_event.wait(.1)
+                self.send_rpc_reply(response.device_name,
+                                    response.id,
+                                    dumps(response.message))
+            except Exception as e:
+                log.error("Error while processing RPC request for device: %s", exc_info=e)
 
     def _process_rpc_to_gateway(self, rpc_request):
         log.info("Received RPC request to the gateway, id: %s, method: %s",
@@ -1793,28 +1766,6 @@ class TBGatewayService:
             result = {"error": str(e), "code": 500}
         return result
 
-    def is_rpc_in_progress(self, topic):
-        return topic in self.__rpc_requests_in_progress
-
-    def rpc_with_reply_processing(self, topic, content):
-        rpc_request_content = self.__rpc_requests_in_progress.get(topic)
-        if rpc_request_content is None:
-            log.error("No valid topic provided for RPC reply processing")
-            return
-
-        try:
-            unsubcribe_from_rpc_topic_callback = rpc_request_content[2]
-            rpc_request = rpc_request_content[0]
-            log.info("Outgoing RPC. Device: %s, ID: %s", rpc_request.device_name, rpc_request.id)
-            self.send_rpc_reply(rpc_request.device_name,
-                                rpc_request.id,
-                                content,
-                                to_connector_rpc=True if rpc_request.device_name is None else False)
-            self.__rpc_requests_in_progress.pop(topic, None)
-            unsubcribe_from_rpc_topic_callback(topic)
-        except KeyError as e:
-            log.error("No valid data provided for RPC reply processing: %s", e)
-
     @CollectRPCReplyStatistics(start_stat_type='allBytesSentToTB')
     @CountMessage('msgsSentToPlatform')
     def send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None,
@@ -1869,17 +1820,6 @@ class TBGatewayService:
         except Exception as e:
             log.error("Error while sending RPC reply", exc_info=e)
             self.__rpc_reply_sent = False
-
-    def register_rpc_request_timeout(self, content, timeout, topic, cancel_method):
-        # Put request in outgoing RPC queue. It will be eventually dispatched.
-        self.__rpc_register_queue.put({"topic": topic, "data": (content, timeout, cancel_method)}, False)
-
-    def cancel_rpc_request(self, rpc_request_topic):
-        rpc_request = self.__rpc_requests_in_progress[rpc_request_topic][0]
-        try:
-            self.send_rpc_reply(device=rpc_request.device_name, req_id=rpc_request.id, success_sent=False)
-        except Exception as e:
-            log.error("Error while canceling RPC request", exc_info=e)
 
     @CountMessage('msgsReceivedFromPlatform')
     def _attribute_update_callback(self, content, *args):
