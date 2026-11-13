@@ -35,7 +35,7 @@ from thingsboard_gateway.connectors.snmp.constants import (
     TRAP_LISTENER_CLOSE_TIMEOUT_SECONDS
 )
 from thingsboard_gateway.connectors.snmp.utils import format_snmp_error, to_json_safe
-from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
+from thingsboard_gateway.gateway.constants import ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.rpc_request import RPCType
 from thingsboard_gateway.gateway.entities.rpc_response import RPCResponse
@@ -344,6 +344,10 @@ class SNMPConnector(Connector, Thread):
         retries = datatype_config.get("retries", common_parameters["retries"])
         return {"timeout": float(timeout), "retries": max(int(retries), 1)}
 
+    def __get_total_timeout(self, common_parameters, datatype_config):
+        request_settings = self.__get_request_settings(common_parameters, datatype_config)
+        return request_settings["timeout"] * request_settings["retries"]
+
     async def __execute_method(self, method, datatype_config, client):
         response = None
 
@@ -469,7 +473,8 @@ class SNMPConnector(Connector, Thread):
                         result = self.__run_coroutine(
                             self.__process_methods(attribute_request_config["method"], common_parameters,
                                                    downlink_config),
-                            int(attribute_request_config.get("timeout", 5)))
+                            min(self.__get_total_timeout(common_parameters, attribute_request_config),
+                                ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT))
                         self._log.debug(
                             "Received attribute update request for device \"%s\" "
                             "with attribute \"%s\" and value \"%s\"",
@@ -563,7 +568,7 @@ class SNMPConnector(Connector, Thread):
         result_key = "mappings" if "mappings" in rpc_config else "value"
         downlink_config = {**rpc_config, result_key: converted_value}
         common_parameters = self.__get_common_parameters(device)
-        timeout = min(float(rpc_config.get("timeout", RPC_DEFAULT_TIMEOUT)), float(rpc_request.timeout))
+        timeout = min(self.__get_total_timeout(common_parameters, rpc_config), float(rpc_request.timeout))
 
         try:
             result = self.__run_coroutine(self.__process_methods(rpc_config["method"],
