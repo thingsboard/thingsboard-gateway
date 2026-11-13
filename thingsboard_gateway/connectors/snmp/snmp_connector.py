@@ -329,13 +329,22 @@ class SNMPConnector(Connector, Thread):
                         engine_id=common_parameters['context_engine_id'])
         if common_parameters["version"] == SNMP_V3_VERSION:
             client.mpm = SNMPv3MessageProcessingModel(client.transport_handler, client.config.lcd)
-        client.configure(timeout=common_parameters['timeout'])
         return PyWrapper(client)
 
     async def __process_methods(self, method, common_parameters, datatype_config, client=None):
         if client is None:
             client = self.__create_client(common_parameters, datatype_config)
 
+        with client.client.reconfigure(**self.__get_request_settings(common_parameters, datatype_config)):
+            return await self.__execute_method(method, datatype_config, client)
+
+    @staticmethod
+    def __get_request_settings(common_parameters, datatype_config):
+        timeout = datatype_config.get("timeout", common_parameters["timeout"])
+        retries = datatype_config.get("retries", common_parameters["retries"])
+        return {"timeout": float(timeout), "retries": max(int(retries), 1)}
+
+    async def __execute_method(self, method, datatype_config, client):
         response = None
 
         if method == "get":
@@ -430,6 +439,7 @@ class SNMPConnector(Connector, Thread):
         return {"ip": gethostbyname(device["ip"]),
                 "port": device.get("port", 161),
                 "timeout": device.get("timeout", 6),
+                "retries": device.get("retries", 10),
                 "community": device.get("community"),
                 "version": SNMPConnector.__get_version(device),
                 "v3_security": v3_security,
