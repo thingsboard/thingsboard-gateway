@@ -74,6 +74,8 @@ if TYPE_CHECKING:
 
 
 class AsyncBACnetConnector(Thread, Connector):
+    STOP_TIMEOUT_SECONDS = 4
+
     def __init__(self, gateway, config, connector_type):
         self.statistics = {STATISTIC_MESSAGE_RECEIVED_PARAMETER: 0,
                            STATISTIC_MESSAGE_SENT_PARAMETER: 0}
@@ -112,6 +114,7 @@ class AsyncBACnetConnector(Thread, Connector):
         self.__connected = False
 
         self.__application = None
+        self.__main_task = None
 
         try:
             self.loop = asyncio.new_event_loop()
@@ -142,6 +145,9 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__log.error(f"Error parsing EDE config: {e}")
 
     def get_device_shared_attributes_keys(self, device_name):
+        if self.__stopped or self.loop.is_closed():
+            return []
+
         task = self.loop.create_task(self.__devices.get_device_by_name(device_name))
         started = monotonic()
         while not task.done() and not self.__stopped and monotonic() - started < 1.0:
@@ -212,11 +218,37 @@ class AsyncBACnetConnector(Thread, Connector):
         self.__connected = True
 
         try:
-            self.loop.run_until_complete(self.__start())
+            self.__main_task = self.loop.create_task(self.__start())
+            self.loop.run_until_complete(self.__main_task)
         except CancelledError as e:
             self.__log.debug('Task was cancelled due to connector stop: %s', e.__str__())
         except Exception as e:
             self.__log.exception(e)
+        finally:
+            self.__shutdown_loop()
+
+    def __shutdown_loop(self):
+        """
+        Runs on the connector thread once the main task has finished. Cancels every task still
+        pending on the loop (device polling/rescan, reads, bacpypes3 internals), lets them unwind
+        so that transport close callbacks run and the UDP socket is actually released, then
+        closes the loop.
+        """
+        try:
+            pending = asyncio.all_tasks(self.loop)
+            for task in pending:
+                task.cancel()
+            if pending:
+                self.loop.run_until_complete(asyncio.wait(pending, timeout=self.STOP_TIMEOUT_SECONDS / 2))
+            # bacpypes3 attaches the UDP transport in a task done-callback; if that ran after the
+            # first close, the socket would be left open, so close again now that callbacks have run
+            self.__close_application()
+            self.loop.run_until_complete(asyncio.sleep(0))
+            self.loop.run_until_complete(self.loop.shutdown_asyncgens())
+        except Exception as e:
+            self.__log.debug('Error while shutting down connector event loop: %s', e)
+        finally:
+            self.loop.close()
 
     async def __rescan_devices(self):
         while not self.__stopped:
@@ -227,6 +259,9 @@ class AsyncBACnetConnector(Thread, Connector):
                 await asyncio.sleep(.1)
 
     async def __start(self):
+        if self.__stopped:
+            return
+
         if not self.__is_valid_application_device_section():
             self.__log.error('Can not start connector due to invalid application section in config.')
             return
@@ -720,29 +755,35 @@ class AsyncBACnetConnector(Thread, Connector):
 
         self.__devices.stop_all()
 
-        if self.__application:
-            self.__application.close()
+        if self.is_alive() and not self.loop.is_closed():
+            # The application transport and the tasks belong to the connector's loop,
+            # so they must be closed/cancelled from the loop thread, not from the caller.
+            try:
+                self.loop.call_soon_threadsafe(self.__stop_on_loop)
+            except RuntimeError:
+                pass  # loop closed in the meantime
+            self.join(timeout=self.STOP_TIMEOUT_SECONDS)
+        elif self.__application:
+            self.__close_application()
 
-        asyncio.run_coroutine_threadsafe(self.__cancel_all_tasks(), self.loop)
-
-        self.__check_is_alive()
-
-        self.__log.info('BACnet connector stopped')
+        if self.is_alive():
+            self.__log.error("Failed to stop connector %s", self.get_name())
+        else:
+            self.__log.info('BACnet connector stopped')
         self.__log.stop()
 
-    def __check_is_alive(self):
-        start_time = monotonic()
+    def __stop_on_loop(self):
+        self.__close_application()
+        if self.__main_task is not None:
+            self.__main_task.cancel()
 
-        while self.is_alive():
-            if monotonic() - start_time > 10:
-                self.__log.error("Failed to stop connector %s", self.get_name())
-                break
-            sleep(.1)
-
-    async def __cancel_all_tasks(self):
-        await asyncio.sleep(5)
-        for task in asyncio.all_tasks(self.loop):
-            task.cancel()
+    def __close_application(self):
+        if self.__application is None:
+            return
+        try:
+            self.__application.close()
+        except Exception as e:
+            self.__log.error('Error closing BACnet application: %s', e)
 
     def __create_task(self, func, args, kwargs):
         task = self.loop.create_task(func(*args, **kwargs))

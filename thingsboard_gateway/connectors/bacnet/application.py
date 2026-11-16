@@ -78,8 +78,16 @@ class Application(NormalApplication, ForeignApplication):
 
     def close(self):
         self.__stopped = True
-        self.unregister_foreign_device()
-        super().close()
+        if self.__is_foreign_application:
+            try:
+                self.unregister_foreign_device()
+            except Exception as e:
+                self.__log.debug("(close) Failed to unregister foreign device: %s", e)
+            # NormalApplication comes first in the MRO, but a foreign application has no
+            # `normal` link layer, so close the foreign UDP server explicitly
+            ForeignApplication.close(self)
+        else:
+            NormalApplication.close(self)
 
     async def indication(self, apdu) -> None:
         self.__log.debug(f"(indication) Received APDU: {apdu}")
