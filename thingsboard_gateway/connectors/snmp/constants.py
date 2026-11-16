@@ -12,13 +12,15 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-RESERVED_GET_RPC_SCHEMA = 'oid=<oid>;[timeout=<seconds>;]'
-RESERVED_SET_RPC_SCHEMA = 'oid=<oid>;[type=<type>;][timeout=<seconds>;]value=<value>;'
+RESERVED_GET_RPC_SCHEMA = 'oid=<oid>;[timeout=<seconds>;][retries=<count>;]'
+RESERVED_SET_RPC_SCHEMA = 'oid=<oid>;[type=<type>;][timeout=<seconds>;][retries=<count>;]value=<value>;'
 RESERVED_GET_RPC_PATTERN = (r'^oid=(?P<oid>\.?\d+(?:\.\d+)*)'
-                            r'(?:;timeout=(?P<timeout>\d+(?:\.\d+)?))?;?$')
+                            r'(?:;timeout=(?P<timeout>\d+(?:\.\d+)?))?'
+                            r'(?:;retries=(?P<retries>\d+))?;?$')
 RESERVED_SET_RPC_PATTERN = (r'^oid=(?P<oid>\.?\d+(?:\.\d+)*);'
                             r'(?:type=(?P<type>[A-Za-z0-9]+);)?'
                             r'(?:timeout=(?P<timeout>\d+(?:\.\d+)?);)?'
+                            r'(?:retries=(?P<retries>\d+);)?'
                             r'value=(?P<value>.+?);?$')
 
 # SNMPv3 protocol names accepted in the config (upper case, without "-" and "_"),
