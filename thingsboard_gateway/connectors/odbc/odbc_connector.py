@@ -40,7 +40,7 @@ try:
     import pyodbc
 except ImportError:
     print("ODBC library not found - installing...")
-    TBUtility.install_package("pyodbc")
+    TBUtility.install_package("pyodbc", "5.3.0")
     import pyodbc
 
 from thingsboard_gateway.connectors.odbc.constants import RESERVED_RPC_SCHEMA, RESERVED_RPC_PATTERN

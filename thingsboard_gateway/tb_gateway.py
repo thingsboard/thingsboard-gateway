@@ -64,7 +64,7 @@ def run_debug_server():
     try:
         import debugpy
     except ImportError:
-        TBUtility.install_package("debugpy")
+        TBUtility.install_package("debugpy", "1.8.22")
         import debugpy
 
     debugpy_port = int(environ.get("TB_GW_DEV_DEBUG_SERVER", TB_GW_DEV_DEBUG_SERVER_PORT))

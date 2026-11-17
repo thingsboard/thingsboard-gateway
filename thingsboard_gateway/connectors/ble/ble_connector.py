@@ -35,7 +35,7 @@ try:
     from bleak import BleakScanner
 except ImportError:
     print("BLE library not found - installing...")
-    TBUtility.install_package("bleak")
+    TBUtility.install_package("bleak", "3.0.2")
     from bleak import BleakScanner
 
 from thingsboard_gateway.connectors.ble.constants import (

@@ -34,13 +34,13 @@ try:
     from opcua import Client, Node, ua
 except ImportError:
     print("OPC-UA library not found")
-    TBUtility.install_package("opcua")
+    TBUtility.install_package("opcua", "0.98.13")
     from opcua import Client, Node, ua
 
 try:
     from opcua.crypto import uacrypto
 except ImportError:
-    TBUtility.install_package("cryptography")
+    TBUtility.install_package("cryptography", "50.0.2")
     from opcua.crypto import uacrypto
 
 

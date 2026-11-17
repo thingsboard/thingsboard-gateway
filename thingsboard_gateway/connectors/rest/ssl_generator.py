@@ -10,7 +10,7 @@ try:
     from cryptography.hazmat.primitives import hashes
 except ImportError:
     print("Requests library not found - installing...")
-    TBUtility.install_package("cryptography")
+    TBUtility.install_package("cryptography", "50.0.2")
     from cryptography.hazmat.backends import default_backend
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import rsa

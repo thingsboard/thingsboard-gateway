@@ -33,7 +33,7 @@ try:
     from paho.mqtt.client import Client, MQTTv5
 except ImportError:
     print("paho-mqtt library not found")
-    TBUtility.install_package("paho-mqtt", version=">=1.6")
+    TBUtility.install_package("paho-mqtt", version="2.1.0")
     from paho.mqtt.client import Client
 
 
