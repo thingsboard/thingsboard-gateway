@@ -178,6 +178,22 @@ class TBUtility:
         return values
 
     @staticmethod
+    def substitute_env_placeholders(value):
+        missing_variables = []
+        if '${' not in value:
+            return value, missing_variables
+
+        for variable in TBUtility.get_values(value, get_tag=True):
+            variable_value = environ.get(variable)
+            if variable_value is None:
+                if variable not in missing_variables:
+                    missing_variables.append(variable)
+                continue
+            value = value.replace('${' + variable + '}', variable_value)
+
+        return value, missing_variables
+
+    @staticmethod
     def replace_params_tags(text, data):
         if '${' in text:
             for item in text.split('/'):

@@ -130,7 +130,10 @@ class TBRemoteLoggerHandler(logging.Handler):
 
     def handle(self, record):
         if self.activated and not self.__gateway.stopped:
-            logger, remote_logging_level = self.loggers.get(record.name)
+            logger_entry = self.loggers.get(record.name)
+            if logger_entry is None:
+                return  # Unknown logger name, remote logging is not configured for it
+            logger, remote_logging_level = logger_entry
             if record.levelno < remote_logging_level:
                 return  # Remote logging level set higher than record level
 

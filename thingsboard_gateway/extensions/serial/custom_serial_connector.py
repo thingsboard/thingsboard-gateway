@@ -26,7 +26,7 @@ try:
     import serial
 except ImportError:
     print("pyserial library not found - installing...")
-    TBUtility.install_package("pyserial")
+    TBUtility.install_package("pyserial", "3.5")
     import serial
 
 from thingsboard_gateway.connectors.connector import Connector
@@ -332,7 +332,7 @@ class SerialConnector(Thread, Connector):
                         self.__devices.append(device)
             else:
                 self._log.error('Section "devices" in the configuration not found. \
-                    A connector %s has being stopped.', self.get_name())
+                    Connector %s has been stopped.', self.get_name())
                 self.close()
         except Exception as e:
             self._log.error('Failed to load devices, error: %s', e)

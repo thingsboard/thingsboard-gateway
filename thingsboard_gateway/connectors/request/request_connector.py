@@ -40,7 +40,7 @@ try:
     from requests import Timeout, request
 except ImportError:
     print("Requests library not found - installing...")
-    TBUtility.install_package("requests")
+    TBUtility.install_package("requests", "2.34.2")
     from requests import Timeout, request
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException, JSONDecodeError
@@ -301,7 +301,6 @@ class RequestConnector(Connector, Thread):
             "requestValueExpression": params.get("requestValueExpression", "${params}"),
             "responseValueExpression": params.get("responseValueExpression"),
             "timeout": params.get("timeout", 0.5),
-            "tries": params.get("tries", 3),
             "httpHeaders": loads(headers) if isinstance(headers, str) else headers
         }
 

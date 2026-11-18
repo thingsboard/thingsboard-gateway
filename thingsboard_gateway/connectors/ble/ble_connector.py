@@ -33,7 +33,7 @@ try:
     from bleak import BleakScanner
 except ImportError:
     print("BLE library not found - installing...")
-    TBUtility.install_package("bleak")
+    TBUtility.install_package("bleak", "3.0.2")
     from bleak import BleakScanner
 
 from thingsboard_gateway.connectors.ble.constants import (
@@ -172,6 +172,9 @@ class BLEConnector(Connector, Thread):
         except RuntimeError:
             self.__log.debug("The connector has been stopped before the first scan completed.")
 
+        if self.__stopped:
+            return
+
         self.__devices_tasks = [
             self.__loop.create_task(device.run_client(scanned_devices_callback=self.get_scanned_devices_callback))
             for device in self.__devices_from_config
@@ -213,6 +216,8 @@ class BLEConnector(Connector, Thread):
         if self.__scanner_task:
             self.__loop.call_soon_threadsafe(self.__scanner_task.cancel)
         self.__check_is_alive()
+        self.__converter_log.stop()
+        self.__log.stop()
 
     def get_name(self):
         return self.name

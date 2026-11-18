@@ -19,3 +19,14 @@ RESERVED_SET_RPC_PATTERN = (r'^nodeId=(?P<nodeId>0[xX][0-9A-Fa-f]+|[1-9]\d*|0);'
                             r'(?:byteorder=(?P<byteorder>big|little);)?'
                             r'(?:isExtendedId=(?P<isExtendedId>[Tt]rue|[Ff]alse);)?'
                             r'value=(?P<value>.+?);?$')
+RESERVED_SET_RPC_VALUE_RANGES = {
+    '8int': (-128, 127),
+    '16int': (-32768, 32767),
+    '32int': (-2147483648, 2147483647),
+    '64int': (-9223372036854775808, 9223372036854775807),
+    '8uint': (0, 255),
+    '16uint': (0, 65535),
+    '32uint': (0, 4294967295),
+    '64uint': (0, 18446744073709551615),
+    '32float': (-3.4028234663852886e+38, 3.4028234663852886e+38)
+}

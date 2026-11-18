@@ -68,7 +68,8 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
                                                                                item_config,
                                                                                self.__log)
                         payload = {datapoint_key: round(unsed_values[0]['value'], 2) if isinstance(unsed_values[0]['value'], float) else str(unsed_values[0]['value'])}  # noqa
-                        payload['ts'] = received_data_ts
+                        if item_config['type'] == 'timeseries':
+                            payload['ts'] = received_data_ts
                         converted_data_append_methods[item_config['type']](payload)  # noqa
                     else:
                         for item in unsed_values:
@@ -77,7 +78,8 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
                                                                                    item_config,
                                                                                    self.__log)
                             payload = {datapoint_key: round(item['value'], 2) if isinstance(item['value'], float) else str(item['value'])}  # noqa
-                            payload['ts'] = received_data_ts
+                            if item_config['type'] == 'timeseries':
+                                payload['ts'] = received_data_ts
                             converted_data_append_methods[item_config['type']](payload)  # noqa
             except Exception as e:
                 self.__log.error("Error converting data for item %s: %s", item_config, e)

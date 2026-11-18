@@ -338,7 +338,6 @@ class SocketConnector(Connector, Thread):
             self.__write_value_via_tcp(address, port, dumps(value))
         else:
             self.__write_value_via_udp(address, port, bytes(dumps(value), encoding='utf-8'))
-        self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
 
     def close(self):
         self.__stopped = True
@@ -372,7 +371,6 @@ class SocketConnector(Connector, Thread):
     def get_id(self):
         return self.__id
 
-    @CustomCollectStatistics(start_stat_type='allBytesSentToDevices')
     def __write_value_via_tcp(self, address, port, value, encoding='utf-8'):
         try:
             self.__connections[(address, int(port))].sendall(bytes(value, encoding=encoding))

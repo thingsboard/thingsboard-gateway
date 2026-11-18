@@ -11,6 +11,7 @@ from pymodbus.payload import BinaryPayloadBuilder
 
 from tests.unit.BaseUnitTest import BaseUnitTest
 from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
+from thingsboard_gateway.connectors.modbus.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
 
 
 class ModbusConverterTests(BaseUnitTest):
@@ -339,6 +340,54 @@ class ModbusConverterTests(BaseUnitTest):
                                    'bit': 23, 'bitTargetType': 'int'},
                                   Endian.BIG, Endian.BIG),
             1)
+
+
+    def test_wide_range_discrete_inputs_batch_read(self):
+        """Regression test for https://github.com/thingsboard/thingsboard-gateway/issues/2224:
+        batch-reading discrete inputs (functionCode 2) over a wide-range address must produce
+        exactly one key per configured address, with the correct bit value, instead of extra
+        padding-derived keys that always read 0."""
+
+        class DummyBitsResponse:
+            def __init__(self, bits):
+                self.bits = bits
+
+        config = BytesUplinkConverterConfig(
+            logger=self.log,
+            deviceName="FC2 Batch Test Device",
+            unitId=1,
+            byteOrder="BIG",
+            wordOrder="BIG",
+            timeseries=[{
+                "tag": "test_${address}",
+                "type": "bits",
+                "address": "0-4",
+                "objectsCount": 1,
+                "functionCode": 2,
+                "bitTargetType": "int"
+            }]
+        )
+        converter = BytesModbusUplinkConverter(config, logger=self.log)
+
+        # Logical discrete inputs 0..4 are [1, 0, 1, 1, 0]; the Modbus response packs them
+        # into a full byte, padded with 3 extra bits that must not leak into the result.
+        device_data = {
+            'telemetry': {'test_${address}': [DummyBitsResponse(
+                [True, False, True, True, False, False, False, False])]},
+            'attributes': {}
+        }
+
+        result = converter.convert(None, [device_data])
+
+        self.assertEqual(len(result.telemetry), 1)
+        values = {key.key: value for key, value in result.telemetry[0].values.items()}
+        self.assertEqual(values, {
+            'test_0': 1,
+            'test_1': 0,
+            'test_2': 1,
+            'test_3': 1,
+            'test_4': 0,
+        })
 
 
 if __name__ == '__main__':

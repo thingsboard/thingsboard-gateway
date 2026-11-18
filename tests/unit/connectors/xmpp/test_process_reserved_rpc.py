@@ -30,6 +30,7 @@ class TestProcessReservedRpc(BaseUnitTest):
         self.connector = XMPPConnector.__new__(XMPPConnector)
         self.connector._XMPPConnector__log = MagicMock()
         self.connector._available_device = {DEVICE_NAME: DEVICE_JID}
+        self.connector._connected = True
         self.connector._send_message = MagicMock()
 
     @staticmethod

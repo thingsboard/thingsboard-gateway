@@ -28,7 +28,8 @@ python-can
 python-dateutil
 bacpypes3>=0.0.102
 aiohttp
-puresnmp>=2.0.0
+puresnmp==2.0.2
+puresnmp-crypto==1.0.1.post1
 slixmpp
 psutil
 orjson

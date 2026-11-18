@@ -43,14 +43,18 @@
     "enableUnknownRpc": false,
     "overrideRpcConfig": true,
     "methods": [
-      "procedureOne",
+      {
+        "name": "procedureOne",
+        "query": "CALL procedureOne()"
+      },
       {
         "name": "procedureTwo",
         "args": [
           "One",
           2,
           3.0
-        ]
+        ],
+        "query": "CALL procedureTwo(?,?,?)"
       }
     ]
   }
