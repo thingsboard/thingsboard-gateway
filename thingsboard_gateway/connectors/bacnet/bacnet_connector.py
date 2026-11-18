@@ -51,7 +51,7 @@ try:
     from bacpypes3.apdu import ErrorRejectAbortNack
 except ImportError:
     print("bacpypes3 library not found")
-    TBUtility.install_package("bacpypes3")
+    TBUtility.install_package("bacpypes3", "0.0.110")
     from bacpypes3.apdu import ErrorRejectAbortNack
 
 from bacpypes3.pdu import Address, IPv4Address

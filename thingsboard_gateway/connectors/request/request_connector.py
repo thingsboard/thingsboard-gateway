@@ -40,7 +40,7 @@ try:
     from requests import Timeout, request
 except ImportError:
     print("Requests library not found - installing...")
-    TBUtility.install_package("requests")
+    TBUtility.install_package("requests", "2.34.2")
     from requests import Timeout, request
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException, JSONDecodeError

@@ -26,7 +26,7 @@ try:
     import serial
 except ImportError:
     print("pyserial library not found - installing...")
-    TBUtility.install_package("pyserial")
+    TBUtility.install_package("pyserial", "3.5")
     import serial
 
 from thingsboard_gateway.connectors.connector import Connector

@@ -15,6 +15,7 @@
 import asyncio
 from queue import Empty, Queue
 from re import fullmatch
+from sys import version_info
 from threading import Thread, Event
 from time import sleep, monotonic
 from typing import Tuple, Any
@@ -28,11 +29,15 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
+if version_info < (3, 11):
+    raise ImportError(f"KNX connector requires Python 3.11 or higher, "
+                      f"current version is {version_info[0]}.{version_info[1]}")
+
 try:
     from xknx import XKNX
 except ImportError:
     print("xknx library not found")
-    TBUtility.install_package("xknx")
+    TBUtility.install_package("xknx", "4.0.0")
     from xknx import XKNX
 
 from thingsboard_gateway.connectors.knx.entities.client_config import ClientConfig

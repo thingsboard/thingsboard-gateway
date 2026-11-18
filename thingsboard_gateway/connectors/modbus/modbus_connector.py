@@ -64,8 +64,8 @@ except ImportError:
 if installation_required:
     print("Modbus library not found - installing...")
     TBUtility.install_package("pymodbus", required_version, force_install=force_install)
-    TBUtility.install_package('pyserial')
-    TBUtility.install_package('pyserial-asyncio')
+    TBUtility.install_package('pyserial', '3.5')
+    TBUtility.install_package('pyserial-asyncio', '0.6')
 
 from thingsboard_gateway.connectors.modbus.utils import Utils  # noqa: E402
 from thingsboard_gateway.connectors.modbus.entities.master import Master  # noqa: E402

@@ -22,6 +22,7 @@ from queue import Queue
 from threading import Thread
 from random import choice
 from string import ascii_lowercase
+from sys import version_info
 from time import sleep
 
 from simplejson import dumps, loads
@@ -42,6 +43,10 @@ from thingsboard_gateway.gateway.statistics.statistics_service import Statistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
+if version_info < (3, 11):
+    raise ImportError(f"OCPP connector requires Python 3.11 or higher, "
+                      f"current version is {version_info[0]}.{version_info[1]}")
+
 try:
     import ocpp
 except ImportError:
@@ -53,7 +58,7 @@ try:
     import websockets
 except ImportError:
     print('websockets library not found - installing...')
-    TBUtility.install_package("websockets")
+    TBUtility.install_package("websockets", "17.1")
     import websockets
 
 from ocpp.exceptions import OCPPError

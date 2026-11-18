@@ -47,14 +47,14 @@ try:
     from requests import Timeout, request as regular_request
 except ImportError:
     print("Requests library not found - installing...")
-    TBUtility.install_package("requests")
+    TBUtility.install_package("requests", "2.34.2")
     from requests import Timeout, request as regular_request
 
 try:
     from aiohttp import web, BasicAuth, hdrs
 except ImportError:
     print('AIOHTTP library not found - installing...')
-    TBUtility.install_package('aiohttp')
+    TBUtility.install_package('aiohttp', '3.14.5')
     from aiohttp import web, BasicAuth, hdrs
 
 

@@ -50,7 +50,7 @@ try:
     from paho.mqtt.packettypes import PacketTypes
 except ImportError:
     print("paho-mqtt library not found")
-    TBUtility.install_package("paho-mqtt")
+    TBUtility.install_package("paho-mqtt", "2.1.0")
     from paho.mqtt.client import Client, Properties
     from paho.mqtt.packettypes import PacketTypes
 

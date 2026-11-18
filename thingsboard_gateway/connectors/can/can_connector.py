@@ -32,7 +32,7 @@ try:
     from can import Notifier, BufferedReader, Message, CanError, ThreadSafeBus
 except ImportError:
     print("CAN library not found - installing...")
-    TBUtility.install_package("python-can")
+    TBUtility.install_package("python-can", "4.6.1")
     from can import Notifier, BufferedReader, Message, CanError, ThreadSafeBus
 
 from thingsboard_gateway.connectors.can.bytes_can_downlink_converter import BytesCanDownlinkConverter
@@ -450,7 +450,7 @@ class CanConnector(Connector, Thread):
         if self.__bus_conf["interface"] == "udp_multicast" and TBUtility.get_package_version("msgpack") is None:
             self._log.info("[%s] msgpack library not found - installing...", self.get_name())
             try:
-                TBUtility.install_package("msgpack")
+                TBUtility.install_package("msgpack", "1.1.2")
             except Exception as e:
                 self._log.error("[%s] Failed to install msgpack: %s", self.get_name(), e)
 
