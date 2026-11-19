@@ -19,7 +19,7 @@ from time import sleep, time
 from pymodbus.exceptions import ConnectionException
 import pymodbus.client as ModbusClient
 from tb_rest_client.rest import ApiException
-from tb_rest_client.rest_client_ce import RestClientCE
+from tb_rest_client.rest_client import RestClient
 from simplejson import load, loads
 
 from tests.base_test import BaseTest
@@ -52,7 +52,7 @@ class ModbusRenameBaseTestClass(BaseTest):
         username = GatewayDeviceUtil.DEFAULT_USERNAME
         password = GatewayDeviceUtil.DEFAULT_PASSWORD
 
-        with RestClientCE(url) as cls.client:
+        with RestClient(url) as cls.client:
             cls.client.login(username, password)
 
             cls.gateway = cls.client.get_tenant_devices(10, 0, text_search='Test Gateway device').data[0]
