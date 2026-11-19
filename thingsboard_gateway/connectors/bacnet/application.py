@@ -38,6 +38,15 @@ from thingsboard_gateway.connectors.bacnet.application_service_access_point impo
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 
 
+# bacpypes3 0.1.0 renamed ReadPropertyMultipleRequest.listOfReadAccessSpecs to
+# listOfReadAccessSpecifications. Use whichever name the installed version defines.
+RPM_REQUEST_SPECS_FIELD = (
+    "listOfReadAccessSpecifications"
+    if "listOfReadAccessSpecifications" in ReadPropertyMultipleRequest._order
+    else "listOfReadAccessSpecs"
+)
+
+
 class Application(NormalApplication, ForeignApplication):
     def __init__(self, device_object_config: DeviceObjectConfig, indication_callback, logger, is_foreign_application: bool = False):
         self.__stopped = False
@@ -213,9 +222,7 @@ class Application(NormalApplication, ForeignApplication):
             return []
 
         request = ReadPropertyMultipleRequest(
-            listOfReadAccessSpecs=SequenceOf(ReadAccessSpecification)(
-                read_access_specifications
-            ),
+            **{RPM_REQUEST_SPECS_FIELD: SequenceOf(ReadAccessSpecification)(read_access_specifications)},
             destination=Address(device.details.address),
         )
 
