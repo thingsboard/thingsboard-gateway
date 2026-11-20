@@ -44,6 +44,7 @@ except ImportError:
     from requests import Timeout, request
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException, JSONDecodeError
+from thingsboard_gateway.tb_utility.tb_oauth2_auth import OAuth2ClientCredentialsAuth
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
@@ -67,11 +68,14 @@ class RequestConnector(Connector, Thread):
                                           enable_remote_logging=self.__config.get('enableRemoteLogging', False),
                                           is_converter_logger=True, attr_name=self.name)
 
+        self.__ssl_verify = self.__config.get("SSLVerify", False)
         security_cfg = self.__config.get("security", {})
         security_type = security_cfg.get("type")
         self.__security = None
         if security_type == "basic":
             self.__security = self._get_basic_auth(security_cfg)
+        elif security_type == "oauth2":
+            self.__security = OAuth2ClientCredentialsAuth.from_config(security_cfg, self._log, self.__ssl_verify)
 
         self.__host = None
         self.__service_headers = {}
@@ -79,7 +83,6 @@ class RequestConnector(Connector, Thread):
             self.__host = self.__config["host"]
         else:
             self.__host = "http://" + self.__config["host"]
-        self.__ssl_verify = self.__config.get("SSLVerify", False)
         self.daemon = True
         self.__connected = False
         self.__stopped = False
@@ -367,7 +370,8 @@ class RequestConnector(Connector, Thread):
                 else request_url_from_config
             )
             logger.debug("Obtained request url from config - %s ", request_url_from_config)
-            url, response = self.__execute_request(request, request_url_from_config, logger)
+            url = self.__build_full_url(request_url_from_config)
+            response = self.__execute_request(request, url, logger)
 
             if request.get('withResponse'):
                 converter_queue.put(response)
@@ -410,9 +414,10 @@ class RequestConnector(Connector, Thread):
         except Exception as e:
             logger.exception(e)
 
-    def __execute_request(self, request, request_url, logger):
-        url = self.__host + request_url if not request_url.lower().startswith("http") else request_url
+    def __build_full_url(self, request_url):
+        return self.__host + request_url if not request_url.lower().startswith("http") else request_url
 
+    def __execute_request(self, request, url, logger):
         request_timeout = request["config"].get("timeout", 1)
         params = {
             "method": request["config"].get("httpMethod", "GET"),
@@ -434,7 +439,7 @@ class RequestConnector(Connector, Thread):
         self._log.debug("Sending request to URL: %s with params %s", url, params)
         response = request["request"](**params)
 
-        return url, response
+        return response
 
     def __convert_data(self, data):
         try:
@@ -544,7 +549,8 @@ class RequestConnector(Connector, Thread):
     def __send_sub_request(self, request, sub_request_url, logger):
         url = ""
         try:
-            url, response = self.__execute_request(request, sub_request_url, logger)
+            url = self.__build_full_url(sub_request_url)
+            response = self.__execute_request(request, url, logger)
             if response and response.ok:
                 try:
                     return response.json()
