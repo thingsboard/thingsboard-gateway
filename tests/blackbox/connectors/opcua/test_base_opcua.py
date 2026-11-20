@@ -16,7 +16,7 @@ import logging
 from time import time, sleep
 from opcua import Client
 from tests.base_test import BaseTest
-from tb_rest_client import RestClientCE
+from tb_rest_client import RestClient
 from os import path
 from simplejson import load
 
@@ -52,7 +52,7 @@ class BaseOpcuaTest(BaseTest):
         username = GatewayDeviceUtil.DEFAULT_USERNAME
         password = GatewayDeviceUtil.DEFAULT_PASSWORD
 
-        with RestClientCE(url) as cls.client:
+        with RestClient(url) as cls.client:
             cls.client.login(username, password)
 
             cls.gateway = cls.client.get_tenant_devices(20, 0, text_search='Gateway').data[0]

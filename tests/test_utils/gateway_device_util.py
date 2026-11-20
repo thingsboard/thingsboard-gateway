@@ -1,9 +1,10 @@
 import logging
 from os import environ
+from time import time, sleep
 
 from simplejson import loads, load
 from tb_rest_client.rest import ApiException
-from tb_rest_client.rest_client_ce import *
+from tb_rest_client.rest_client import RestClient, Device
 
 LOG = logging.getLogger("TEST")
 LOG.trace = LOG.debug
@@ -28,7 +29,7 @@ class GatewayDeviceUtil:
 
     @staticmethod
     def create_gateway_device(url=DEFAULT_URL, username=DEFAULT_USERNAME, password=DEFAULT_PASSWORD) -> Device:
-        with RestClientCE(base_url=url) as rest_client:
+        with RestClient(base_url=url) as rest_client:
             try:
                 rest_client.login(username=username, password=password)
                 gateway_device_profile = rest_client.get_default_device_profile_info()
@@ -63,7 +64,7 @@ class GatewayDeviceUtil:
         if GatewayDeviceUtil.GATEWAY_DEVICE is None:
             return
 
-        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+        with RestClient(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
             try:
                 rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
                                   password=GatewayDeviceUtil.DEFAULT_PASSWORD)
@@ -76,7 +77,7 @@ class GatewayDeviceUtil:
 
     @staticmethod
     def delete_device(device_id):
-        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+        with RestClient(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
             try:
                 rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
                                   password=GatewayDeviceUtil.DEFAULT_PASSWORD)
@@ -94,7 +95,7 @@ class GatewayDeviceUtil:
 
     @classmethod
     def update_connector_config(cls, connector_name, config_file_path):
-        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+        with RestClient(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
             rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
                               password=GatewayDeviceUtil.DEFAULT_PASSWORD)
             config = cls.load_configuration(config_file_path)
@@ -112,7 +113,7 @@ class GatewayDeviceUtil:
         """
         if time() - start_time > 600:
             raise TimeoutError("Gateway connection timeout")
-        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+        with RestClient(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
             try:
                 rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
                                   password=GatewayDeviceUtil.DEFAULT_PASSWORD)
@@ -126,7 +127,7 @@ class GatewayDeviceUtil:
 
     @classmethod
     def restart_gateway(cls):
-        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+        with RestClient(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
             rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
                               password=GatewayDeviceUtil.DEFAULT_PASSWORD)
             try:
@@ -142,7 +143,7 @@ class GatewayDeviceUtil:
 
     @classmethod
     def update_credentials(cls, creds):
-        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+        with RestClient(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
             rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
                               password=GatewayDeviceUtil.DEFAULT_PASSWORD)
             current_creds = rest_client.get_device_credentials_by_device_id(cls.GATEWAY_DEVICE.id)
@@ -152,7 +153,7 @@ class GatewayDeviceUtil:
 
     @classmethod
     def clear_connectors(cls):
-        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+        with RestClient(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
             rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
                               password=GatewayDeviceUtil.DEFAULT_PASSWORD)
             rest_client.save_device_attributes(cls.GATEWAY_DEVICE.id, 'SHARED_SCOPE', {"active_connectors": []})

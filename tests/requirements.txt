@@ -16,7 +16,7 @@ tb-paho-mqtt-client>=2.1.2
 tb-mqtt-client==1.13.14
 service-identity
 pyjwt==2.15.0
-tb-rest-client
+tb-rest-client==4.4
 pyopenssl
 opcua
 asyncua==1.1.5
