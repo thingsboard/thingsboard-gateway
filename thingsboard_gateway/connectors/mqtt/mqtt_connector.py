@@ -28,10 +28,8 @@ from orjson.orjson import JSONDecodeError
 from thingsboard_gateway.connectors.mqtt.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.gateway.constant_enums import Status
 from thingsboard_gateway.connectors.connector import Connector
-from thingsboard_gateway.connectors.mqtt.mqtt_decorators import CustomCollectStatistics
 from thingsboard_gateway.gateway.constants import DATA_RETRIEVING_STARTED, CONVERTED_TS_PARAMETER, RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
-from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -147,7 +145,6 @@ class MqttConnector(Connector, Thread):
             self.config = config
             self.__id = self.config.get('id')
 
-        self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
         self.__subscribes_sent = {}
         self.__rpc_requests_in_progress = {}
 
@@ -558,8 +555,6 @@ class MqttConnector(Connector, Thread):
     def _save_converted_msg(self, topic, data):
         data.add_to_metadata({DATA_RETRIEVING_STARTED: int(time() * 1000)})
         if self.__gateway.send_to_storage(self.name, self.get_id(), data) == Status.SUCCESS:
-            StatisticsService.count_connector_message(self.name, stat_parameter_name='storageMsgPushed')
-            self.statistics['MessagesSent'] += 1
             self.__log.debug("Successfully converted message from topic %s", topic)
 
     def __threads_manager(self):
@@ -583,8 +578,6 @@ class MqttConnector(Connector, Thread):
 
     def _on_message(self, client, userdata, message):
         StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
-        StatisticsService.count_connector_bytes(self.name, message.payload,
-                                                stat_parameter_name='connectorBytesReceived')
         self._on_message_queue.put((client, userdata, message))
 
     def _parse_device_info(self, device_info, topic, content):
@@ -630,7 +623,6 @@ class MqttConnector(Connector, Thread):
             if not self._on_message_queue.empty():
                 client, userdata, message = self._on_message_queue.get_nowait()
 
-                self.statistics['MessagesReceived'] += 1
                 content = None
 
                 # Check if message topic exists in mappings "i.e., I'm posting telemetry/attributes" -------------------
@@ -874,7 +866,6 @@ class MqttConnector(Connector, Thread):
             formatted_value = str(value)
         return formatted_value
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         self.__log.debug('Got attributes update: %s', content)
         try:
@@ -1043,7 +1034,6 @@ class MqttConnector(Connector, Thread):
 
         return response
 
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, rpc_request):
         self.__log.info("Incoming server-side RPC: %s", rpc_request)
 
@@ -1108,7 +1098,6 @@ class MqttConnector(Connector, Thread):
 
         return self.__process_rpc_request(rpc_request, rpc_request.params)
 
-    @CustomCollectStatistics(start_stat_type='allBytesSentToDevices')
     def _publish(self, request_topic, data_to_send, retain, qos):
         result = False
         try:

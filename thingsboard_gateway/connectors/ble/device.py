@@ -29,7 +29,7 @@ from time import time
 from asyncio import sleep
 from bleak import BleakClient
 
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics  # noqa
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.connectors.ble.error_handler import ErrorHandler
 
@@ -154,6 +154,7 @@ class Device:
                     await sleep(.2)
 
     async def notify_callback(self, sender: int, data: bytearray):
+        StatisticsService.count_connector_message(self._log.name, stat_parameter_name='connectorMsgsReceived')
         not_converted_data = {'telemetry': [], 'attributes': []}
         for section in ('telemetry', 'attributes'):
             for item in self.config['characteristic'][section]:
@@ -184,6 +185,8 @@ class Device:
                 if item['method'] == 'read':
                     try:
                         data = await self.client.read_gatt_char(char_id)
+                        StatisticsService.count_connector_message(self._log.name,
+                                                                  stat_parameter_name='connectorMsgsReceived')
                         not_converted_data[section].append({'data': data, **item})
                     except Exception as e:
                         error = ErrorHandler(e)
@@ -265,6 +268,7 @@ class Device:
             'data': advertisement_data
         }
 
+        StatisticsService.count_connector_message(self._log.name, stat_parameter_name='connectorMsgsReceived')
         self.callback(data_for_converter)
 
     async def connect_to_device(self):
@@ -323,10 +327,10 @@ class Device:
     async def scan_self(self, return_result):
         return await self.__show_map(return_result)
 
-    # @CollectStatistics(start_stat_type='allBytesSentToDevices') # Commented due to absence of CollectStatistics decorator for async functions
     async def write_char(self, char_id, data):
         try:
             await self.client.write_gatt_char(char_id, data, response=True)
+            StatisticsService.count_connector_message(self._log.name, stat_parameter_name='connectorMsgsReceived')
             await sleep(1.0)
             return 'Ok'
         except Exception as e:
@@ -335,7 +339,9 @@ class Device:
 
     async def read_char(self, char_id):
         try:
-            return await self.client.read_gatt_char(char_id)
+            data = await self.client.read_gatt_char(char_id)
+            StatisticsService.count_connector_message(self._log.name, stat_parameter_name='connectorMsgsReceived')
+            return data
         except Exception as e:
             self._log.exception(e)
 

@@ -122,7 +122,6 @@ class OpcUaUplinkConverter(OpcUaConverter):
             return converted_data
         except Exception as e:
             self._log.exception("Error occurred while converting data: ", exc_info=e)
-            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
 
     @staticmethod
     def fill_telemetry(results):

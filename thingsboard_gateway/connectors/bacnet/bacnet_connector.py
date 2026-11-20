@@ -38,8 +38,7 @@ from ast import literal_eval
 from thingsboard_gateway.connectors.bacnet.ede_parser import EDEParser
 from thingsboard_gateway.connectors.bacnet.entities.routers import Routers
 from thingsboard_gateway.connectors.connector import Connector
-from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, \
-    STATISTIC_MESSAGE_SENT_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
+from thingsboard_gateway.gateway.constants import ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -77,8 +76,6 @@ class AsyncBACnetConnector(Thread, Connector):
     STOP_TIMEOUT_SECONDS = 4
 
     def __init__(self, gateway, config, connector_type):
-        self.statistics = {STATISTIC_MESSAGE_RECEIVED_PARAMETER: 0,
-                           STATISTIC_MESSAGE_SENT_PARAMETER: 0}
         self.__connector_type = connector_type
         super().__init__()
         self.__gateway: 'TBGatewayService' = gateway
@@ -627,6 +624,8 @@ class AsyncBACnetConnector(Thread, Connector):
                 results, config, all_done = await iter.get_next()
                 if len(results) > 0:
                     self.__log.trace('%s reading results: %s', device, results)
+                    StatisticsService.count_connector_message(self.get_name(),
+                                                              stat_parameter_name='connectorMsgsReceived')
                     self.__data_to_convert_queue.put_nowait((device, config, results))
 
         reading_ended = monotonic()
@@ -643,6 +642,7 @@ class AsyncBACnetConnector(Thread, Connector):
     async def __read_property(self, address, object_id, property_id):
         try:
             result = await self.__application.read_property(address, object_id, property_id)
+            StatisticsService.count_connector_message(self.get_name(), stat_parameter_name='connectorMsgsReceived')
             return {"value": str(result)}
         except ErrorRejectAbortNack as err:
             return {"error": str(err)}
@@ -683,6 +683,7 @@ class AsyncBACnetConnector(Thread, Connector):
                 value = await self.__prepare_list_of_object_property_references_value(value, property_id)
 
             await self.__application.write_property(address, object_id, property_id, value, priority=priority)
+            StatisticsService.count_connector_message(self.get_name(), stat_parameter_name='connectorMsgsReceived')
             result['value'] = value
             return result
 
@@ -740,9 +741,7 @@ class AsyncBACnetConnector(Thread, Connector):
             try:
                 device, data_to_save = self.__data_to_save_queue.get_nowait()
                 self.__log.trace('%s data to save: %s', device, data_to_save)
-                StatisticsService.count_connector_message(self.get_name(), stat_parameter_name='storageMsgPushed')
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), data_to_save)
-                self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
             except QueueEmpty:
                 await asyncio.sleep(.1)
             except Exception as e:

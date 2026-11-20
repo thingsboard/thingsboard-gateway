@@ -17,7 +17,6 @@ from thingsboard_gateway.gateway.constants import TIMESERIES_PARAMETER, ATTRIBUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -29,9 +28,9 @@ class OdbcUplinkConverter(OdbcConverter):
     def __init__(self, logger):
         self._log = logger
 
-    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                       end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
+        StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
+
         if isinstance(config, str) and config == "*":
             if "deviceName" in data and (('timeseries' in data or 'telemetry' in data) and 'attributes' in data):
                 converted_data = ConvertedData(data['deviceName'], data.get('deviceType', 'default'))
@@ -90,12 +89,10 @@ class OdbcUplinkConverter(OdbcConverter):
                         elif "value" in config_item:
                             value = eval(config_item["value"], globals(), data)
                         else:
-                            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                             self._log.error("Failed to convert SQL data to TB format: no column/value configuration item")
                             continue
 
                     if not full_key:
-                        StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                         self._log.error("Failed to convert SQL data to TB format: no full key")
                         continue
 
@@ -105,11 +102,9 @@ class OdbcUplinkConverter(OdbcConverter):
                         converted_data.add_to_attributes(full_key, value)
 
                     else:
-                        StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                         self._log.error("Failed to convert SQL data to TB format: unexpected configuration type '%s'",
                                   type(config_item))
                 except Exception as e:
-                    StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                     self._log.error("Failed to convert SQL data to TB format: %s", str(e))
 
         return converted_data

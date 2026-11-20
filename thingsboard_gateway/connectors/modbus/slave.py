@@ -254,8 +254,6 @@ class Slave:
 
         StatisticsService.count_connector_message(self.connector.get_name(),
                                                   stat_parameter_name='connectorMsgsReceived')
-        StatisticsService.count_connector_bytes(self.connector.get_name(), result,
-                                                stat_parameter_name='connectorBytesReceived')
 
         return result
 
@@ -287,8 +285,6 @@ class Slave:
 
         StatisticsService.count_connector_message(self.connector.get_name(),
                                                   stat_parameter_name='connectorMsgsReceived')
-        StatisticsService.count_connector_bytes(self.connector.get_name(), result,
-                                                stat_parameter_name='connectorBytesReceived')
 
         return result
 

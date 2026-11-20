@@ -24,8 +24,7 @@ from thingsboard_gateway.connectors.modbus.constants import TAG_PARAMETER, BYTE_
     LAST_PREFIX
 from thingsboard_gateway.gateway.constants import DEVICE_NAME_PARAMETER, DEVICE_SECTION_PARAMETER, DATA_PARAMETER, \
     RPC_METHOD_PARAMETER, RPC_PARAMS_PARAMETER, RPC_ID_PARAMETER, DOWNLINK_PREFIX, CONVERTER_PARAMETER, UPLINK_PREFIX, \
-    DEVICE_TYPE_PARAMETER, TELEMETRY_PARAMETER, ATTRIBUTES_PARAMETER, STATISTIC_MESSAGE_RECEIVED_PARAMETER, \
-    STATISTIC_MESSAGE_SENT_PARAMETER
+    DEVICE_TYPE_PARAMETER, TELEMETRY_PARAMETER, ATTRIBUTES_PARAMETER
 from thingsboard_gateway.grpc_connectors.gw_grpc_connector import GwGrpcConnector, log
 from thingsboard_gateway.grpc_connectors.gw_grpc_msg_creator import GrpcMsgCreator
 from thingsboard_gateway.grpc_connectors.modbus.slave import Slave
@@ -78,9 +77,6 @@ class GrpcModbusConnector(GwGrpcConnector):
         self._connector_type = 'modbus'
         self._connector_key = self.connection_config['grpc_key']
         self.name = self.__config.get("name", 'Modbus Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
-
-        self.statistics = {STATISTIC_MESSAGE_RECEIVED_PARAMETER: 0,
-                           STATISTIC_MESSAGE_SENT_PARAMETER: 0}
 
         self.__connected = False
         self.__stopped = False
@@ -253,8 +249,6 @@ class GrpcModbusConnector(GwGrpcConnector):
                    }
 
         if current_device_config.get('sendDataOnlyOnChange'):
-            self.statistics[STATISTIC_MESSAGE_RECEIVED_PARAMETER] += 1
-
             for converted_data_section in CONVERTED_DATA_SECTIONS:
                 for current_section_dict in converted_data[converted_data_section]:
                     for key, value in current_section_dict.items():
@@ -264,8 +258,6 @@ class GrpcModbusConnector(GwGrpcConnector):
                             to_send[converted_data_section].append({key: value})
         elif converted_data and current_device_config.get('sendDataOnlyOnChange') is None or \
                 not current_device_config.get('sendDataOnlyOnChange'):
-            self.statistics[STATISTIC_MESSAGE_RECEIVED_PARAMETER] += 1
-
             for converted_data_section in CONVERTED_DATA_SECTIONS:
                 device.config[LAST_PREFIX + converted_data_section] = converted_data[
                     converted_data_section]
@@ -280,7 +272,6 @@ class GrpcModbusConnector(GwGrpcConnector):
             GrpcMsgCreator.create_attributes_connector_msg(attributes, device_name=device['deviceName'],
                                                            basic_message=basic_msg)
             self._grpc_client.send(basic_msg)
-            self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
 
     def __connect_to_current_master(self, device=None):
         connect_attempt_count = 5
