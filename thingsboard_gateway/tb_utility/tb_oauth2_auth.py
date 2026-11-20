@@ -21,9 +21,11 @@ from requests.exceptions import RequestException
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
-TOKEN_REFRESH_LIFETIME_RATIO = 0.75
-TOKEN_REQUEST_TIMEOUT = 10
-TOKEN_RETRY_DELAY = 10
+DEFAULT_TOKEN_PREFIX = 'Bearer'
+DEFAULT_TOKEN_REFRESH_RATIO = 0.75
+DEFAULT_TOKEN_REQUEST_TIMEOUT = 10
+DEFAULT_TOKEN_RETRY_DELAY = 10
+DEFAULT_CLIENT_AUTHENTICATION = 'header'
 CLIENT_AUTHENTICATION_METHODS = ('header', 'body')
 
 
@@ -32,8 +34,15 @@ class OAuth2TokenError(RequestException):
 
 
 class OAuth2ClientCredentialsAuth(AuthBase):
-    def __init__(self, token_url, client_id, client_secret, logger, scope=None, client_authentication='header',
-                 verify=True):
+    def __init__(self, token_url, client_id, client_secret, logger,
+                 scope=None,
+                 client_authentication=DEFAULT_CLIENT_AUTHENTICATION,
+                 verify=True,
+                 token_prefix=DEFAULT_TOKEN_PREFIX,
+                 refresh_ratio=DEFAULT_TOKEN_REFRESH_RATIO,
+                 request_timeout=DEFAULT_TOKEN_REQUEST_TIMEOUT,
+                 retry_delay=DEFAULT_TOKEN_RETRY_DELAY,
+                 default_expires_in=None):
         self.__token_url = token_url
         self.__client_id = client_id
         self.__client_secret = client_secret
@@ -41,19 +50,20 @@ class OAuth2ClientCredentialsAuth(AuthBase):
         self.__scope = scope
         self.__client_authentication = client_authentication
         self.__verify = verify
+        self.__authorization_prefix = f'{token_prefix} ' if token_prefix else ''
+        self.__refresh_ratio = refresh_ratio
+        self.__request_timeout = request_timeout
+        self.__retry_delay = retry_delay
+        self.__default_expires_in = default_expires_in
         self.__lock = Lock()
         self.__access_token = None
         self.__expires_at = 0
         self.__refresh_at = 0
         self.__retry_at = 0
+        self.__rejected_token = None
 
     @classmethod
     def from_config(cls, security_config, logger, verify=True):
-        client_authentication = security_config.get('clientAuthentication', 'header')
-        if client_authentication not in CLIENT_AUTHENTICATION_METHODS:
-            raise ValueError(f'"security.clientAuthentication" must be one of '
-                             f'{", ".join(CLIENT_AUTHENTICATION_METHODS)}, got "{client_authentication}"')
-
         token_url = security_config.get('tokenUrl')
         client_id = _resolve_env_placeholders(security_config.get('clientId'), 'security.clientId')
         client_secret = _resolve_env_placeholders(security_config.get('clientSecret'), 'security.clientSecret')
@@ -64,13 +74,11 @@ class OAuth2ClientCredentialsAuth(AuthBase):
             parameters = ', '.join(f'"security.{name}"' for name in missing_parameters)
             raise ValueError(f'Missing required parameter(s) {parameters} for oauth2 security')
 
-        return cls(token_url, str(client_id), str(client_secret), logger,
-                   scope=security_config.get('scope'),
-                   client_authentication=client_authentication,
-                   verify=verify)
+        return cls(token_url, str(client_id), str(client_secret), logger, verify=verify,
+                   **_get_optional_parameters(security_config, logger))
 
     def __call__(self, request):
-        request.headers['Authorization'] = 'Bearer ' + self.__get_token()
+        request.headers['Authorization'] = self.__authorization_prefix + self.__get_token()
         request.register_hook('response', self.__handle_401)
         return request
 
@@ -78,7 +86,10 @@ class OAuth2ClientCredentialsAuth(AuthBase):
         if response.status_code != 401:
             return response
 
-        rejected_token = response.request.headers.get('Authorization', '').removeprefix('Bearer ')
+        rejected_token = response.request.headers.get('Authorization', '').removeprefix(self.__authorization_prefix)
+        if self.__is_renewal_on_401_paused(rejected_token):
+            return response
+
         self.__log.debug('Request to %s was rejected with code 401, retrying with a new OAuth2 access token',
                          response.request.url)
         token = self.__get_token(rejected_token)
@@ -86,11 +97,26 @@ class OAuth2ClientCredentialsAuth(AuthBase):
         response.content
         response.close()
         retry_request = response.request.copy()
-        retry_request.headers['Authorization'] = 'Bearer ' + token
+        retry_request.headers['Authorization'] = self.__authorization_prefix + token
         retry_response = response.connection.send(retry_request, **kwargs)
         retry_response.history.append(response)
         retry_response.request = retry_request
+        if retry_response.status_code == 401:
+            self.__pause_renewal_on_401(token, retry_request.url)
         return retry_response
+
+    def __is_renewal_on_401_paused(self, rejected_token):
+        with self.__lock:
+            return rejected_token == self.__rejected_token and monotonic() < self.__retry_at
+
+    def __pause_renewal_on_401(self, token, url):
+        with self.__lock:
+            if token != self.__access_token or token == self.__rejected_token:
+                return
+            self.__rejected_token = token
+            self.__retry_at = monotonic() + self.__retry_delay
+        self.__log.warning('Request to %s was rejected with code 401 even with a new OAuth2 access token, '
+                           'the token will not be renewed on code 401 for %s s', url, self.__retry_delay)
 
     def __get_token(self, rejected_token=None):
         with self.__lock:
@@ -109,9 +135,10 @@ class OAuth2ClientCredentialsAuth(AuthBase):
             try:
                 self.__request_token(now)
             except OAuth2TokenError as e:
-                self.__retry_at = now + TOKEN_RETRY_DELAY
+                failed_at = monotonic()
+                self.__retry_at = failed_at + self.__retry_delay
                 self.__log.error('%s', e)
-                if token_is_valid:
+                if token_is_valid and (self.__expires_at is None or failed_at < self.__expires_at):
                     self.__log.warning('Current OAuth2 access token is still valid and will be used until it expires')
                     return self.__access_token
                 raise
@@ -132,7 +159,7 @@ class OAuth2ClientCredentialsAuth(AuthBase):
 
         try:
             response = post(self.__token_url, data=data, auth=auth, headers={'Accept': 'application/json'},
-                            timeout=TOKEN_REQUEST_TIMEOUT, verify=self.__verify)
+                            timeout=self.__request_timeout, verify=self.__verify)
         except RequestException as e:
             raise OAuth2TokenError(f'Failed to obtain OAuth2 access token from {self.__token_url}: {e}') from e
 
@@ -147,16 +174,19 @@ class OAuth2ClientCredentialsAuth(AuthBase):
             raise OAuth2TokenError(f'Response from {self.__token_url} does not contain "access_token"') from e
 
         expires_in = self.__parse_expires_in(token_response.get('expires_in'))
+        if expires_in is None:
+            expires_in = self.__default_expires_in
+
         self.__access_token = str(access_token)
         self.__retry_at = 0
         if expires_in is None:
             self.__expires_at = None
             self.__refresh_at = None
-            self.__log.info('Obtained OAuth2 access token from %s without expiration time, '
-                            'it will be renewed only after code 401', self.__token_url)
+            self.__log.info('Obtained OAuth2 access token from %s without expiration time, it will be renewed only '
+                            'after code 401, set "defaultExpiresIn" to renew it periodically', self.__token_url)
         else:
             self.__expires_at = now + expires_in
-            self.__refresh_at = now + expires_in * TOKEN_REFRESH_LIFETIME_RATIO
+            self.__refresh_at = now + expires_in * self.__refresh_ratio
             self.__log.info('Obtained OAuth2 access token from %s, expires in %s s', self.__token_url, expires_in)
 
     @staticmethod
@@ -167,6 +197,45 @@ class OAuth2ClientCredentialsAuth(AuthBase):
             return None
 
         return expires_in if expires_in > 0 else None
+
+
+def _get_optional_parameters(security_config, logger):
+    client_authentication = security_config.get('clientAuthentication', DEFAULT_CLIENT_AUTHENTICATION)
+    if client_authentication not in CLIENT_AUTHENTICATION_METHODS:
+        logger.warning('Invalid "security.clientAuthentication" value %s, expected one of: %s. '
+                       'Using default value: %s', client_authentication,
+                       ', '.join(CLIENT_AUTHENTICATION_METHODS), DEFAULT_CLIENT_AUTHENTICATION)
+        client_authentication = DEFAULT_CLIENT_AUTHENTICATION
+
+    token_prefix = security_config.get('tokenPrefix', DEFAULT_TOKEN_PREFIX)
+    if not isinstance(token_prefix, str):
+        logger.warning('Invalid "security.tokenPrefix" value %s. Using default value: %s',
+                       token_prefix, DEFAULT_TOKEN_PREFIX)
+        token_prefix = DEFAULT_TOKEN_PREFIX
+
+    return {
+        'scope': security_config.get('scope'),
+        'client_authentication': client_authentication,
+        'token_prefix': token_prefix.strip(),
+        'refresh_ratio': _get_positive_number(security_config, 'tokenRefreshRatio', DEFAULT_TOKEN_REFRESH_RATIO,
+                                              logger, max_value=1),
+        'request_timeout': _get_positive_number(security_config, 'tokenRequestTimeout', DEFAULT_TOKEN_REQUEST_TIMEOUT,
+                                                logger),
+        'retry_delay': _get_positive_number(security_config, 'tokenRetryDelay', DEFAULT_TOKEN_RETRY_DELAY, logger),
+        'default_expires_in': _get_positive_number(security_config, 'defaultExpiresIn', None, logger),
+    }
+
+
+def _get_positive_number(security_config, parameter_name, default, logger, max_value=None):
+    value = security_config.get(parameter_name, default)
+    if value is None and default is None:
+        return None
+
+    if not isinstance(value, (int, float)) or value <= 0 or (max_value is not None and value > max_value):
+        logger.warning('Invalid "security.%s" value %s. Using default value: %s', parameter_name, value, default)
+        return default
+
+    return value
 
 
 def _resolve_env_placeholders(value, parameter_name):

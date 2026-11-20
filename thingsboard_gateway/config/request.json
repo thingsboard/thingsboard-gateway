@@ -2,9 +2,17 @@
   "host": "http://127.0.0.1:5000",
   "SSLVerify": true,
   "security": {
-    "type": "basic",
-    "username": "user",
-    "password": "password"
+    "type": "oauth2",
+    "tokenUrl": "http://127.0.0.1:5000/oauth2/token",
+    "clientId": "client_id",
+    "clientSecret": "client_secret",
+    "scope": "read write",
+    "clientAuthentication": "header",
+    "tokenPrefix": "Bearer",
+    "tokenRefreshRatio": 0.75,
+    "tokenRequestTimeout": 10,
+    "tokenRetryDelay": 10,
+    "defaultExpiresIn": 3600
   },
   "mapping": [
     {

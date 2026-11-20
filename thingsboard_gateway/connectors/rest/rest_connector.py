@@ -419,7 +419,7 @@ class RESTConnector(Connector, Thread):
                                 }
                 security_config = request_config_object.get("security", {})
                 if security_config.get("type", "anonymous").lower() == "oauth2":
-                    request_dict["oauth2_auth"] = OAuth2ClientCredentialsAuth.from_config(
+                    request_dict["auth"] = OAuth2ClientCredentialsAuth.from_config(
                         security_config, self.__log, request_config_object.get("SSLVerify", True))
                 requests_from_tb[request_section].append(request_dict)
         self.__log.debug("Requests from TB: %s", requests_from_tb)
@@ -446,7 +446,7 @@ class RESTConnector(Connector, Thread):
                     security_configuration["password"],
                 )
             elif security_type == "oauth2":
-                security = request_dict["config"].get("oauth2_auth")
+                security = request_dict["config"].get("auth")
 
             cert = None
             if security_type == "cert":
