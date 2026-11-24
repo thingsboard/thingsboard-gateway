@@ -338,6 +338,8 @@ class TBGatewayService:
         self.__sync_device_shared_attrs_queue = SimpleQueue()
 
         self.__messages_confirmation_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4) # noqa
+        self.__rpc_to_devices_executor = concurrent.futures.ThreadPoolExecutor(max_workers=20,
+                                                                               thread_name_prefix='RPCToDevice') # noqa
 
         self.__updates_check_period_ms = 300000
         self.__updates_check_time = 0
@@ -604,6 +606,8 @@ class TBGatewayService:
             self.remote_handler.deactivate()
         if hasattr(self, "_TBGatewayService__messages_confirmation_executor") is not None:
             self.__messages_confirmation_executor.shutdown(wait=True, cancel_futures=True)
+        if hasattr(self, "_TBGatewayService__rpc_to_devices_executor"):
+            self.__rpc_to_devices_executor.shutdown(wait=True, cancel_futures=True)
         if hasattr(self, "tb_client") and self.tb_client is not None:
             self.tb_client.disconnect()
             self.tb_client.stop()
@@ -1690,12 +1694,19 @@ class TBGatewayService:
                                         err_msg)
                     continue
 
-                response = connector.server_side_rpc_handler(rpc_request)
-                self.send_rpc_reply(response.device_name,
-                                    response.id,
-                                    dumps(response.message))
+                self.__rpc_to_devices_executor.submit(self.__process_rpc_to_device_connector, connector, rpc_request)
             except Exception as e:
                 log.error("Error while processing RPC request for device: %s", exc_info=e)
+
+    def __process_rpc_to_device_connector(self, connector, rpc_request):
+        try:
+            response = connector.server_side_rpc_handler(rpc_request)
+            self.send_rpc_reply(response.device_name,
+                                response.id,
+                                dumps(response.message))
+        except Exception as e:
+            log.error("Error while processing RPC request %s for device %s", rpc_request.id,
+                      rpc_request.device_name, exc_info=e)
 
     def _process_rpc_to_gateway(self, rpc_request):
         log.info("Received RPC request to the gateway, id: %s, method: %s",
