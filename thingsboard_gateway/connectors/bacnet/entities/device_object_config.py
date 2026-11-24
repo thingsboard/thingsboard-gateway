@@ -57,5 +57,9 @@ class DeviceObjectConfig:
             if network_mask:
                 address += '/' + network_mask
         if 'port' in config:
-            address += ':' + str(config.pop('port', 47808))
+            port = config.pop('port')
+            # An empty port means "use the default", so leave it out instead of
+            # producing an address with a trailing colon that bacpypes3 rejects.
+            if port is not None and str(port).strip():
+                address += ':' + str(port).strip()
         config['address'] = address
