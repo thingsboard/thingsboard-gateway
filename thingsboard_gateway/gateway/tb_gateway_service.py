@@ -338,6 +338,8 @@ class TBGatewayService:
         self.__sync_device_shared_attrs_queue = SimpleQueue()
 
         self.__messages_confirmation_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4) # noqa
+        self.__rpc_to_devices_executor = concurrent.futures.ThreadPoolExecutor(max_workers=20,
+                                                                               thread_name_prefix='RPCToDevice') # noqa
 
         self.__updates_check_period_ms = 300000
         self.__updates_check_time = 0
@@ -604,6 +606,8 @@ class TBGatewayService:
             self.remote_handler.deactivate()
         if hasattr(self, "_TBGatewayService__messages_confirmation_executor") is not None:
             self.__messages_confirmation_executor.shutdown(wait=True, cancel_futures=True)
+        if hasattr(self, "_TBGatewayService__rpc_to_devices_executor"):
+            self.__rpc_to_devices_executor.shutdown(wait=True, cancel_futures=True)
         if hasattr(self, "tb_client") and self.tb_client is not None:
             self.tb_client.disconnect()
             self.tb_client.stop()
@@ -1690,12 +1694,19 @@ class TBGatewayService:
                                         err_msg)
                     continue
 
-                response = connector.server_side_rpc_handler(rpc_request)
-                self.send_rpc_reply(response.device_name,
-                                    response.id,
-                                    dumps(response.message))
+                self.__rpc_to_devices_executor.submit(self.__process_rpc_to_device_connector, connector, rpc_request)
             except Exception as e:
                 log.error("Error while processing RPC request for device: %s", exc_info=e)
+
+    def __process_rpc_to_device_connector(self, connector, rpc_request):
+        try:
+            response = connector.server_side_rpc_handler(rpc_request)
+            self.send_rpc_reply(response.device_name,
+                                response.id,
+                                dumps(response.message))
+        except Exception as e:
+            log.error("Error while processing RPC request %s for device %s", rpc_request.id,
+                      rpc_request.device_name, exc_info=e)
 
     def _process_rpc_to_gateway(self, rpc_request):
         log.info("Received RPC request to the gateway, id: %s, method: %s",
@@ -1887,48 +1898,46 @@ class TBGatewayService:
 
         device_type = device_type if device_type is not None else 'default'
 
-        if device_name in self.__renamed_devices:
+        original_device_name = TBUtility.get_dict_key_by_value(self.__renamed_devices, device_name)
+        registration_key = original_device_name if original_device_name is not None else device_name
+        platform_device_name = self.__renamed_devices.get(device_name, device_name)
+
+        if registration_key in self.__connected_devices:
             if self.__sync_devices_shared_attributes_on_connect and hasattr(content['connector'],
                                                                             'get_device_shared_attributes_keys'):
-                self.__sync_device_shared_attrs_queue.put((self.__renamed_devices[device_name], content['connector']))
-            self.__disconnected_devices.pop(device_name, None)
+                self.__sync_device_shared_attrs_queue.put((platform_device_name, content['connector']))
+            self.__disconnected_devices.pop(registration_key, None)
             self.__save_persistent_devices()
             return True
 
-        if (device_name in self.__connected_devices or TBUtility.get_dict_key_by_value(self.__renamed_devices, device_name) is not None):
-            if self.__sync_devices_shared_attributes_on_connect and hasattr(content['connector'],'get_device_shared_attributes_keys'):
-                self.__sync_device_shared_attrs_queue.put((device_name, content['connector']))
-
-            return True
-
-
-        self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
-        self.__saved_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
+        self.__connected_devices[registration_key] = {**content, DEVICE_TYPE_PARAMETER: device_type}
+        self.__saved_devices[registration_key] = {**content, DEVICE_TYPE_PARAMETER: device_type}
+        self.__disconnected_devices.pop(registration_key, None)
         self.__save_persistent_devices()
-        self.tb_client.client.gw_connect_device(device_name, device_type).get()
-        if device_name in self.__saved_devices:
+        self.tb_client.client.gw_connect_device(platform_device_name, device_type).get()
+        if registration_key in self.__saved_devices:
             if content.get(CONNECTOR_PARAMETER) is not None:
                 connector_type = content['connector'].get_type()
                 connector_name = content['connector'].get_name()
                 try:
-                    if (self.__added_devices.get(device_name) is None
-                        or (self.__added_devices[device_name]['device_details']['connectorType'] != connector_type
-                            or self.__added_devices[device_name]['device_details']['connectorName'] != connector_name)):
+                    if (self.__added_devices.get(registration_key) is None
+                        or (self.__added_devices[registration_key]['device_details']['connectorType'] != connector_type
+                            or self.__added_devices[registration_key]['device_details']['connectorName'] != connector_name)):
                         device_details = {
                             'connectorType': connector_type,
                             'connectorName': connector_name
                         }
-                        self.__added_devices[device_name] = {"device_details": device_details,
-                                                             "last_send_ts": monotonic()}
-                        self.gw_send_attributes(device_name, device_details)
+                        self.__added_devices[registration_key] = {"device_details": device_details,
+                                                                  "last_send_ts": monotonic()}
+                        self.gw_send_attributes(platform_device_name, device_details)
                 except Exception as e:
                     global log
-                    log.error("Error on sending device details about the device %s", device_name, exc_info=e)
+                    log.error("Error on sending device details about the device %s", registration_key, exc_info=e)
                     return False
 
         if self.__sync_devices_shared_attributes_on_connect and hasattr(content['connector'],
                                                                         'get_device_shared_attributes_keys'):
-            self.__sync_device_shared_attrs_queue.put((device_name, content['connector']))
+            self.__sync_device_shared_attrs_queue.put((platform_device_name, content['connector']))
         return True
 
     def __sync_device_shared_attrs_loop(self):
