@@ -184,7 +184,7 @@
         "allowRedirects": true,
         "deviceNameFilter": "CERT.*",
         "attributeFilter": ".*",
-        "requestUrlExpression": "http://127.0.0.1:5002/",
+        "requestUrlExpression": "https://127.0.0.1:5002/",
         "valueExpression": "{\"deviceName\":\"${deviceName}\",\"${attributeKey}\":\"${attributeValue}\"}"
       },
       {
