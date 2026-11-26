@@ -288,6 +288,11 @@ class SNMPConnector(Connector, Thread):
                     StatisticsService.count_connector_bytes(self.name, response,
                                                             stat_parameter_name='connectorBytesReceived')
                 except SNMPTimeoutException:
+                    if self.__has_entry_request_settings(common_parameters, datatype_config):
+                        self._log.error("Timeout exception on device \"%s\" for key \"%s\"",
+                                        device["deviceName"],
+                                        datatype_config.get("key"))
+                        continue
                     self._log.error("Timeout exception on connection to device \"%s\" with ip: \"%s\"",
                                     device["deviceName"],
                                     device["ip"])
@@ -343,6 +348,13 @@ class SNMPConnector(Connector, Thread):
         timeout = datatype_config.get("timeout", common_parameters["timeout"])
         retries = datatype_config.get("retries", common_parameters["retries"])
         return {"timeout": float(timeout), "retries": max(int(retries), 1)}
+
+    @staticmethod
+    def __has_entry_request_settings(common_parameters, datatype_config):
+        keys = ["timeout", "retries"]
+        if common_parameters["version"] != SNMP_V3_VERSION:
+            keys.append("community")
+        return any(datatype_config.get(key) is not None for key in keys)
 
     def __get_total_timeout(self, common_parameters, datatype_config):
         request_settings = self.__get_request_settings(common_parameters, datatype_config)
