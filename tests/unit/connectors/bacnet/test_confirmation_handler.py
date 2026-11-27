@@ -23,7 +23,7 @@ from bacpypes3.constructeddata import SequenceOf
 from bacpypes3.pdu import Address
 from bacpypes3.primitivedata import ObjectIdentifier
 
-from thingsboard_gateway.connectors.bacnet.application import Application
+from thingsboard_gateway.connectors.bacnet.application import Application, RPM_REQUEST_SPECS_FIELD
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 
 
@@ -77,12 +77,12 @@ class BacnetConfirmationHandlerTestCase(IsolatedAsyncioTestCase):
 
     def _read_request(self):
         return ReadPropertyMultipleRequest(
-            listOfReadAccessSpecs=SequenceOf(ReadAccessSpecification)([
+            **{RPM_REQUEST_SPECS_FIELD: SequenceOf(ReadAccessSpecification)([
                 ReadAccessSpecification(
                     objectIdentifier=ObjectIdentifier('analog-value,1'),
                     listOfPropertyReferences=[PropertyIdentifier('present-value')],
                 ),
-            ]),
+            ])},
             destination=self.controller,
         )
 
