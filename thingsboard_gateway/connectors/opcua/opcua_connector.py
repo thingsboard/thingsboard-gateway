@@ -93,8 +93,6 @@ RPC_SET_SPLIT_PATTERNS = ["; ", ";=", "=", " "]
 
 class OpcUaConnector(Connector, Thread):
     def __init__(self, gateway: 'TBGatewayService', config, connector_type):
-        self.statistics = {'MessagesReceived': 0,
-                           'MessagesSent': 0}
         super().__init__()
         self.__scanning_nodes_cache = TTLCache(maxsize=100_000, ttl=3600)
         self._connector_type = connector_type
@@ -1107,7 +1105,8 @@ class OpcUaConnector(Connector, Thread):
                                 if device.subscription is None:
                                     device.subscription = await self.__client.create_subscription(
                                         self.__sub_check_period_in_millis, SubHandler(
-                                            self.__sub_data_to_convert, self.__log, self.status_change_callback))
+                                            self.__sub_data_to_convert, self.__log, self.status_change_callback,
+                                            self.name))
                                     if self.sub_keep_alive_period > 0 and device.subscription_watchlog_task is None and not self.__client_recreation_required:
                                         death_interval = self.__compute_subscription_death_threshold(device=device)
                                         device.subscription_watchlog_task = self.__loop.create_task(device.subscription_watchlog(death_interval=death_interval))
@@ -1220,6 +1219,7 @@ class OpcUaConnector(Connector, Thread):
                 batch = all_nodes[i:i + self.__max_nodes_per_read]
                 try:
                     values = await self.__client.read_attributes(batch)
+                    StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
                     self.__data_to_convert.put((values, received_ts, data_retrieving_started))
                 except Exception as e:
                     self.__log.warning("Failed to read batch from %i to %i: %s", i, i + self.__max_nodes_per_read, e)
@@ -1270,11 +1270,6 @@ class OpcUaConnector(Connector, Thread):
                 })
                 if converted_data:
                     self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
-
-                    StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
-                    # TODO: Should these counters be here, or on upper level?
-                    StatisticsService.count_connector_bytes(self.name, converted_data,
-                                                            stat_parameter_name='connectorBytesReceived')
             self.__log.info('Converted data from %s nodes', converted_nodes_count)
         except Exception as e:
             self.__log.exception("Error converting data: ", exc_info=e)
@@ -1286,10 +1281,7 @@ class OpcUaConnector(Connector, Thread):
     def __send_data_to_gateway_storage(self, data):
         data.metadata.update({'sendToStorageTs': int(time() * 1000)})
 
-        self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
         self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
-        self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-        self.__log.debug('Count data msg to storage: %s', self.statistics['MessagesSent'])
 
     @staticmethod
     def get_rpc_node_pattern_and_base_path(params, device, logger):
@@ -1630,6 +1622,7 @@ class OpcUaConnector(Connector, Thread):
                 await var.write_value(data_value)
                 self.__log.debug("Successfully wrote value with type casting %s to %s", value, path)
 
+            StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
             result['value'] = value
             return result
         except UaStringParsingError:
@@ -1665,6 +1658,7 @@ class OpcUaConnector(Connector, Thread):
         try:
             var = self.__client.get_node(path)
             result['value'] = await var.read_value()
+            StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
             return result
         except UaStringParsingError:
             error_response = f"Could not find identifier in string {path}"
@@ -1683,6 +1677,7 @@ class OpcUaConnector(Connector, Thread):
             var = await self.__client.nodes.root.get_child(path)
             method_id = '{}:{}'.format(var.nodeid.NamespaceIndex, method_name)
             result['result'] = await var.call_method(method_id, *arguments)
+            StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
             return result
         except Exception as e:
             result['error'] = e.__str__()
@@ -1757,11 +1752,12 @@ class OpcUaConnector(Connector, Thread):
 
 
 class SubHandler:
-    def __init__(self, queue, logger, status_change_callback):
+    def __init__(self, queue, logger, status_change_callback, connector_name):
         self.__log = logger
         self.__queue = queue
         self.last_subscription_activity = None
         self.__status_change_callback = status_change_callback
+        self.__connector_name = connector_name
 
     def status_change_notification(self, status):
         self.__status_change_callback(status)
@@ -1772,4 +1768,5 @@ class SubHandler:
     def datachange_notification(self, node, _, data):
         self.last_subscription_activity = monotonic()
         self.__log.trace("New data change event %s %s", node, data)
+        StatisticsService.count_connector_message(self.__connector_name, stat_parameter_name='connectorMsgsReceived')
         self.__queue.put((node, data, int(time() * 1000)))

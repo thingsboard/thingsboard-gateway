@@ -14,6 +14,7 @@
 
 import datetime
 import subprocess
+from copy import deepcopy
 from threading import Thread, RLock, Event
 from time import monotonic, sleep
 from platform import system as platform_system
@@ -28,13 +29,6 @@ class StatisticsService(Thread):
     ENABLED = False
     ENABLED_CUSTOM = False
     STATISTICS_STORAGE = {
-        'receivedBytesFromDevices': 0,
-        'convertedBytesFromDevice': 0,
-        'allReceivedBytesFromTB': 0,
-        'allBytesSentToTB': 0,
-        'allBytesSentToDevices': 0,
-        'eventsAdded': 0,
-        'eventsProcessed': 0,
         'msgsSentToPlatform': 0,
         'msgsReceivedFromPlatform': 0,
         'storageMsgPulled': 0,
@@ -54,6 +48,7 @@ class StatisticsService(Thread):
     #     }
     # }
     CONNECTOR_STATISTICS_STORAGE = {}
+    LAST_CONNECTOR_STATISTICS = {}
     __LOCK = RLock()
 
     def __init__(self, statistics_configuration, gateway, log, config_path=None):
@@ -110,11 +105,6 @@ class StatisticsService(Thread):
             cls.ENABLED_CUSTOM = False
 
     @classmethod
-    def add_bytes(cls, stat_type, bytes_count, stat_parameter_name=None, statistics_type='STATISTICS_STORAGE'):
-        if StatisticsService.ENABLED:
-            cls.add_count(stat_type, bytes_count, stat_parameter_name, statistics_type)
-
-    @classmethod
     def add_count(cls, stat_key, count=1, stat_parameter_name=None, statistics_type='STATISTICS_STORAGE'):
         if StatisticsService.ENABLED:
             if statistics_type == 'CONNECTOR_STATISTICS_STORAGE':
@@ -133,20 +123,19 @@ class StatisticsService(Thread):
         with cls.__LOCK:
             for key in cls.STATISTICS_STORAGE:
                 cls.STATISTICS_STORAGE[key] = 0
+            cls.LAST_CONNECTOR_STATISTICS = cls.CONNECTOR_STATISTICS_STORAGE
             cls.CONNECTOR_STATISTICS_STORAGE = {}
+
+    @classmethod
+    def get_last_connector_statistics(cls):
+        with cls.__LOCK:
+            return deepcopy(cls.LAST_CONNECTOR_STATISTICS)
 
     @staticmethod
     def count_connector_message(connector_name, stat_parameter_name, count=1):
         if StatisticsService.ENABLED:
             StatisticsService.add_count(connector_name, stat_parameter_name=stat_parameter_name,
                                         statistics_type='CONNECTOR_STATISTICS_STORAGE', count=count)
-
-    @staticmethod
-    def count_connector_bytes(connector_name, msg, stat_parameter_name):
-        if StatisticsService.ENABLED:
-            bytes_count = str(msg).__sizeof__()
-            StatisticsService.add_bytes(connector_name, bytes_count, stat_parameter_name,
-                                        statistics_type='CONNECTOR_STATISTICS_STORAGE')
 
     def __install_required_tools(self):
         if self._custom_command_config:

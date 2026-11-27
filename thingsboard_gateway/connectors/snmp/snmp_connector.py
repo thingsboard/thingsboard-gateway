@@ -98,11 +98,9 @@ class SNMPConnector(Connector, Thread):
         self._converter_log = init_logger(self.__gateway, self.name + "_converter",
                                           self.__config.get('logLevel', 'INFO'),
                                           enable_remote_logging=self.__config.get('enableRemoteLogging', False),
-                                          is_connector_logger=True, attr_name=self.name)
+                                          is_converter_logger=True, attr_name=self.name)
         self.__devices = self.__config["devices"]
         self.__privacy_dependencies_checked = False
-        self.statistics = {'MessagesReceived': 0,
-                           'MessagesSent': 0}
         self._default_converters = {
             "uplink": "SNMPUplinkConverter",
             "downlink": "SNMPDownlinkConverter"
@@ -221,12 +219,12 @@ class SNMPConnector(Connector, Thread):
         self.__trap_listener_closed.set()
 
     def __process_trap(self, device, trap_data):
+        StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
         converted_data: ConvertedData = device["uplink_converter"].convert(device, trap_data)
         if (converted_data is not None and
                 (converted_data.attributes_datapoints_count > 0 or
                  converted_data.telemetry_datapoints_count > 0)):
-            # TODO: update trap statistics collection after statistics refactoring
-            self.collect_statistic_and_send(self.get_name(), self.get_id(), converted_data)
+            self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
 
     def close(self):
         self.__stopped = True
@@ -256,11 +254,6 @@ class SNMPConnector(Connector, Thread):
     def get_config(self):
         return self.__config
 
-    def collect_statistic_and_send(self, connector_name, connector_id, data):
-        self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
-        self.__gateway.send_to_storage(connector_name, connector_id, data)
-        self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
-
     async def __process_data(self, device):
         common_parameters = self.__get_common_parameters(device)
         v3_client = None
@@ -281,12 +274,9 @@ class SNMPConnector(Connector, Thread):
                         self._log.error("Unknown method: %s, configuration is: %r", method, datatype_config)
                     v3_client, v3_client_created_at = self.__recreate_client_if_needed(
                         v3_client, v3_client_created_at, common_parameters, datatype_config)
-                    response = await self.__process_methods(method, common_parameters, datatype_config, v3_client)
+                    response = await self.__process_methods_with_statistics(method, common_parameters,
+                                                                            datatype_config, v3_client)
                     device_responses[datatype_config['key']] = response
-
-                    StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
-                    StatisticsService.count_connector_bytes(self.name, response,
-                                                            stat_parameter_name='connectorBytesReceived')
                 except SNMPTimeoutException:
                     if self.__has_entry_request_settings(common_parameters, datatype_config):
                         self._log.error("Timeout exception on device \"%s\" for key \"%s\"",
@@ -317,7 +307,18 @@ class SNMPConnector(Connector, Thread):
             if (converted_data is not None and
                     (converted_data.attributes_datapoints_count > 0 or
                      converted_data.telemetry_datapoints_count > 0)):
-                self.collect_statistic_and_send(self.get_name(), self.get_id(), converted_data)
+                self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
+
+    async def __process_methods_with_statistics(self, method, common_parameters, datatype_config, client=None):
+        try:
+            response = await self.__process_methods(method, common_parameters, datatype_config, client)
+        except ErrorResponse:
+            StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+            raise
+
+        if method in self.__methods:
+            StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+        return response
 
     def __recreate_client_if_needed(self, client, client_created_at, common_parameters, datatype_config):
         if common_parameters["version"] != SNMP_V3_VERSION:
@@ -483,8 +484,8 @@ class SNMPConnector(Connector, Thread):
                             attribute_request_config, {"params": value, "attribute": value})
                         downlink_config = {**attribute_request_config, result_key: converted_value}
                         result = self.__run_coroutine(
-                            self.__process_methods(attribute_request_config["method"], common_parameters,
-                                                   downlink_config),
+                            self.__process_methods_with_statistics(attribute_request_config["method"],
+                                                                   common_parameters, downlink_config),
                             min(self.__get_total_timeout(common_parameters, attribute_request_config),
                                 ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT))
                         self._log.debug(
@@ -583,9 +584,9 @@ class SNMPConnector(Connector, Thread):
         timeout = min(self.__get_total_timeout(common_parameters, rpc_config), float(rpc_request.timeout))
 
         try:
-            result = self.__run_coroutine(self.__process_methods(rpc_config["method"],
-                                                                 common_parameters,
-                                                                 downlink_config),
+            result = self.__run_coroutine(self.__process_methods_with_statistics(rpc_config["method"],
+                                                                                 common_parameters,
+                                                                                 downlink_config),
                                           timeout)
         except FutureTimeoutError:
             return self.__rpc_error_response(

@@ -18,7 +18,6 @@ from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -27,9 +26,9 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
         self._log = logger
         self.__config = config
 
-    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                       end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
+        StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
+
         converted_data = ConvertedData(device_name=self.__config['deviceName'],
                                        device_type=self.__config['deviceType'])
 
@@ -74,7 +73,6 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
                     except Exception as e:
                         self._log.exception(e)
         except Exception as e:
-            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.exception(e)
 
         self._log.debug("Converted data: %s", converted_data)

@@ -50,7 +50,6 @@ class GrpcOpcUaConnector(GwGrpcConnector):
         self.__config = self.connection_config['config'][list(self.connection_config['config'].keys())[0]]
         self._connector_type = 'opcua'
         self.name = self.__config.get("name", 'MQTT Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
-        self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
         self.__server_conf = self.__config.get("server")
 
         self.__interest_nodes = []
@@ -468,9 +467,7 @@ class GrpcOpcUaConnector(GwGrpcConnector):
                             device_info[information_types[information_type]] = []
 
                         converted_data = converter.convert((config_path, information_path), information_value)
-                        self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                         self.data_to_send.append(converted_data)
-                        self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                         log.debug("Data to ThingsBoard: %s", converted_data)
 
                         if not self.__server_conf.get("disableSubscriptions", False):

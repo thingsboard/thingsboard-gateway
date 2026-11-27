@@ -56,7 +56,3 @@ class GrpcConnector(Connector):
         converter_config = {"message_type": DownlinkMessageType.GatewayDeviceRpcRequestMsg}
         message_to_connector = self.__downlink_converter.convert(converter_config, content)
         self.__server_manager.write(self.name, message_to_connector, self.__session_id)
-
-    @property
-    def statistics(self):
-        return self.__server_manager.get_connector_statistics(self.__session_id)

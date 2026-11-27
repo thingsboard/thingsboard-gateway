@@ -4,15 +4,12 @@ from re import findall
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class BytesGrpcMqttUplinkConverter(MqttUplinkConverter):
     def __init__(self, config):
         self.__config = config.get('converter')
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
     def convert(self, topic, data):
         datatypes = {"attributes": "attributes",
                      "timeseries": "telemetry"}
