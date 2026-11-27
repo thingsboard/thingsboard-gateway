@@ -119,7 +119,7 @@ class GatewayDeviceUtil:
                                   password=GatewayDeviceUtil.DEFAULT_PASSWORD)
                 result = rest_client.get_attributes_by_scope(cls.GATEWAY_DEVICE.id, 'SERVER_SCOPE', 'lastActivityTime')
                 if len(result):
-                    return result[0].get('lastUpdateTs', 0) / 1000 >= start_time
+                    return (result[0].last_update_ts or 0) / 1000 >= start_time
 
                 return False
             except IndexError:
