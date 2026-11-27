@@ -32,7 +32,7 @@ class OpcuaAttributesUpdatesTest(BaseOpcuaTest):
         actual_values = self.client.get_latest_timeseries(self.device.id,
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (key, value) in expected_values.items():
-            self.assertEqual(value, actual_values[key][0]['value'],
+            self.assertEqual(value, actual_values[key][0].value,
                              f'Value is not equal for the next telemetry key: {key}')
         self.reset_node_default_values(
             path_to_default_values='test_values/attrs_update/opcua_paths_default_values.json')
@@ -47,7 +47,7 @@ class OpcuaAttributesUpdatesTest(BaseOpcuaTest):
         actual_values = self.client.get_latest_timeseries(self.device.id,
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (key, value) in expected_values.items():
-            self.assertEqual(value, actual_values[key][0]['value'],
+            self.assertEqual(value, actual_values[key][0].value,
                              f'Value is not equal for the next telemetry key: {key}')
         self.reset_node_default_values(
             path_to_default_values='test_values/attrs_update/opcua_paths_default_values.json')
@@ -62,7 +62,7 @@ class OpcuaAttributesUpdatesTest(BaseOpcuaTest):
         actual_values = self.client.get_latest_timeseries(self.device.id,
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (key, value) in expected_values.items():
-            self.assertEqual(value, actual_values[key][0]['value'],
+            self.assertEqual(value, actual_values[key][0].value,
                              f'Value is not equal for the next telemetry key: {key}')
         self.reset_node_default_values(
             path_to_default_values='test_values/attrs_update/opcua_identifier_default_values.json')
@@ -77,7 +77,7 @@ class OpcuaAttributesUpdatesTest(BaseOpcuaTest):
         actual_values = self.client.get_latest_timeseries(self.device.id,
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (key, value) in expected_values.items():
-            self.assertEqual(value, actual_values[key][0]['value'],
+            self.assertEqual(value, actual_values[key][0].value,
                              f'Value is not equal for the next telemetry key: {key}')
         self.reset_node_default_values(
             path_to_default_values='test_values/attrs_update/opcua_different_types_attributes_update_default_values.json')
@@ -92,7 +92,7 @@ class OpcuaAttributesUpdatesTest(BaseOpcuaTest):
         actual_values = self.client.get_latest_timeseries(self.device.id,
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (key, value) in expected_values.items():
-            self.assertEqual(value, actual_values[key][0]['value'],
+            self.assertEqual(value, actual_values[key][0].value,
                              f'Value is not equal for the next telemetry key: {key}')
         self.reset_node_default_values(
             path_to_default_values='test_values/attrs_update/opcua_foreign_device_nodes_default_values.json')

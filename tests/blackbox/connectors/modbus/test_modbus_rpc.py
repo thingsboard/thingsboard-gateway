@@ -286,11 +286,11 @@ class ModbusRpcWritingTest(ModbusRpcTest):
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits' and _type == '4bits':
-                latest_ts[_type][0]['value'] = loads(latest_ts[_type][0]['value'])
+                latest_ts[_type][0].value = loads(latest_ts[_type][0].value)
             else:
                 value = str(value)
 
-            self.assertEqual(value, latest_ts[_type][0]['value'],
+            self.assertEqual(value, latest_ts[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_writing_input_registers_rpc_big(self):
@@ -314,11 +314,11 @@ class ModbusRpcWritingTest(ModbusRpcTest):
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
-                latest_ts[_type][0]['value'] = loads(latest_ts[_type][0]['value'])
+                latest_ts[_type][0].value = loads(latest_ts[_type][0].value)
             else:
                 value = str(value)
 
-            self.assertEqual(value, latest_ts[_type][0]['value'],
+            self.assertEqual(value, latest_ts[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_writing_holding_registers_rpc_little(self):
@@ -342,11 +342,11 @@ class ModbusRpcWritingTest(ModbusRpcTest):
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
-                latest_ts[_type][0]['value'] = loads(latest_ts[_type][0]['value'])
+                latest_ts[_type][0].value = loads(latest_ts[_type][0].value)
             else:
                 value = str(value)
 
-            self.assertEqual(value, latest_ts[_type][0]['value'],
+            self.assertEqual(value, latest_ts[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_writing_holding_registers_rpc_big(self):
@@ -370,11 +370,11 @@ class ModbusRpcWritingTest(ModbusRpcTest):
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
-                latest_ts[_type][0]['value'] = loads(latest_ts[_type][0]['value'])
+                latest_ts[_type][0].value = loads(latest_ts[_type][0].value)
             else:
                 value = str(value)
 
-            self.assertEqual(value, latest_ts[_type][0]['value'],
+            self.assertEqual(value, latest_ts[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_writing_coils_rpc_little(self):
@@ -398,11 +398,11 @@ class ModbusRpcWritingTest(ModbusRpcTest):
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
-                latest_ts[_type][0]['value'] = loads(latest_ts[_type][0]['value'])
+                latest_ts[_type][0].value = loads(latest_ts[_type][0].value)
             else:
                 value = str(value)
 
-            self.assertEqual(value, latest_ts[_type][0]['value'],
+            self.assertEqual(value, latest_ts[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_writing_coils_rpc_big(self):
@@ -426,11 +426,11 @@ class ModbusRpcWritingTest(ModbusRpcTest):
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
-                latest_ts[_type][0]['value'] = loads(latest_ts[_type][0]['value'])
+                latest_ts[_type][0].value = loads(latest_ts[_type][0].value)
             else:
                 value = str(value)
 
-            self.assertEqual(value, latest_ts[_type][0]['value'],
+            self.assertEqual(value, latest_ts[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_writing_discrete_inputs_rpc_little(self):
@@ -454,11 +454,11 @@ class ModbusRpcWritingTest(ModbusRpcTest):
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
-                latest_ts[_type][0]['value'] = loads(latest_ts[_type][0]['value'])
+                latest_ts[_type][0].value = loads(latest_ts[_type][0].value)
             else:
                 value = str(value)
 
-            self.assertEqual(value, latest_ts[_type][0]['value'],
+            self.assertEqual(value, latest_ts[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_writing_discrete_inputs_rpc_big(self):
@@ -482,9 +482,9 @@ class ModbusRpcWritingTest(ModbusRpcTest):
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
-                latest_ts[_type][0]['value'] = loads(latest_ts[_type][0]['value'])
+                latest_ts[_type][0].value = loads(latest_ts[_type][0].value)
             else:
                 value = str(value)
 
-            self.assertEqual(value, latest_ts[_type][0]['value'],
+            self.assertEqual(value, latest_ts[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')

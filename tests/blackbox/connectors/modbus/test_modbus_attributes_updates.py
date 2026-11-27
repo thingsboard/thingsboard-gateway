@@ -158,9 +158,9 @@ class ModbusAttributesUpdatesTest(BaseTest):
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
-                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+                actual_values[_type][0].value = loads(actual_values[_type][0].value)
 
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
@@ -191,9 +191,9 @@ class ModbusAttributesUpdatesTest(BaseTest):
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
-                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+                actual_values[_type][0].value = loads(actual_values[_type][0].value)
 
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
@@ -225,9 +225,9 @@ class ModbusAttributesUpdatesTest(BaseTest):
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits' or _type == 'bit':
-                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+                actual_values[_type][0].value = loads(actual_values[_type][0].value)
 
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
@@ -255,9 +255,9 @@ class ModbusAttributesUpdatesTest(BaseTest):
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits' or _type == 'bit':
-                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+                actual_values[_type][0].value = loads(actual_values[_type][0].value)
 
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
@@ -282,9 +282,9 @@ class ModbusAttributesUpdatesTest(BaseTest):
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
-                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+                actual_values[_type][0].value = loads(actual_values[_type][0].value)
 
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
@@ -320,9 +320,9 @@ class ModbusAttributesUpdatesTest(BaseTest):
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
-                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+                actual_values[_type][0].value = loads(actual_values[_type][0].value)
 
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
@@ -350,9 +350,9 @@ class ModbusAttributesUpdatesTest(BaseTest):
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits' or _type == 'bit':
-                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+                actual_values[_type][0].value = loads(actual_values[_type][0].value)
 
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
@@ -378,10 +378,10 @@ class ModbusAttributesUpdatesTest(BaseTest):
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits' or _type == 'bit':
-                LOG.info(f'Actual value: {actual_values[_type][0]["value"]}')
-                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+                LOG.info(f'Actual value: {actual_values[_type][0].value}')
+                actual_values[_type][0].value = loads(actual_values[_type][0].value)
 
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
@@ -405,9 +405,9 @@ class ModbusAttributesUpdatesTest(BaseTest):
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits' or _type == 'bit':
-                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+                actual_values[_type][0].value = loads(actual_values[_type][0].value)
 
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default

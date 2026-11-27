@@ -33,7 +33,7 @@ class OpcUaUplinkMessagesTest(BaseOpcuaTest):
             self.CONFIG_PATH + 'test_values/uplink/different_paths_finding_methods_values.json'
         )
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_opcua_relative_path(self):
@@ -50,7 +50,7 @@ class OpcUaUplinkMessagesTest(BaseOpcuaTest):
             self.CONFIG_PATH + 'test_values/uplink/different_paths_finding_methods_values.json'
         )
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_opcua_with_different_identifier_types(self):
@@ -67,7 +67,7 @@ class OpcUaUplinkMessagesTest(BaseOpcuaTest):
             self.CONFIG_PATH + 'test_values/uplink/different_identifier_finding_methods_values.json'
         )
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_opcua_with_different_types(self):
@@ -84,7 +84,7 @@ class OpcUaUplinkMessagesTest(BaseOpcuaTest):
             self.CONFIG_PATH + 'test_values/uplink/different_types_finding_methods_values.json'
         )
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_opcua_with_relative_path_and_identifier_as_device_node(self):
@@ -101,7 +101,7 @@ class OpcUaUplinkMessagesTest(BaseOpcuaTest):
             self.CONFIG_PATH + 'test_values/uplink/different_paths_finding_methods_values.json'
         )
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
 

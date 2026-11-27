@@ -133,7 +133,7 @@ class ModbusUplinkMessagesTest(BaseTest):
 
         # check that timestamps are equal
         for ts_key in telemetry_keys:
-            self.assertNotEqual(actual_values[ts_key][0]['ts'], latest_ts_1[ts_key][0]['ts'],
+            self.assertNotEqual(actual_values[ts_key][0].ts, latest_ts_1[ts_key][0].ts,
                              f'Timestamps are equal for the next telemetry key: {ts_key}')
 
     def test_send_on_change_report_strategy(self):
@@ -147,7 +147,7 @@ class ModbusUplinkMessagesTest(BaseTest):
 
         # check that timestamps are equal
         for ts_key in telemetry_keys:
-            self.assertEqual(actual_values[ts_key][0]['ts'], latest_ts_1[ts_key][0]['ts'],
+            self.assertEqual(actual_values[ts_key][0].ts, latest_ts_1[ts_key][0].ts,
                              f'Timestamps are not equal for the next telemetry key: {ts_key}')
 
     def test_send_on_report_period_report_strategy(self):
@@ -162,11 +162,11 @@ class ModbusUplinkMessagesTest(BaseTest):
         latest_ts_2 = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
 
         for ts_key in telemetry_keys:
-            self.assertTrue(latest_ts_1[ts_key][0]['ts'] - actual_values[ts_key][0]['ts'] >= 3000,
+            self.assertTrue(latest_ts_1[ts_key][0].ts - actual_values[ts_key][0].ts >= 3000,
                              f'Second update of telemetry was less in 3 seconds for key: {ts_key}')
 
         for ts_key in telemetry_keys:
-            self.assertTrue(latest_ts_2[ts_key][0]['ts'] - actual_values[ts_key][0]['ts'] >= 10000,
+            self.assertTrue(latest_ts_2[ts_key][0].ts - actual_values[ts_key][0].ts >= 10000,
                              f'Next update of telemetry was less in 10 seconds, expected - ~15 seconds for key: {ts_key}')
 
     def test_send_on_change_or_report_period_report_strategy_on_period_factor(self):
@@ -180,7 +180,7 @@ class ModbusUplinkMessagesTest(BaseTest):
 
         # check that timestamps are not equal
         for ts_key in telemetry_keys:
-            self.assertTrue(latest_ts_1[ts_key][0]['ts'] - actual_values[ts_key][0]['ts'] >= 5000,
+            self.assertTrue(latest_ts_1[ts_key][0].ts - actual_values[ts_key][0].ts >= 5000,
                              f'Second update of telemetry was less in 5 seconds for key: {ts_key}')
 
     def test_input_register_reading_little_endian(self):
@@ -215,7 +215,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'test_values/uplink/input_registers_values_little.json')
 
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_holding_register_reading_little_endian(self):
@@ -249,7 +249,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'test_values/uplink/holding_registers_values_little.json')
 
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_coils_reading_little_endian(self):
@@ -283,7 +283,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'test_values/uplink/discrete_and_coils_registers_values_little.json')
 
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_discrete_input_reading_little_endian(self):
@@ -307,7 +307,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'test_values/uplink/discrete_and_coils_registers_values_little.json')
 
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_input_register_reading_big_endian(self):
@@ -334,7 +334,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'test_values/uplink/input_registers_values_big.json')
 
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_holding_register_reading_big_endian(self):
@@ -358,7 +358,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'test_values/uplink/holding_registers_values_big.json')
 
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_coils_reading_big_endian(self):
@@ -383,7 +383,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'test_values/uplink/discrete_and_coils_registers_values_big.json')
 
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_discrete_input_reading_big_endian(self):
@@ -408,7 +408,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'test_values/uplink/discrete_and_coils_registers_values_big.json')
 
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(value, actual_values[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
 

@@ -253,11 +253,11 @@ class TestModbusRename(ModbusRenameBaseTestClass):
         latest_ts = self.client.get_latest_timeseries(updated_device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
-                latest_ts[_type][0]['value'] = loads(latest_ts[_type][0]['value'])
+                latest_ts[_type][0].value = loads(latest_ts[_type][0].value)
             else:
                 value = str(value)
 
-            self.assertEqual(value, latest_ts[_type][0]['value'],
+            self.assertEqual(value, latest_ts[_type][0].value,
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_device_reads_telemetry_after_rename(self):
@@ -276,7 +276,7 @@ class TestModbusRename(ModbusRenameBaseTestClass):
         for tag, val in expected.items():
             self.assertEqual(
                 val,
-                actual[tag][0]['value'],
+                actual[tag][0].value,
                 f"Telemetry '{tag}' mismatch after rename"
             )
 
@@ -297,10 +297,10 @@ class TestModbusRename(ModbusRenameBaseTestClass):
         )
         for tag, val in expected.items():
             if tag == 'bits':
-                actual[tag][0]['value'] = loads(actual[tag][0]['value'])
+                actual[tag][0].value = loads(actual[tag][0].value)
             self.assertEqual(
                 val,
-                actual[tag][0]['value'],
+                actual[tag][0].value,
                 f"Attribute '{tag}' mismatch after rename"
             )
         self.update_device_shared_attributes("test_values/default_slave_values.json")
