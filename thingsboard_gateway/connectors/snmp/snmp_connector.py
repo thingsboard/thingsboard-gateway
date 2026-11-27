@@ -16,7 +16,7 @@ import asyncio
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from random import choice
 from re import fullmatch
-from socket import gethostbyname
+from socket import gaierror, gethostbyname
 from string import ascii_lowercase
 from threading import Event, Thread
 from time import monotonic, time
@@ -180,8 +180,8 @@ class SNMPConnector(Connector, Thread):
                 for device in polling_devices:
                     try:
                         if device.get("previous_poll_time", 0) + device.get("pollPeriod", 10000) < current_time:
-                            await self.__process_data(device)
                             device["previous_poll_time"] = current_time
+                            await self.__process_data(device)
                     except Exception as e:
                         self._log.exception(e)
                 if self.__stopped:
@@ -262,7 +262,11 @@ class SNMPConnector(Connector, Thread):
         self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
 
     async def __process_data(self, device):
-        common_parameters = self.__get_common_parameters(device)
+        try:
+            common_parameters = self.__get_common_parameters(device)
+        except gaierror as e:
+            self._log.error("Cannot resolve host \"%s\" of device \"%s\": %s", device["ip"], device["deviceName"], e)
+            return
         v3_client = None
         v3_client_created_at = 0
         device_responses = {}
@@ -308,6 +312,13 @@ class SNMPConnector(Connector, Thread):
                                     device["deviceName"],
                                     datatype_config.get("key"),
                                     format_snmp_error(e))
+                except OSError as e:
+                    self._log.error("Connection error on device \"%s\" with ip: \"%s\", port: %s: %s",
+                                    device["deviceName"],
+                                    device["ip"],
+                                    common_parameters["port"],
+                                    e)
+                    return
                 except Exception as e:
                     self._log.exception(e)
 
@@ -498,6 +509,10 @@ class SNMPConnector(Connector, Thread):
         except SnmpError as e:
             self._log.error("SNMP error on attribute update for device \"%s\": %s",
                             content.get("device"), format_snmp_error(e))
+        except FutureTimeoutError:
+            self._log.error("Timeout waiting for attribute update response from device \"%s\"", content.get("device"))
+        except OSError as e:
+            self._log.error("Connection error on attribute update for device \"%s\": %s", content.get("device"), e)
         except Exception as e:
             self._log.exception(e)
 
@@ -594,6 +609,8 @@ class SNMPConnector(Connector, Thread):
         except SNMPTimeoutException:
             return self.__rpc_error_response(
                 rpc_request, f'Timeout exception on connection to device {device["deviceName"]}')
+        except OSError as e:
+            return self.__rpc_error_response(rpc_request, f'Connection error on device {device["deviceName"]}: {e}')
 
         result = to_json_safe(result)
         self._log.trace('RPC result: %s', result)
